@@ -15,12 +15,14 @@ const pool = new Pool({
 
 const mapClient = r => ({
     ...r,
+    // 映射数据库下划线字段到前端驼峰
     isShipping: r.is_shipping,
     pcppLink: r.pcpp_link,
     wechatName: r.wechat_name, wechatId: r.wechat_id,
-    realName: r.real_name, trackingNumber: r.tracking_number,
+    realName: r.real_name, payerName: r.payer_name, // 新增
     xhsName: r.xhs_name, xhsId: r.xhs_id,
-    orderDate: r.order_date, deliveryDate: r.delivery_date,
+    trackingNumber: r.tracking_number,
+    orderDate: r.order_date, depositDate: r.deposit_date, deliveryDate: r.delivery_date, // 新增
     address: r.address_line, zip: r.zip_code,
     totalPrice: parseFloat(r.total_price), actualCost: parseFloat(r.actual_cost), profit: parseFloat(r.profit)
 });
@@ -63,21 +65,21 @@ app.post('/api/clients', async (req, res) => {
     try {
         await pool.query(
             `INSERT INTO clients (
-                id, wechat_name, wechat_id, real_name, xhs_name, xhs_id, 
-                order_date, delivery_date, pcpp_link, is_shipping, tracking_number,
+                id, wechat_name, wechat_id, real_name, payer_name, xhs_name, xhs_id, 
+                order_date, deposit_date, delivery_date, pcpp_link, is_shipping, tracking_number,
                 address_line, city, state, zip_code, status,
                 total_price, actual_cost, profit, specs
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             ON CONFLICT (id) DO UPDATE SET
-                wechat_name=EXCLUDED.wechat_name, wechat_id=EXCLUDED.wechat_id, real_name=EXCLUDED.real_name,
+                wechat_name=EXCLUDED.wechat_name, wechat_id=EXCLUDED.wechat_id, real_name=EXCLUDED.real_name, payer_name=EXCLUDED.payer_name,
                 xhs_name=EXCLUDED.xhs_name, xhs_id=EXCLUDED.xhs_id,
-                order_date=EXCLUDED.order_date, delivery_date=EXCLUDED.delivery_date,
+                order_date=EXCLUDED.order_date, deposit_date=EXCLUDED.deposit_date, delivery_date=EXCLUDED.delivery_date,
                 pcpp_link=EXCLUDED.pcpp_link, is_shipping=EXCLUDED.is_shipping, tracking_number=EXCLUDED.tracking_number,
                 address_line=EXCLUDED.address_line, city=EXCLUDED.city, state=EXCLUDED.state, zip_code=EXCLUDED.zip_code,
                 status=EXCLUDED.status, total_price=EXCLUDED.total_price, actual_cost=EXCLUDED.actual_cost, profit=EXCLUDED.profit, specs=EXCLUDED.specs`,
             [
-                c.id, c.wechatName, c.wechatId, c.realName, c.xhsName, c.xhsId,
-                c.orderDate, c.deliveryDate, c.pcppLink, c.isShipping, c.trackingNumber,
+                c.id, c.wechatName, c.wechatId, c.realName, c.payerName, c.xhsName, c.xhsId,
+                c.orderDate, c.depositDate, c.deliveryDate, c.pcppLink, c.isShipping, c.trackingNumber,
                 c.address, c.city, c.state, c.zip, c.status,
                 c.totalPrice, c.actualCost, c.profit, JSON.stringify(c.specs)
             ]
