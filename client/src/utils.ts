@@ -4,22 +4,28 @@ export const API_BASE = `http://${window.location.hostname}:5001/api`;
 export const generateId = (): string => Math.random().toString(36).substr(2, 9);
 export const formatMoney = (n: number | undefined): string => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 
-export const CORE_CATS = ['CPU', 'CPU Cooler', 'Motherboard', 'Memory', 'Storage', 'Video Card', 'Case', 'Power Supply'];
-export const ALL_CATS = [...CORE_CATS, 'Case Fan', 'Monitor', 'Strimer', 'Custom', 'Other'];
+// 1. 只有这一套标准，全系统通用
+export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];
+export const ALL_CATS = [...CORE_CATS, 'FAN', 'MONITOR', 'CUSTOM', 'OTHER'];
 export const STATUS_STEPS = ['Deposit Paid', 'Parts Ordered', 'Building', 'Ready', 'Delivered'];
 
+// 2. 及其单纯的判断逻辑：进来的名字 -> 直接定死标准类目
 export const guessCategory = (name: string): string => {
-    if(!name) return 'Other';
+    if(!name) return 'OTHER';
     const n = name.toLowerCase();
+    
     if(n.includes('cpu')||n.includes('ryzen')||n.includes('intel')||n.includes('processor')) return 'CPU';
-    if(n.includes('motherboard')||n.includes('b650')||n.includes('z790')) return 'Motherboard';
-    if(n.includes('memory')||n.includes('ram')||n.includes('ddr5')) return 'Memory';
-    if(n.includes('video card')||n.includes('geforce')||n.includes('rtx')||n.includes('graphics card')) return 'Video Card';
-    if(n.includes('ssd')||n.includes('nvme')||n.includes('solid state')) return 'Storage';
-    if(n.includes('cooler')||n.includes('liquid')||n.includes('aio')) return 'CPU Cooler';
-    if(n.includes('supply')||n.includes('psu')||n.includes('modular')) return 'Power Supply';
-    if(n.includes('case')||n.includes('tower')||n.includes('chassis')) return 'Case';
-    return 'Other';
+    if(n.includes('motherboard')||n.includes('b650')||n.includes('z790')||n.includes('x670')) return 'MB';
+    if(n.includes('memory')||n.includes('ram')||n.includes('ddr5')) return 'RAM';
+    if(n.includes('video card')||n.includes('geforce')||n.includes('rtx')||n.includes('graphics card')) return 'GPU';
+    if(n.includes('ssd')||n.includes('nvme')||n.includes('m.2')) return 'SSD';
+    if(n.includes('cooler')||n.includes('liquid')||n.includes('aio')||n.includes('heatsink')) return 'COOLER';
+    if(n.includes('supply')||n.includes('psu')||n.includes('modular')) return 'PSU';
+    if(n.includes('case')||n.includes('tower')||n.includes('chassis')||n.includes('o11')) return 'CASE';
+    if(n.includes('fan')||n.includes('uni fan')) return 'FAN';
+    if(n.includes('monitor')||n.includes('display')) return 'MONITOR';
+    
+    return 'OTHER';
 };
 
 export const compressImage = (file: File): Promise<string> => {
