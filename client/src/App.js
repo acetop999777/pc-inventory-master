@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  LayoutDashboard, Users, Package, ScanLine, X, Search, CheckCircle, AlertCircle, History, Activity, TrendingUp, UserPlus, ArrowRight, Zap, Loader2, Barcode
+  LayoutDashboard, Users, Package, ScanLine, X, Search, CheckCircle, AlertCircle, History, Activity, TrendingUp, UserPlus, ArrowRight, Zap, Loader2, Scan
 } from 'lucide-react';
 
 /**
@@ -356,7 +356,7 @@ const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto h-full flex flex-col relative">
       <h1 className="text-2xl font-black text-center mb-6 tracking-widest uppercase flex items-center justify-center gap-3 italic"><Zap size={24} className="text-yellow-400 fill-yellow-400"/> Intake Node</h1>
-      <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm mb-6"><form onSubmit={handleBarcodeSubmit}><div className="relative"><Barcode className="absolute left-4 top-4 text-slate-300" size={24}/><input ref={inputRef} autoFocus className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-12 text-xl font-black font-mono outline-none" placeholder="AWAITING PULSE..." value={inputCode} onChange={e => setInputCode(e.target.value)} />{isScanning && <Loader2 className="absolute right-4 top-4.5 animate-spin" size={24}/>}</div></form></div>
+      <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm mb-6"><form onSubmit={handleBarcodeSubmit}><div className="relative"><Scan className="absolute left-4 top-4 text-slate-300" size={24}/><input ref={inputRef} autoFocus className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-12 text-xl font-black font-mono outline-none" placeholder="AWAITING PULSE..." value={inputCode} onChange={e => setInputCode(e.target.value)} />{isScanning && <Loader2 className="absolute right-4 top-4.5 animate-spin" size={24}/>}</div></form></div>
       <div className="flex-1 overflow-y-auto space-y-4 pb-28 px-1 no-scrollbar">
           {batchList.map(item => (
             <div key={item.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm animate-in slide-in-from-bottom-2 flex flex-col gap-4">
