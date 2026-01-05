@@ -13,12 +13,12 @@ const pool = new Pool({
   port: 5432,
 });
 
-// Helper
 const mapClient = r => ({
     ...r,
     isShipping: r.is_shipping,
     pcppLink: r.pcpp_link,
     wechatName: r.wechat_name, wechatId: r.wechat_id,
+    realName: r.real_name, trackingNumber: r.tracking_number,
     xhsName: r.xhs_name, xhsId: r.xhs_id,
     orderDate: r.order_date, deliveryDate: r.delivery_date,
     address: r.address_line, zip: r.zip_code,
@@ -36,7 +36,6 @@ app.post('/api/inventory/batch', async (req, res) => {
     try {
         await client.query('BEGIN');
         for (const item of items) {
-            // Check existence
             const { rows } = await client.query('SELECT * FROM inventory WHERE id = $1', [item.id]);
             if (rows.length > 0) {
                 await client.query(
@@ -64,21 +63,21 @@ app.post('/api/clients', async (req, res) => {
     try {
         await pool.query(
             `INSERT INTO clients (
-                id, wechat_name, wechat_id, xhs_name, xhs_id, 
-                order_date, delivery_date, pcpp_link, is_shipping,
+                id, wechat_name, wechat_id, real_name, xhs_name, xhs_id, 
+                order_date, delivery_date, pcpp_link, is_shipping, tracking_number,
                 address_line, city, state, zip_code, status,
                 total_price, actual_cost, profit, specs
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
             ON CONFLICT (id) DO UPDATE SET
-                wechat_name=EXCLUDED.wechat_name, wechat_id=EXCLUDED.wechat_id,
+                wechat_name=EXCLUDED.wechat_name, wechat_id=EXCLUDED.wechat_id, real_name=EXCLUDED.real_name,
                 xhs_name=EXCLUDED.xhs_name, xhs_id=EXCLUDED.xhs_id,
                 order_date=EXCLUDED.order_date, delivery_date=EXCLUDED.delivery_date,
-                pcpp_link=EXCLUDED.pcpp_link, is_shipping=EXCLUDED.is_shipping,
+                pcpp_link=EXCLUDED.pcpp_link, is_shipping=EXCLUDED.is_shipping, tracking_number=EXCLUDED.tracking_number,
                 address_line=EXCLUDED.address_line, city=EXCLUDED.city, state=EXCLUDED.state, zip_code=EXCLUDED.zip_code,
                 status=EXCLUDED.status, total_price=EXCLUDED.total_price, actual_cost=EXCLUDED.actual_cost, profit=EXCLUDED.profit, specs=EXCLUDED.specs`,
             [
-                c.id, c.wechatName, c.wechatId, c.xhsName, c.xhsId,
-                c.orderDate, c.deliveryDate, c.pcppLink, c.isShipping,
+                c.id, c.wechatName, c.wechatId, c.realName, c.xhsName, c.xhsId,
+                c.orderDate, c.deliveryDate, c.pcppLink, c.isShipping, c.trackingNumber,
                 c.address, c.city, c.state, c.zip, c.status,
                 c.totalPrice, c.actualCost, c.profit, JSON.stringify(c.specs)
             ]
@@ -87,12 +86,7 @@ app.post('/api/clients', async (req, res) => {
     } catch (e) { console.error(e); res.status(500).send(e); }
 });
 
-app.get('/api/logs', async (req, res) => {
-    try { const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200'); res.json(rows); } catch (e) { res.status(500).send(e); }
-});
-app.post('/api/logs', async (req, res) => {
-    const { id, timestamp, type, title, msg, meta } = req.body;
-    try { await pool.query('INSERT INTO logs (id, timestamp, type, title, msg, meta) VALUES ($1,$2,$3,$4,$5,$6)', [id, timestamp, type, title, msg, meta]); res.json({success:true}); } catch (e) { res.status(500).send(e); }
-});
+app.get('/api/logs', async (req, res) => { try { const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200'); res.json(rows); } catch (e) { res.status(500).send(e); } });
+app.post('/api/logs', async (req, res) => { const { id, timestamp, type, title, msg, meta } = req.body; try { await pool.query('INSERT INTO logs (id, timestamp, type, title, msg, meta) VALUES ($1,$2,$3,$4,$5,$6)', [id, timestamp, type, title, msg, meta]); res.json({success:true}); } catch (e) { res.status(500).send(e); } });
 
 app.listen(5000, () => console.log('Server on 5000'));
