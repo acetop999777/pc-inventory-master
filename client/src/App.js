@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, Package, ScanLine, Search, CheckCircle, AlertCircle, 
   Plus, Save, X, Truck, ChevronLeft, Box, Cpu, Scan, Trash2, ArrowRight, 
-  Calendar, CreditCard, MapPin, Link as LinkIcon
+  Calendar, CreditCard, MapPin, Link as LinkIcon, TrendingUp, User
 } from 'lucide-react';
 
 /**
