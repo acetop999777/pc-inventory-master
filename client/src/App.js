@@ -1,38 +1,42 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   LayoutDashboard, Users, Package, ScanLine, X, Search, CheckCircle, 
   AlertCircle, History, Activity, TrendingUp, UserPlus, ArrowRight, Zap, 
-  Loader2, Scan, ChevronLeft, Save, FileText, DollarSign, ExternalLink,
-  Cpu, HardDrive, Monitor, Fan
+  Loader2, Scan, ChevronLeft, Save, Filter, MapPin, Calendar, Smartphone,
+  MoreHorizontal, Plus, Trash2, Edit3, DollarSign
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 /**
- * Project: PC Inventory Master (Full Stack Edition)
- * Version: 2.2.0 Intelligence Update
- * Feature: PCPartPicker Parsing & Auto-Costing
+ * Project: PC Inventory Master
+ * Version: 3.0.0 Titanium Edition
+ * Features: WAC, Newegg Algo, High-Density UI, Mobile Optimized
  */
 
 const API_BASE = `http://${window.location.hostname}:5001/api`;
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
-const formatDateTime = (ts) => new Date(parseInt(ts)).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString() : '-';
 
-const CATEGORY_SHORTHAND = {
+// --- Constants ---
+const ORDER_FIELDS = [
+  'CPU', 'CPU Cooler', 'Motherboard', 'Memory', 'Storage', 'Video Card', 'Case', 'Power Supply', 
+  'Case Fan', 'Monitor', 'Strimer', 'Labor'
+];
+const CAT_DISPLAY = {
   'CPU': 'CPU', 'CPU Cooler': 'Cooler', 'Motherboard': 'MB', 'Memory': 'RAM', 'Storage': 'SSD',
-  'Video Card': 'GPU', 'Case': 'Case', 'Power Supply': 'PSU', 'Case Fan': 'Fan', 'Monitor': 'Mon', 'Other': 'Other'
+  'Video Card': 'GPU', 'Case': 'Case', 'Power Supply': 'PSU', 'Case Fan': 'Fan', 'Monitor': 'Mon',
+  'Strimer': 'Acc', 'Labor': 'Work', 'Other': 'Other'
 };
-const getCategoryDisplay = (cat) => CATEGORY_SHORTHAND[cat] || cat;
-const INITIAL_CATEGORIES = Object.keys(CATEGORY_SHORTHAND);
+const ALL_CATS = Object.keys(CAT_DISPLAY);
 
 // --- API Methods ---
 async function apiGet(endpoint) {
-    try { const res = await fetch(`${API_BASE}${endpoint}`); return await res.json(); } catch (e) { console.error("API Error", e); return []; }
+    try { const res = await fetch(`${API_BASE}${endpoint}`); return await res.json(); } catch (e) { return []; }
 }
 async function apiPost(endpoint, body) {
-    try { await fetch(`${API_BASE}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { console.error("API Post Error", e); }
+    try { await fetch(`${API_BASE}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { console.error(e); }
 }
-async function fetchProductInfo(code) {
+async function fetchUpcItem(code) {
   try {
     const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
     if (res.ok) {
@@ -43,398 +47,597 @@ async function fetchProductInfo(code) {
   return null;
 }
 
-// --- Main Component ---
+// --- Main App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [inventory, setInventory] = useState([]);
   const [clients, setClients] = useState([]);
   const [logs, setLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initData = async () => {
-        const [invData, logData, clientData] = await Promise.all([apiGet('/inventory'), apiGet('/logs'), apiGet('/clients')]);
-        if(invData) setInventory(invData);
-        if(logData) setLogs(logData);
-        if(clientData) setClients(clientData);
-        setLoading(false);
-    };
-    initData();
+    loadData();
   }, []);
 
-  const addNotification = (msg, type = 'success') => {
+  const loadData = async () => {
+    const [inv, cl, lg] = await Promise.all([apiGet('/inventory'), apiGet('/clients'), apiGet('/logs')]);
+    if(inv) setInventory(inv);
+    if(cl) setClients(cl);
+    if(lg) setLogs(lg);
+  };
+
+  const notify = (msg, type = 'success') => {
     const id = generateId();
     setNotifications(prev => [...prev, { id, msg, type }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
-  const createLog = (type, title, msg, meta = {}) => {
+  const logEvent = (type, title, msg, meta = {}) => {
     const newLog = { id: generateId(), timestamp: Date.now(), type, title, msg, meta };
     setLogs(prev => [newLog, ...prev]);
     apiPost('/logs', newLog);
   };
 
-  const syncInventoryItem = (item) => apiPost('/inventory/sync', item);
-  const syncClient = (client) => apiPost('/clients', client);
-
   const renderContent = () => {
-    if (loading) return <div className="h-full flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Loading Core...</div>;
     switch(activeTab) {
-      case 'dashboard': return <DashboardView clients={clients} inventory={inventory} logs={logs} />;
-      case 'clients': return <ClientsView clients={clients} setClients={setClients} createLog={createLog} addNotification={addNotification} syncClient={syncClient} />;
-      case 'scan': return <ScanView inventory={inventory} setInventory={setInventory} createLog={createLog} addNotification={addNotification} />;
-      case 'stock': return <StockView inventory={inventory} setInventory={setInventory} logs={logs} createLog={createLog} addNotification={addNotification} syncItem={syncInventoryItem} />;
-      case 'logs': return <LogsView logs={logs} />;
-      default: return <DashboardView />;
+      case 'dashboard': return <Dashboard clients={clients} inventory={inventory} logs={logs} />;
+      case 'clients': return <ClientHub clients={clients} inventory={inventory} setClients={setClients} logEvent={logEvent} notify={notify} refresh={loadData} />;
+      case 'scan': return <IntakeNode inventory={inventory} setInventory={setInventory} logEvent={logEvent} notify={notify} refresh={loadData} />;
+      case 'stock': return <StockVault inventory={inventory} setInventory={setInventory} logs={logs} logEvent={logEvent} notify={notify} refresh={loadData} />;
+      default: return null;
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#F8FAFC] text-slate-900 font-sans overflow-hidden">
-      <div className="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+    <div className="flex flex-col h-screen bg-[#F1F5F9] text-slate-900 font-sans overflow-hidden select-none">
+      {/* Notifications */}
+      <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">
         {notifications.map(n => (
-          <div key={n.id} className={`pointer-events-auto px-5 py-3 rounded-2xl shadow-2xl border text-sm font-bold animate-in slide-in-from-right fade-in flex items-center gap-3 ${n.type === 'error' ? 'bg-white border-red-100 text-red-600' : 'bg-white border-emerald-100 text-emerald-600'}`}>
-            {n.type === 'error' ? <AlertCircle size={18}/> : <CheckCircle size={18}/>} {n.msg}
+          <div key={n.id} className={`pointer-events-auto px-4 py-3 rounded-xl shadow-2xl border text-xs font-bold flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-5 ${n.type === 'error' ? 'bg-red-50/90 border-red-100 text-red-600' : 'bg-emerald-50/90 border-emerald-100 text-emerald-600'}`}>
+            {n.type === 'error' ? <AlertCircle size={16}/> : <CheckCircle size={16}/>} {n.msg}
           </div>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto pb-24 no-scrollbar">{renderContent()}</div>
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 px-4">
-        <div className="flex items-center bg-white/90 backdrop-blur-2xl border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-[2rem] px-3 py-2 gap-2">
-          <NavButton icon={LayoutDashboard} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavButton icon={Users} label="Clients" active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} />
-          <NavButton icon={ScanLine} label="Inbound" active={activeTab === 'scan'} onClick={() => setActiveTab('scan')} />
-          <NavButton icon={Package} label="Stock" active={activeTab === 'stock'} onClick={() => setActiveTab('stock')} />
-          <div className="w-px h-8 bg-slate-200 mx-1"></div>
-          <NavButton icon={History} label="Logs" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
+
+      <div className="flex-1 overflow-y-auto pb-28 no-scrollbar touch-pan-y">{renderContent()}</div>
+
+      {/* Fixed Footer */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-t border-slate-200 pb-safe pt-2">
+        <div className="flex justify-around items-center max-w-md mx-auto h-16">
+          <NavBtn icon={LayoutDashboard} label="Dash" active={activeTab==='dashboard'} onClick={()=>setActiveTab('dashboard')}/>
+          <NavBtn icon={Users} label="Clients" active={activeTab==='clients'} onClick={()=>setActiveTab('clients')}/>
+          <NavBtn icon={ScanLine} label="Inbound" active={activeTab==='scan'} onClick={()=>setActiveTab('scan')}/>
+          <NavBtn icon={Package} label="Inventory" active={activeTab==='stock'} onClick={()=>setActiveTab('stock')}/>
         </div>
       </div>
     </div>
   );
 }
 
-const NavButton = ({ icon: Icon, label, active, onClick }) => (
-  <button onClick={onClick} className={`group relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${active ? 'bg-slate-900 text-white shadow-xl scale-110' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
-    <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-    <span className={`text-[9px] font-bold mt-1 uppercase tracking-tighter transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>{label}</span>
+const NavBtn = ({ icon: Icon, label, active, onClick }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 w-16 transition-all ${active ? 'text-slate-900 scale-105' : 'text-slate-400'}`}>
+    <div className={`p-1.5 rounded-full ${active ? 'bg-slate-100' : ''}`}><Icon size={22} strokeWidth={active?2.5:2} /></div>
+    <span className="text-[9px] font-bold uppercase tracking-tight">{label}</span>
   </button>
 );
 
-// --- Sub Views ---
-
-const DashboardView = ({ clients, inventory, logs }) => {
-  const totalStockValue = inventory.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-  return (
-    <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
-      <header><h1 className="text-3xl font-black text-slate-900 tracking-tight">Console</h1><p className="text-slate-400 font-medium mt-1">v2.2.0 • Intelligence Active</p></header>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Stock Value" value={formatCurrency(totalStockValue)} icon={Package} color="text-blue-600" bg="bg-blue-50" />
-        <StatCard label="Active Clients" value={clients.length} icon={Users} color="text-amber-600" bg="bg-amber-50" />
-        <StatCard label="Events" value={logs.length} icon={History} color="text-purple-600" bg="bg-purple-50" />
-      </div>
-    </div>
-  );
-};
-const StatCard = ({ label, value, icon: Icon, color, bg }) => (<div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"><div className={`p-3 rounded-2xl ${bg} ${color} w-fit mb-4`}><Icon size={22} strokeWidth={2.5}/></div><h3 className="text-2xl font-black text-slate-900 tracking-tighter">{value}</h3><p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">{label}</p></div>);
-const LogsView = ({ logs }) => (<div className="p-6 md:p-8 max-w-4xl mx-auto h-full flex flex-col"><header className="mb-8"><h1 className="text-2xl font-black tracking-widest uppercase text-slate-400">Audit Logs</h1></header><div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col p-4"><div className="overflow-y-auto flex-1 space-y-2">{logs.map(log => (<div key={log.id} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100"><div className={`p-2 rounded-xl shrink-0 ${log.type.startsWith('INV') ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}><Activity size={16}/></div><div className="flex-1 min-w-0"><div className="text-[10px] font-black uppercase text-slate-300 tracking-widest mb-0.5">{log.type}</div><div className="text-xs font-bold text-slate-800">{log.title}</div><div className="text-xs text-slate-400 truncate">{log.msg}</div></div><div className="text-[10px] font-mono text-slate-300">{formatDateTime(log.timestamp)}</div></div>))}</div></div></div>);
-
-const StockView = ({ inventory, setInventory, logs, createLog, addNotification, syncItem }) => {
-  const [selectedCat, setSelectedCat] = useState('All');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [adjustModalItem, setAdjustModalItem] = useState(null);
-  const [adjustQty, setAdjustQty] = useState(1);
-  const [adjustCost, setAdjustCost] = useState(0);
-  
-  const filteredInventory = inventory.filter(item => {
-    const matchesCat = selectedCat === 'All' || item.category === selectedCat;
-    const search = searchTerm.toLowerCase();
-    return matchesCat && (item.name.toLowerCase().includes(search) || (item.keyword || "").toLowerCase().includes(search));
-  });
-
-  const confirmAddStock = () => {
-    if (!adjustModalItem) return;
-    const curVal = adjustModalItem.quantity * adjustModalItem.cost;
-    const addVal = (parseInt(adjustQty) || 0) * (parseFloat(adjustCost) || 0);
-    const nQ = adjustModalItem.quantity + (parseInt(adjustQty) || 0);
-    const nW = nQ > 0 ? (curVal + addVal) / nQ : 0;
-    const newItem = { ...adjustModalItem, quantity: nQ, cost: parseFloat(nW.toFixed(2)) };
-    setInventory(prev => prev.map(i => i.id === adjustModalItem.id ? newItem : i));
-    syncItem(newItem);
-    createLog('INV_IN', `Restock: ${adjustModalItem.keyword || adjustModalItem.name}`, `Added ${adjustQty}. New WAC: ${formatCurrency(nW)}`);
-    setAdjustModalItem(null);
-    addNotification('Ledger Updated');
-  };
-
-  return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto h-full flex flex-col">
-      <header className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-black uppercase tracking-[0.2em] text-slate-800">The Vault</h1></div><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-300" size={18}/><input type="text" placeholder="Filter SKU/Key..." className="w-full md:w-72 pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl outline-none text-sm shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div></header>
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar">{['All', ...INITIAL_CATEGORIES].map(cat => (<button key={cat} onClick={() => setSelectedCat(cat)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all border ${selectedCat === cat ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>{getCategoryDisplay(cat)}</button>))}</div>
-      <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col"><div className="overflow-y-auto flex-1">{filteredInventory.map(item => (<div key={item.id} className="flex items-center p-4 border-b border-slate-50 hover:bg-slate-50 transition-all text-sm group"><div className="w-14 shrink-0 flex justify-center"><span className={`text-[10px] font-black uppercase bg-slate-100 px-1.5 py-0.5 rounded ${item.category === 'CPU' ? 'text-orange-500' : 'text-slate-400'}`}>{getCategoryDisplay(item.category)}</span></div><div className="flex-1 px-4 min-w-0"><div className="font-bold text-slate-800 truncate">{item.name}</div><div className="text-[10px] font-black text-slate-400 tracking-wider">#{item.keyword} • SKU: {item.sku}</div></div><div className="w-28 text-right font-black text-slate-900 tabular-nums">{formatCurrency(item.cost)}</div><div className="w-36 flex justify-center px-4"><button onClick={() => { setAdjustModalItem(item); setAdjustQty(1); setAdjustCost(item.cost); }} className="w-9 h-8 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors flex items-center justify-center font-bold">+</button></div><div className="w-24 text-right pr-2 font-black text-slate-300 tabular-nums">{formatCurrency(item.quantity * item.cost)}</div></div>))}</div></div>
-      {adjustModalItem && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[70] p-4 animate-in fade-in"><div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl"><div className="flex justify-between items-center mb-6 font-black uppercase tracking-widest text-xs"><h3>Protocol: Adjustment</h3><button onClick={() => setAdjustModalItem(null)} className="p-2 bg-slate-50 rounded-xl"><X size={20}/></button></div><div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6"><div className="font-black text-sm text-slate-800 truncate mb-1">{adjustModalItem.name}</div><div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-tighter"><span>Vault: {adjustModalItem.quantity}</span><span>Base: {formatCurrency(adjustModalItem.cost)}</span></div></div><div className="grid grid-cols-2 gap-4 mb-6"><div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block ml-1">Add Units</label><input type="number" className="w-full border-2 border-slate-100 rounded-2xl p-4 text-center font-black text-xl outline-none focus:border-slate-900 transition-all" value={adjustQty} onChange={e => setAdjustQty(e.target.value)} /></div><div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block ml-1">New Cost</label><input type="number" className="w-full border-2 border-slate-100 rounded-2xl p-4 text-center font-black text-xl outline-none focus:border-slate-900 transition-all" value={adjustCost} onChange={e => setAdjustCost(e.target.value)} /></div></div><button onClick={confirmAddStock} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-5 rounded-[2rem] shadow-xl uppercase tracking-widest text-sm">Commit Transaction</button></div></div>)}
-    </div>
-  );
-};
-
-const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
-  const [mode, setMode] = useState('scan');
-  const [inputCode, setInputCode] = useState('');
-  const [batchList, setBatchList] = useState([]);
+// --------------------------------------------------------------------------------
+// VIEW: INTAKE NODE (Newegg Parser + Batch Scanner)
+// --------------------------------------------------------------------------------
+const IntakeNode = ({ inventory, setInventory, logEvent, notify, refresh }) => {
+  const [mode, setMode] = useState('scan'); // 'scan' | 'newegg'
+  const [batch, setBatch] = useState([]);
+  const [inputVal, setInputVal] = useState('');
   const [neweggText, setNeweggText] = useState('');
-  const [parsedItems, setParsedItems] = useState([]);
-  const [showReview, setShowReview] = useState(false);
-  const inputRef = useRef(null);
 
-  const handleBarcodeSubmit = async (e) => {
+  // 1. Scan/Manual Logic
+  const handleScan = async (e) => {
     e.preventDefault();
-    const code = inputCode.trim();
-    if (!code) return;
-    setInputCode(''); 
+    const code = inputVal.trim();
+    if(!code) return;
     
-    const existing = batchList.findIndex(i => i.code === code);
-    if (existing >= 0) {
-      setBatchList(prev => { const n = [...prev]; n[existing].quantity += 1; return n; });
+    // Check existing in batch
+    const inBatchIdx = batch.findIndex(i => i.sku === code);
+    if(inBatchIdx >= 0) {
+      const n = [...batch]; n[inBatchIdx].qtyInput += 1;
+      setBatch(n);
     } else {
-      const localMatch = inventory.find(i => i.sku === code || i.barcode === code);
-      if (localMatch) {
-        setBatchList(prev => [{ id: generateId(), code, name: localMatch.name, keyword: localMatch.keyword, category: localMatch.category, quantity: 1, cost: localMatch.cost, isNew: false }, ...prev]);
+      // Check Inventory DB
+      const dbMatch = inventory.find(i => i.sku === code || i.keyword === code);
+      if(dbMatch) {
+        setBatch(prev => [{ ...dbMatch, qtyInput: 1, costInput: 0, isNew: false }, ...prev]);
       } else {
-        const api = await fetchProductInfo(code);
-        setBatchList(prev => [{ id: generateId(), code, name: api ? api.name : 'Unknown SKU', keyword: '', category: api ? api.category : 'Other', quantity: 1, cost: 0, isNew: true }, ...prev]);
+        // API Lookup
+        const apiData = await fetchUpcItem(code);
+        setBatch(prev => [{
+          id: generateId(), category: apiData?.category || 'Other', name: apiData?.name || 'New Item',
+          keyword: '', sku: code, quantity: 0, cost: 0, qtyInput: 1, costInput: 0, isNew: true
+        }, ...prev]);
       }
     }
+    setInputVal('');
   };
 
-  const parseNeweggOrder = () => {
-    const lines = neweggText.split('\n').map(l => l.trim()).filter(l => l);
-    const gtMatch = neweggText.match(/Grand Total\s*\$?([\d,]+\.\d{2})/);
-    const grandTotal = gtMatch ? parseFloat(gtMatch[1].replace(/,/g, '')) : 0;
-    let items = [];
-
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('Item #:')) {
+  // 2. Newegg Logic (The complex math)
+  const parseNewegg = () => {
+    try {
+      const lines = neweggText.split('\n').map(l=>l.trim()).filter(l=>l);
+      // Find Grand Total
+      const grandTotalMatch = neweggText.match(/Grand Total\s*\$?([\d,]+\.\d{2})/);
+      const grandTotal = grandTotalMatch ? parseFloat(grandTotalMatch[1].replace(/,/g,'')) : 0;
+      
+      let parsed = [];
+      for(let i=0; i<lines.length; i++) {
+        if(lines[i].startsWith('Item #:')) {
           const sku = lines[i].split(':')[1].trim();
           let name = lines[i-1];
-          if (name.includes('Return Policy') || name.startsWith('COMBO')) name = lines[i-2];
-          let qty = 1; let listedTotal = 0;
-          for (let j = 1; j <= 6; j++) {
-             const nL = lines[i+j] || "";
-             if (/^\d+$/.test(nL) && lines[i+j+1]?.startsWith('$')) qty = parseInt(nL);
-             if (nL.startsWith('$') && !nL.includes('ea.')) { listedTotal = parseFloat(nL.replace(/[$,]/g, '')); break; }
+          if(name.includes('Return Policy') || name.startsWith('COMBO')) name = lines[i-2];
+          
+          let qty = 1; let listedPrice = 0; const isGift = lines.slice(Math.max(0,i-4), i).some(l=>l.includes('Free Gift'));
+          
+          // Heuristic search for Price
+          for(let j=1; j<=8; j++) {
+            const txt = lines[i+j] || "";
+            if(/^\d+$/.test(txt) && lines[i+j+1]?.startsWith('$')) qty = parseInt(txt);
+            if(txt.startsWith('$') && !txt.includes('ea.')) { listedPrice = parseFloat(txt.replace(/[$,]/g,'')); break; }
           }
-          let category = 'Other';
-          const n = name.toLowerCase();
-          if (n.includes('cpu')) category = 'CPU';
-          else if (n.includes('motherboard') || n.includes('b650') || n.includes('z790')) category = 'Motherboard';
-          else if (n.includes('memory') || n.includes('ddr5')) category = 'Memory';
-          else if (n.includes('video card') || n.includes('rtx')) category = 'Video Card';
 
-          items.push({ id: generateId(), sku, name, category, quantity: qty, listedTotal, cost: 0, keyword: '' });
+          // Fuzzy Match with existing DB
+          const dbMatch = inventory.find(inv => 
+            inv.sku === sku || inv.name.toLowerCase().includes(name.toLowerCase().substr(0, 15)) || (inv.keyword && name.toLowerCase().includes(inv.keyword.toLowerCase()))
+          );
+
+          parsed.push({
+            id: dbMatch ? dbMatch.id : generateId(),
+            category: dbMatch?.category || 'Other',
+            name: dbMatch?.name || name,
+            keyword: dbMatch?.keyword || '',
+            sku: dbMatch?.sku || sku,
+            quantity: dbMatch?.quantity || 0,
+            cost: dbMatch?.cost || 0,
+            qtyInput: qty,
+            listedPrice,
+            isGift,
+            isNew: !dbMatch
+          });
         }
-    }
-    const paidItems = items.filter(i => i.listedTotal > 0);
-    const sumListed = paidItems.reduce((s, i) => s + i.listedTotal, 0);
-    items = items.map(it => ({
-        ...it,
-        cost: sumListed > 0 ? parseFloat(((it.listedTotal / sumListed) * grandTotal / it.quantity).toFixed(2)) : 0
-    }));
+      }
 
-    setParsedItems(items);
-    setShowReview(true);
+      // Calculate Weighted Cost
+      const validItems = parsed.filter(i => !i.isGift);
+      const sumListed = validItems.reduce((acc, i) => acc + i.listedPrice, 0);
+      
+      parsed = parsed.map(item => {
+        let finalCost = 0;
+        if(!item.isGift && sumListed > 0) {
+          // Formula: (ItemListed / SumListed) * GrandTotal / Quantity
+          finalCost = ((item.listedPrice / sumListed) * grandTotal) / item.qtyInput;
+        }
+        return { ...item, costInput: parseFloat(finalCost.toFixed(2)) };
+      });
+
+      setBatch(parsed);
+      setMode('scan'); // Switch to review view
+      setNeweggText('');
+      notify(`Parsed ${parsed.length} items from Newegg`);
+
+    } catch(e) { notify('Newegg Parse Failed', 'error'); }
   };
 
-  const commitBatch = async (items) => {
-    let newInv = [...inventory];
-    const itemsToSync = [];
-    items.forEach(item => {
-      const targetSku = item.code || item.sku;
-      const idx = newInv.findIndex(i => i.sku === targetSku || i.barcode === targetSku);
-      const q = parseInt(item.quantity); const c = parseFloat(item.cost);
-      let finalItem;
-      if (idx >= 0) {
-        const ex = newInv[idx];
-        const nQ = ex.quantity + q;
-        const nW = (ex.quantity * ex.cost + q * c) / nQ;
-        finalItem = { ...ex, quantity: nQ, cost: parseFloat(nW.toFixed(2)), keyword: item.keyword || ex.keyword, category: item.category || ex.category };
-        newInv[idx] = finalItem;
-      } else {
-        finalItem = { id: generateId(), sku: targetSku, barcode: targetSku, keyword: item.keyword || '', name: item.name, category: item.category, quantity: q, cost: c };
-        newInv.push(finalItem);
-      }
-      itemsToSync.push(finalItem);
+  const commitBatch = async () => {
+    const payload = batch.map(item => {
+        const qInput = parseInt(item.qtyInput)||0;
+        const cInput = parseFloat(item.costInput)||0;
+        
+        // WAC Calculation: (OldQty * OldCost + InputQty * InputCost) / TotalQty
+        const oldTotalVal = item.quantity * item.cost;
+        const newTotalVal = qInput * cInput;
+        const finalQty = item.quantity + qInput;
+        const finalCost = finalQty > 0 ? (oldTotalVal + newTotalVal) / finalQty : 0;
+
+        return {
+            ...item,
+            quantity: finalQty,
+            cost: parseFloat(finalCost.toFixed(2))
+        };
     });
-    setInventory(newInv);
-    setBatchList([]); setParsedItems([]); setShowReview(false);
-    await apiPost('/inventory/batch', itemsToSync);
-    createLog('INV_IN', 'Batch Import', `Processed ${itemsToSync.length} items`);
-    addNotification('Inventory Updated');
+
+    await apiPost('/inventory/batch', payload);
+    logEvent('STOCK_IN', 'Batch Import', `Added ${batch.length} SKUs`);
+    setBatch([]);
+    notify('Inventory Updated Successfully');
+    refresh();
+  };
+
+  const removeBatchItem = (idx) => {
+    setBatch(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateBatchItem = (idx, field, val) => {
+    setBatch(prev => {
+        const n = [...prev];
+        n[idx] = { ...n[idx], [field]: val };
+        return n;
+    });
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto h-full flex flex-col relative">
-      <h1 className="text-2xl font-black text-center mb-6 tracking-widest uppercase flex items-center justify-center gap-3 italic"><Zap size={24} className="text-yellow-400 fill-yellow-400"/> Intake Node</h1>
-      <div className="flex p-1 bg-slate-200/50 rounded-2xl mb-8 max-w-xs mx-auto w-full shrink-0">
-        <button onClick={() => setMode('scan')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${mode === 'scan' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400'}`}>Laser</button>
-        <button onClick={() => setMode('newegg')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${mode === 'newegg' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400'}`}>Newegg</button>
-      </div>
-      {mode === 'scan' ? (
-        <div className="flex flex-col flex-1 overflow-hidden">
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm mb-6"><form onSubmit={handleBarcodeSubmit}><div className="relative"><Scan className="absolute left-4 top-4 text-slate-300" size={24}/><input ref={inputRef} autoFocus className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-12 text-xl font-black font-mono outline-none" placeholder="AWAITING PULSE..." value={inputCode} onChange={e => setInputCode(e.target.value)} /></div></form></div>
-           <div className="flex-1 overflow-y-auto space-y-4 pb-28 px-1 no-scrollbar">{batchList.map(item => (<div key={item.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4"><div className="flex justify-between items-start"><input className="w-full font-black text-slate-800 border-none bg-transparent outline-none truncate h-6" value={item.name} onChange={e => setBatchList(prev => prev.map(i => i.id === item.id ? {...i, name: e.target.value} : i))} /><button onClick={() => setBatchList(prev => prev.filter(i => i.id !== item.id))} className="p-1 hover:bg-slate-100 rounded-lg text-slate-300"><X size={18}/></button></div><div className="flex gap-4 items-end pl-2"><div className="w-14"><label className="text-[9px] font-black text-slate-400 uppercase">Cat</label><select className="w-full text-[10px] font-black bg-slate-100 border-none p-1.5 rounded-lg outline-none uppercase" value={item.category} onChange={e => setBatchList(prev => prev.map(i => i.id === item.id ? {...i, category: e.target.value} : i))}>{INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{getCategoryDisplay(c)}</option>)}</select></div><div className="flex-1"><label className="text-[9px] font-black text-slate-400 uppercase">Keyword</label><input className="w-full text-xs font-black text-blue-600 bg-slate-50 p-2 rounded-xl outline-none uppercase" value={item.keyword} onChange={e => setBatchList(prev => prev.map(i => i.id === item.id ? {...i, keyword: e.target.value} : i))} /></div><div className="w-24"><label className="text-[9px] font-black text-slate-400 uppercase">Cost</label><input type="number" className="w-full text-xs font-black bg-slate-50 p-2 rounded-xl outline-none" value={item.cost} onChange={e => setBatchList(prev => prev.map(i => i.id === item.id ? {...i, cost: e.target.value} : i))} /></div><div className="w-16"><label className="text-[9px] font-black text-slate-400 uppercase">Qty</label><input type="number" className="w-full h-9 rounded-xl bg-slate-50 text-center font-black text-sm outline-none" value={item.quantity} onChange={e => setBatchList(prev => prev.map(i => i.id === item.id ? {...i, quantity: parseInt(e.target.value) || 1} : i))} /></div></div></div>))}</div>
-           {batchList.length > 0 && <div className="absolute bottom-4 left-0 right-0 p-4"><button onClick={() => commitBatch(batchList)} className="w-full bg-slate-900 text-white font-black py-5 rounded-[2rem] shadow-2xl uppercase tracking-[0.2em] text-sm active:scale-95 transition-all">Merge Assets</button></div>}
-        </div>
-      ) : (
-        <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-6 flex flex-col items-center"><textarea className="w-full h-72 bg-slate-50 border-none rounded-[2rem] p-6 font-mono text-[10px] outline-none" placeholder="Paste Newegg Order Logic..." value={neweggText} onChange={e => setNeweggText(e.target.value)}/><button onClick={parseNeweggOrder} className="w-full bg-blue-600 text-white font-black py-5 rounded-3xl uppercase tracking-widest text-xs shadow-xl shadow-blue-200 active:scale-95 transition-all">Execute Logic Extraction</button></div>
-      )}
-      {showReview && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in">
-           <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] flex flex-col p-8 shadow-2xl">
-              <div className="flex justify-between items-center mb-6 font-black text-lg uppercase tracking-widest text-slate-900 leading-none"><h3>Import Analysis</h3><button onClick={() => setShowReview(false)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><X size={24}/></button></div>
-              <div className="flex-1 overflow-y-auto space-y-3 p-2 bg-slate-50 rounded-2xl no-scrollbar">{parsedItems.map((item, idx) => (<div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col gap-3"><div className="flex items-center justify-between gap-4"><div className="flex-1 min-w-0"><input className="w-full font-black text-sm bg-transparent border-none outline-none focus:text-blue-600 truncate h-6" value={item.name} onChange={e => { const n = [...parsedItems]; n[idx].name = e.target.value; setParsedItems(n); }} /></div><div className="flex items-center gap-1 font-black text-blue-600 shrink-0 border-b-2 border-blue-100"><span className="text-xs">$</span><input type="number" className="w-24 bg-transparent text-right outline-none py-1" value={item.cost} onChange={e => { const n = [...parsedItems]; n[idx].cost = e.target.value; setParsedItems(n); }} /></div></div><div className="flex items-center gap-3 flex-wrap"><div className="flex items-center gap-2 flex-1"><select className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 border border-slate-200 rounded px-2 h-7 outline-none appearance-none" value={item.category} onChange={e => { const n = [...parsedItems]; n[idx].category = e.target.value; setParsedItems(n); }}>{INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{getCategoryDisplay(c)}</option>)}</select><div className="flex items-center bg-slate-50 border border-blue-100 rounded px-2 h-7 flex-1 max-w-[120px]"><span className="text-[10px] text-blue-300 font-bold mr-1">#</span><input className="bg-transparent text-[10px] font-black text-blue-600 outline-none w-full placeholder:text-slate-300 uppercase font-mono" placeholder="TAG" value={item.keyword} onChange={e => { const n = [...parsedItems]; n[idx].keyword = e.target.value; setParsedItems(n); }} /></div></div></div></div>))}</div>
-              <button onClick={() => commitBatch(parsedItems)} className="w-full bg-slate-900 text-white font-black py-5 rounded-[2rem] mt-6 uppercase tracking-[0.2em] text-sm shadow-2xl active:scale-95 transition-all">Merge assets to Vault</button>
+    <div className="p-4 max-w-3xl mx-auto">
+       <div className="flex gap-2 mb-6">
+         <button onClick={()=>setMode('scan')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase transition-all ${mode==='scan'?'bg-slate-900 text-white shadow-lg':'bg-white text-slate-400'}`}>Scanner / Manual</button>
+         <button onClick={()=>setMode('newegg')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase transition-all ${mode==='newegg'?'bg-slate-900 text-white shadow-lg':'bg-white text-slate-400'}`}>Newegg Import</button>
+       </div>
+
+       {mode === 'newegg' ? (
+         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+           <textarea className="w-full h-64 bg-slate-50 rounded-xl p-4 text-[10px] font-mono outline-none resize-none" placeholder="Paste Newegg Order Page Text..." value={neweggText} onChange={e=>setNeweggText(e.target.value)}/>
+           <button onClick={parseNewegg} className="w-full mt-4 bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-200">Analyze & Extract</button>
+         </div>
+       ) : (
+         <>
+           <form onSubmit={handleScan} className="mb-6 relative">
+             <Scan className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
+             <input autoFocus className="w-full bg-white pl-12 pr-4 py-4 rounded-2xl shadow-sm border border-slate-200 outline-none font-mono font-bold uppercase placeholder:text-slate-300" placeholder="SCAN SKU / KEYWORD..." value={inputVal} onChange={e=>setInputVal(e.target.value)} />
+           </form>
+
+           <div className="space-y-3">
+             {batch.map((item, idx) => {
+               // Real-time Preview Calculation
+               const oldVal = item.quantity * item.cost;
+               const addVal = (parseInt(item.qtyInput)||0) * (parseFloat(item.costInput)||0);
+               const finalQ = item.quantity + (parseInt(item.qtyInput)||0);
+               const finalWAC = finalQ > 0 ? (oldVal + addVal)/finalQ : 0;
+
+               return (
+                <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3 animate-in slide-in-from-bottom-2">
+                   <div className="flex justify-between items-start gap-2">
+                     <div className="flex-1">
+                       <input className="w-full font-black text-sm text-slate-800 bg-transparent outline-none" value={item.name} onChange={e=>updateBatchItem(idx, 'name', e.target.value)} />
+                       <div className="flex items-center gap-2 mt-1">
+                         <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 rounded">{item.quantity} in stock</span>
+                         <span className="text-[9px] font-bold text-slate-300">WAC ${item.cost}</span>
+                         <ArrowRight size={10} className="text-slate-300"/>
+                         <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 rounded border border-blue-100">New WAC ${finalWAC.toFixed(2)}</span>
+                       </div>
+                     </div>
+                     <button onClick={()=>removeBatchItem(idx)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={16}/></button>
+                   </div>
+                   
+                   <div className="grid grid-cols-4 gap-2">
+                     <div className="col-span-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Cat</label>
+                        <select className="w-full bg-slate-50 rounded-lg p-2 text-[10px] font-bold uppercase outline-none" value={item.category} onChange={e=>updateBatchItem(idx, 'category', e.target.value)}>
+                          {ALL_CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                        </select>
+                     </div>
+                     <div className="col-span-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Key</label>
+                        <input className="w-full bg-slate-50 rounded-lg p-2 text-[10px] font-bold uppercase outline-none text-center" value={item.keyword} onChange={e=>updateBatchItem(idx, 'keyword', e.target.value)} placeholder="#TAG"/>
+                     </div>
+                     <div className="col-span-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Add Qty</label>
+                        <input type="number" className="w-full bg-blue-50/50 border border-blue-100 rounded-lg p-2 text-[10px] font-black text-blue-700 outline-none text-center" value={item.qtyInput || ''} onChange={e=>updateBatchItem(idx, 'qtyInput', parseInt(e.target.value))} />
+                     </div>
+                     <div className="col-span-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Cost Ea</label>
+                        <input type="number" className="w-full bg-emerald-50/50 border border-emerald-100 rounded-lg p-2 text-[10px] font-black text-emerald-700 outline-none text-center" value={item.costInput || ''} onChange={e=>updateBatchItem(idx, 'costInput', parseFloat(e.target.value))} />
+                     </div>
+                   </div>
+                </div>
+               );
+             })}
            </div>
-        </div>
-      )}
+           
+           {batch.length > 0 && (
+             <div className="fixed bottom-20 left-4 right-4 z-40">
+                <button onClick={commitBatch} className="w-full bg-slate-900 text-white font-black text-sm uppercase tracking-widest py-4 rounded-2xl shadow-2xl shadow-slate-300 active:scale-95 transition-all">
+                  Commit To Vault ({batch.length})
+                </button>
+             </div>
+           )}
+         </>
+       )}
     </div>
   );
 };
 
-// --- ClientsView: With PCPartPicker Parsing ---
-const ClientsView = ({ clients, setClients, createLog, addNotification, syncClient }) => {
-   const [selectedClient, setSelectedClient] = useState(null);
-   const [parsedManifest, setParsedManifest] = useState([]);
+// --------------------------------------------------------------------------------
+// VIEW: CLIENT HUB (Orders, Specs, Profit)
+// --------------------------------------------------------------------------------
+const ClientHub = ({ clients, inventory, setClients, logEvent, notify, refresh }) => {
+  const [view, setView] = useState('list'); // 'list' | 'detail'
+  const [activeClient, setActiveClient] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
 
-   useEffect(() => {
-     if(selectedClient && selectedClient.manifestText) parseManifest(selectedClient.manifestText, false);
-   }, [selectedClient]);
+  // Client Logic
+  const handleNewClient = () => {
+    const fresh = { 
+        id: generateId(), wechatName: 'New Client', status: 'Inquiry', orderDate: new Date().toISOString().split('T')[0], 
+        specs: {}, actualCost: 0, laborCost: 0, totalPrice: 0
+    };
+    setActiveClient(fresh);
+    setView('detail');
+  };
 
-   const handleCreateClient = () => {
-      const newClient = { 
-          id: generateId(), 
-          wechatName: "New Entity", 
-          wechatId: "", xhsName: "", xhsId: "", manifestText: "", status: 'Deposit', 
-          saleTarget: 0, resourceCost: 0, 
-          orderDate: new Date().toISOString().split('T')[0] 
-      };
-      setSelectedClient(newClient);
-      setParsedManifest([]);
-   };
+  const parsePCPartPicker = (text) => {
+     if(!text) return;
+     const lines = text.split('\n');
+     const newSpecs = { ...activeClient.specs };
+     
+     lines.forEach(line => {
+        // Regex for: "Type: Name ($Price ...)"
+        const match = line.match(/^([a-zA-Z\s]+):\s+(.+?)\s+(?:-|@|–)\s+\$/);
+        if(match) {
+            let type = match[1].trim();
+            const name = match[2].trim();
+            // Map PCPP types to our types
+            if(type==='Video Card') type = 'Video Card'; // already matches
+            if(ORDER_FIELDS.includes(type)) {
+               newSpecs[type] = { name, sku: '', cost: 0, price: 0 }; 
+            }
+        }
+     });
+     setActiveClient(prev => ({ ...prev, specs: newSpecs }));
+     notify('Specs Extracted');
+  };
 
-   const parseManifest = (text, updateCost = true) => {
-       if(!text) { setParsedManifest([]); return; }
-       const lines = text.split('\n');
-       const parts = [];
-       let totalCost = 0;
+  const autoFillSpec = (category, code) => {
+     const match = inventory.find(i => i.sku === code || i.keyword === code);
+     if(match) {
+        setActiveClient(prev => ({
+            ...prev,
+            specs: {
+                ...prev.specs,
+                [category]: { ...prev.specs[category], name: match.name, cost: match.cost, sku: match.sku }
+            },
+            actualCost: calculateTotalCost(prev.specs, match.cost, category)
+        }));
+        notify(`Matched: ${match.name}`);
+     } else {
+        notify('No match in Vault', 'error');
+     }
+  };
 
-       lines.forEach(line => {
-           // Regex matches: Type: Name ($Price ... or Type: Name $Price
-           // Handles the specific PCPartPicker list format provided
-           const regex = /^([a-zA-Z\s]+):\s+(.+?)\s+(?:-|@|–)\s+\$([\d\.]+)/; 
-           const regex2 = /^([a-zA-Z\s]+):\s+(.+?)\s+\(\$([\d\.]+)/; // For the ($Price @ Vendor) format
-           
-           const match = line.match(regex) || line.match(regex2);
-           if (match) {
-               const type = match[1].trim();
-               const name = match[2].trim();
-               const price = parseFloat(match[3]);
-               if (type !== 'Total' && type !== 'Generated by') {
-                   parts.push({ type, name, price });
-                   totalCost += price;
-               }
-           }
-       });
+  const calculateTotalCost = (specs, newCost, cat) => {
+      let total = 0;
+      ORDER_FIELDS.forEach(f => {
+          if(f === cat) total += newCost;
+          else if(specs[f]?.cost) total += specs[f].cost;
+      });
+      return total;
+  };
 
-       setParsedManifest(parts);
-       
-       if (updateCost && selectedClient) {
-           setSelectedClient(prev => ({ ...prev, resourceCost: parseFloat(totalCost.toFixed(2)) }));
-           addNotification(`Extracted ${parts.length} parts. Cost updated.`);
-       }
-   };
+  const saveClient = async () => {
+      // Recalculate financial totals
+      let calcCost = activeClient.laborCost || 0;
+      ORDER_FIELDS.forEach(f => { if(activeClient.specs[f]?.cost) calcCost += activeClient.specs[f].cost; });
+      const profit = (activeClient.totalPrice || 0) - calcCost;
+      
+      const toSave = { ...activeClient, actualCost: calcCost, profit };
+      await apiPost('/clients', toSave);
+      
+      logEvent('ORDER_UPDATE', 'Client Saved', `${toSave.wechatName}`);
+      notify('Client Profile Saved');
+      refresh();
+      setView('list');
+  };
 
-   const handleSaveClient = () => {
-       if (!selectedClient) return;
-       setClients(prev => {
-           const exists = prev.find(c => c.id === selectedClient.id);
-           if (exists) return prev.map(c => c.id === selectedClient.id ? selectedClient : c);
-           return [selectedClient, ...prev];
-       });
-       syncClient(selectedClient);
-       createLog('CLIENT_UPDATE', 'Entity Log', `Updated Record: ${selectedClient.wechatName}`);
-       addNotification('Entity Saved');
-       setSelectedClient(null);
-   };
+  // Filter Logic
+  const filteredClients = clients.filter(c => {
+     const s = search.toLowerCase();
+     const matchesSearch = c.wechatName?.toLowerCase().includes(s) || c.source?.toLowerCase().includes(s);
+     const matchesMonth = filterMonth ? c.orderDate?.startsWith(filterMonth) : true;
+     return matchesSearch && matchesMonth;
+  });
 
-   if (selectedClient) {
-       return (
-         <div className="p-6 md:p-8 max-w-4xl mx-auto h-full flex flex-col animate-in slide-in-from-right">
-            <header className="mb-6 flex justify-between items-center">
-                <button onClick={() => setSelectedClient(null)} className="flex items-center gap-2 text-slate-400 hover:text-slate-800 font-black uppercase text-xs tracking-widest transition-colors"><ChevronLeft size={16}/> Back to Hub</button>
-                <button onClick={handleSaveClient} className="bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-xl active:scale-95 flex items-center gap-2 font-bold text-xs uppercase tracking-widest"><Save size={16}/> Update</button>
-            </header>
-            
-            <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm space-y-6">
-                <div className="flex items-center gap-4 mb-4"><div className="text-3xl font-black text-slate-800">{selectedClient.wechatName}</div></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
-                    <div className="space-y-4">
-                        <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WeChat Name</label><input className="w-full bg-white border border-slate-200 rounded-xl p-3 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-100" value={selectedClient.wechatName} onChange={e => setSelectedClient({...selectedClient, wechatName: e.target.value})} /></div>
-                        <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">XHS Name</label><input className="w-full bg-white border border-slate-200 rounded-xl p-3 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-100" value={selectedClient.xhsName} onChange={e => setSelectedClient({...selectedClient, xhsName: e.target.value})} /></div>
-                    </div>
-                    <div className="space-y-4">
-                        <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WeChat ID</label><input className="w-full bg-white border border-slate-200 rounded-xl p-3 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-100" value={selectedClient.wechatId} onChange={e => setSelectedClient({...selectedClient, wechatId: e.target.value})} /></div>
-                        <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">XHS ID</label><input className="w-full bg-white border border-slate-200 rounded-xl p-3 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-100" value={selectedClient.xhsId} onChange={e => setSelectedClient({...selectedClient, xhsId: e.target.value})} /></div>
-                    </div>
-                </div>
+  const stats = useMemo(() => {
+     return {
+        count: filteredClients.length,
+        profit: filteredClients.reduce((acc, c) => acc + (c.profit || 0), 0)
+     };
+  }, [filteredClients]);
 
-                <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">PCPartPicker Manifest</label>
-                    <textarea className="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 font-mono text-xs outline-none focus:ring-2 focus:ring-blue-50" placeholder="Paste PCPartPicker text here..." value={selectedClient.manifestText} onChange={e => { setSelectedClient({...selectedClient, manifestText: e.target.value}); parseManifest(e.target.value, false); }} />
-                    <button onClick={() => parseManifest(selectedClient.manifestText, true)} className="mt-3 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-all"><Scan size={14}/> Extract & Calculate Cost</button>
-                </div>
+  if(view === 'detail') return (
+    <div className="p-4 max-w-2xl mx-auto pb-32 animate-in slide-in-from-right">
+       <div className="flex justify-between items-center mb-6">
+          <button onClick={()=>setView('list')} className="flex items-center gap-1 text-slate-400 font-bold uppercase text-[10px] tracking-widest"><ChevronLeft size={14}/> Back</button>
+          <div className="font-black text-lg">{activeClient.wechatName}</div>
+          <button onClick={saveClient} className="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-lg active:scale-95"><Save size={16}/></button>
+       </div>
 
-                {parsedManifest.length > 0 && (
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 animate-in fade-in">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Configuration Breakdown</h4>
-                    <div className="space-y-2">
-                      {parsedManifest.map((part, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-100">
-                           <div className="flex items-center gap-2"><span className="font-black text-slate-400 w-16 uppercase text-[9px]">{part.type}</span><span className="font-bold text-slate-700 truncate max-w-[200px]">{part.name}</span></div>
-                           <div className="font-mono font-bold text-slate-900">{formatCurrency(part.price)}</div>
+       {/* Profile Card */}
+       <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 mb-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+             <div className="col-span-2"><label className="lbl">WeChat Name</label><input className="inp" value={activeClient.wechatName} onChange={e=>setActiveClient({...activeClient, wechatName:e.target.value})}/></div>
+             <div><label className="lbl">Source</label><select className="inp" value={activeClient.source} onChange={e=>setActiveClient({...activeClient, source:e.target.value})}><option>Friend</option><option>XHS</option><option>WeChat</option></select></div>
+             <div><label className="lbl">Status</label><select className="inp" value={activeClient.status} onChange={e=>setActiveClient({...activeClient, status:e.target.value})}><option>Inquiry</option><option>Paid</option><option>Building</option><option>Delivered</option></select></div>
+             <div><label className="lbl">Order Date</label><input type="date" className="inp" value={activeClient.orderDate?.split('T')[0]} onChange={e=>setActiveClient({...activeClient, orderDate:e.target.value})}/></div>
+             <div><label className="lbl">Delivery Date</label><input type="date" className="inp" value={activeClient.deliveryDate?.split('T')[0] || ''} onChange={e=>setActiveClient({...activeClient, deliveryDate:e.target.value})}/></div>
+          </div>
+          
+          <div className="pt-4 border-t border-slate-100">
+             <div className="grid grid-cols-6 gap-2">
+                 <div className="col-span-4"><label className="lbl">Address Line</label><input className="inp" placeholder="123 Main St" value={activeClient.address||''} onChange={e=>setActiveClient({...activeClient, address:e.target.value})}/></div>
+                 <div className="col-span-2"><label className="lbl">Zip Code</label><input className="inp" placeholder="94043" value={activeClient.zip||''} onChange={e=>setActiveClient({...activeClient, zip:e.target.value})}/></div>
+                 <div className="col-span-3"><label className="lbl">City</label><input className="inp" value={activeClient.city||''} onChange={e=>setActiveClient({...activeClient, city:e.target.value})}/></div>
+                 <div className="col-span-3"><label className="lbl">State</label><input className="inp" value={activeClient.state||''} onChange={e=>setActiveClient({...activeClient, state:e.target.value})}/></div>
+             </div>
+          </div>
+       </div>
+
+       {/* Specs Builder */}
+       <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 mb-4">
+          <div className="flex justify-between items-center mb-4">
+             <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">Build Manifest</h3>
+             <button onClick={()=>parsePCPartPicker(prompt("Paste PCPartPicker Text:"))} className="text-[9px] bg-slate-100 px-2 py-1 rounded font-bold uppercase text-slate-500">Paste List</button>
+          </div>
+          
+          <div className="space-y-3">
+             {ORDER_FIELDS.map(cat => {
+                 const item = activeClient.specs?.[cat] || {};
+                 return (
+                     <div key={cat} className="flex flex-col gap-1 border-b border-slate-50 pb-2 last:border-0">
+                        <div className="flex justify-between items-end">
+                            <span className="text-[10px] font-black text-slate-400 uppercase w-16">{CAT_DISPLAY[cat]}</span>
+                            <input className="flex-1 text-xs font-bold text-slate-700 bg-transparent outline-none truncate" placeholder="Empty Slot" value={item.name || ''} onChange={e=>setActiveClient(p=>({ ...p, specs: { ...p.specs, [cat]: { ...item, name: e.target.value } } }))} />
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-            </div>
+                        <div className="flex gap-2 pl-16">
+                            <input className="w-24 bg-slate-50 rounded px-2 py-1 text-[9px] font-mono" placeholder="Scan SKU/Tag" onKeyDown={e=>{ if(e.key==='Enter') autoFillSpec(cat, e.target.value) }} />
+                            <div className="flex items-center gap-1 bg-emerald-50 px-2 rounded">
+                                <span className="text-[9px] text-emerald-600">$</span>
+                                <input type="number" className="w-12 bg-transparent text-[9px] font-bold text-emerald-600 outline-none" value={item.cost || ''} onChange={e=>setActiveClient(p=>({ ...p, specs: { ...p.specs, [cat]: { ...item, cost: parseFloat(e.target.value) } } }))} placeholder="Cost"/>
+                            </div>
+                        </div>
+                     </div>
+                 );
+             })}
+          </div>
+       </div>
 
-            <div className="mt-6 bg-slate-900 rounded-[2.5rem] p-8 text-white flex flex-col md:flex-row gap-8 items-center shadow-2xl">
-                <div className="flex-1">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Yield</div>
-                    <div className={`text-4xl font-black tracking-tighter ${(selectedClient.saleTarget - selectedClient.resourceCost) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(selectedClient.saleTarget - selectedClient.resourceCost)}</div>
-                </div>
-                <div className="flex gap-6">
-                    <div><label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Sale Target</label><input type="number" className="bg-slate-800 border-none rounded-xl py-2 px-3 text-white font-black w-32 outline-none" value={selectedClient.saleTarget} onChange={e => setSelectedClient({...selectedClient, saleTarget: parseFloat(e.target.value) || 0})} /></div>
-                    <div><label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Resource Cost</label><input type="number" className="bg-slate-800 border-none rounded-xl py-2 px-3 text-white font-black w-32 outline-none" value={selectedClient.resourceCost} onChange={e => setSelectedClient({...selectedClient, resourceCost: parseFloat(e.target.value) || 0})} /></div>
-                </div>
-            </div>
-         </div>
-       );
-   }
-
-   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto h-full">
-        <header className="mb-8 flex justify-between items-center"><div><h1 className="text-3xl font-black uppercase tracking-[0.1em] text-slate-800 leading-none">Hub</h1></div><button onClick={handleCreateClient} className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl active:scale-95"><UserPlus size={24}/></button></header>
-        <div className="grid gap-4 md:grid-cols-2">
-            {clients.map(c => (
-                <div key={c.id} onClick={() => setSelectedClient(c)} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="flex flex-col">
-                        <div className="font-black text-slate-800 text-lg group-hover:text-blue-600 transition-colors">{c.wechatName}</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2"><span>{c.orderDate}</span>{c.xhsName && <span className="bg-slate-100 px-1.5 rounded text-slate-500">XHS: {c.xhsName}</span>}</div>
-                    </div>
-                    <div className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase bg-blue-50 text-blue-600 border border-blue-100">{c.status}</div>
-                </div>
-            ))}
-        </div>
+       {/* Financials */}
+       <div className="bg-slate-900 rounded-[2rem] p-6 shadow-xl text-white">
+          <div className="grid grid-cols-2 gap-8 mb-4">
+             <div><label className="text-[9px] font-bold text-slate-500 uppercase">Sale Price</label><input type="number" className="bg-transparent text-2xl font-black w-full outline-none" value={activeClient.totalPrice || ''} onChange={e=>setActiveClient({...activeClient, totalPrice:parseFloat(e.target.value)})}/></div>
+             <div><label className="text-[9px] font-bold text-slate-500 uppercase">Labor Cost</label><input type="number" className="bg-transparent text-2xl font-black w-full outline-none" value={activeClient.laborCost || ''} onChange={e=>setActiveClient({...activeClient, laborCost:parseFloat(e.target.value)})}/></div>
+          </div>
+          <div className="pt-4 border-t border-slate-800 flex justify-between items-end">
+             <div><div className="text-[9px] font-bold text-slate-500 uppercase">Net Profit</div><div className={`text-3xl font-black tracking-tight ${((activeClient.totalPrice||0)-(activeClient.actualCost||0)) > 0 ? 'text-emerald-400' : 'text-slate-200'}`}>{formatCurrency((activeClient.totalPrice||0)-(activeClient.laborCost||0)-(Object.values(activeClient.specs||{}).reduce((a,b)=>a+(b.cost||0),0)))}</div></div>
+             <div className="text-right"><div className="text-[9px] font-bold text-slate-500 uppercase">Parts Cost</div><div className="text-xl font-bold text-slate-400">{formatCurrency(Object.values(activeClient.specs||{}).reduce((a,b)=>a+(b.cost||0),0))}</div></div>
+          </div>
+       </div>
     </div>
-   );
+  );
+
+  return (
+    <div className="p-4 max-w-3xl mx-auto">
+       <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+             <Search className="absolute left-3 top-2.5 text-slate-300" size={16}/>
+             <input className="w-full bg-white pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold outline-none shadow-sm" placeholder="Search Client / Source..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          </div>
+          <input type="month" className="bg-white px-3 rounded-xl text-xs font-bold outline-none shadow-sm w-32" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} />
+          <button onClick={handleNewClient} className="bg-slate-900 text-white w-10 rounded-xl flex items-center justify-center shadow-lg"><Plus size={20}/></button>
+       </div>
+       
+       {/* Stats Bar */}
+       <div className="flex gap-4 mb-6 px-2">
+           <div><div className="text-[9px] font-bold text-slate-400 uppercase">Clients</div><div className="text-lg font-black">{stats.count}</div></div>
+           <div><div className="text-[9px] font-bold text-slate-400 uppercase">Period Profit</div><div className="text-lg font-black text-emerald-600">{formatCurrency(stats.profit)}</div></div>
+       </div>
+
+       <div className="space-y-3">
+          {filteredClients.map(c => (
+             <div key={c.id} onClick={()=>{setActiveClient(c); setView('detail');}} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center active:scale-[0.98] transition-transform">
+                <div>
+                   <div className="font-black text-sm text-slate-800">{c.wechatName}</div>
+                   <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[9px] font-bold px-1.5 rounded uppercase ${c.status==='Delivered'?'bg-emerald-100 text-emerald-600':'bg-blue-50 text-blue-500'}`}>{c.status}</span>
+                      <span className="text-[9px] font-bold text-slate-400">{formatDate(c.orderDate)}</span>
+                      {c.state === 'CA' && <span className="text-[9px] font-bold text-amber-500">CA TAX</span>}
+                   </div>
+                </div>
+                <div className="text-right">
+                   <div className="font-black text-sm text-slate-900">{formatCurrency(c.totalPrice)}</div>
+                   <div className="text-[9px] font-bold text-emerald-500">+{formatCurrency(c.profit)}</div>
+                </div>
+             </div>
+          ))}
+       </div>
+    </div>
+  );
 };
+
+// --------------------------------------------------------------------------------
+// VIEW: STOCK VAULT (Simple List + History)
+// --------------------------------------------------------------------------------
+const StockVault = ({ inventory, logs, logEvent }) => {
+    const [filter, setFilter] = useState('');
+    const [historyItem, setHistoryItem] = useState(null);
+
+    const filtered = inventory.filter(i => i.name.toLowerCase().includes(filter.toLowerCase()) || i.keyword?.includes(filter));
+
+    return (
+      <div className="p-4 max-w-3xl mx-auto">
+         <input className="w-full bg-white px-4 py-3 rounded-xl text-xs font-bold outline-none shadow-sm mb-4 border border-slate-100" placeholder="Filter Vault..." value={filter} onChange={e=>setFilter(e.target.value)}/>
+         
+         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+             {filtered.map((item, idx) => (
+                 <div key={item.id} onClick={()=>setHistoryItem(item)} className={`flex items-center p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer`}>
+                    <div className="w-12 text-center text-[9px] font-black text-slate-400 uppercase">{item.category}</div>
+                    <div className="flex-1 px-3 min-w-0">
+                        <div className="font-bold text-xs text-slate-800 truncate">{item.name}</div>
+                        <div className="text-[9px] font-mono text-slate-400">{item.keyword}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="font-black text-xs text-slate-800">{item.quantity} units</div>
+                        <div className="text-[9px] font-bold text-slate-400">@ {formatCurrency(item.cost)}</div>
+                    </div>
+                 </div>
+             ))}
+         </div>
+
+         {/* History Modal */}
+         {historyItem && (
+             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-6 animate-in fade-in">
+                 <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-6 h-[60vh] flex flex-col">
+                     <div className="flex justify-between items-center mb-4">
+                        <div className="font-black text-lg truncate pr-4">{historyItem.name}</div>
+                        <button onClick={()=>setHistoryItem(null)}><X size={20}/></button>
+                     </div>
+                     <div className="flex-1 overflow-y-auto space-y-4">
+                        {logs.filter(l => l.title.includes(historyItem.name) || (l.meta && (l.meta.id === historyItem.id || l.title.includes(historyItem.keyword)))).length === 0 ? <div className="text-center text-xs text-slate-300 py-10">No records found</div> : 
+                            logs.filter(l => l.title.includes(historyItem.name) || (l.meta && (l.meta.id === historyItem.id))).map(log => (
+                                <div key={log.id} className="text-xs border-l-2 border-slate-200 pl-3">
+                                    <div className="font-bold text-slate-700">{log.type}</div>
+                                    <div className="text-slate-500">{log.msg}</div>
+                                    <div className="text-[9px] text-slate-300 mt-1">{formatDate(log.timestamp)}</div>
+                                </div>
+                            ))
+                        }
+                     </div>
+                 </div>
+             </div>
+         )}
+      </div>
+    );
+};
+
+// --------------------------------------------------------------------------------
+// VIEW: DASHBOARD (Simple Stats)
+// --------------------------------------------------------------------------------
+const Dashboard = ({ clients, inventory }) => {
+    const stockVal = inventory.reduce((a, b) => a + (b.cost * b.quantity), 0);
+    const pendingOrders = clients.filter(c => c.status !== 'Delivered').length;
+    
+    return (
+        <div className="p-6 max-w-4xl mx-auto space-y-6">
+            <header>
+                <h1 className="text-2xl font-black text-slate-900">Console</h1>
+                <p className="text-xs font-bold text-slate-400">System Online • v3.0.0</p>
+            </header>
+            <div className="grid grid-cols-2 gap-4">
+                <DashCard label="Vault Value" val={formatCurrency(stockVal)} icon={Package} color="text-blue-600" bg="bg-blue-50"/>
+                <DashCard label="Pending Orders" val={pendingOrders} icon={Users} color="text-amber-600" bg="bg-amber-50"/>
+            </div>
+            {/* Add more widgets as needed */}
+        </div>
+    );
+};
+
+const DashCard = ({ label, val, icon: Icon, color, bg }) => (
+    <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${bg} ${color}`}><Icon size={20}/></div>
+        <div className="text-2xl font-black text-slate-800">{val}</div>
+        <div className="text-[10px] font-bold text-slate-400 uppercase">{label}</div>
+    </div>
+);
+
+// Styles
+const css = `
+  .lbl { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-left: 2px; margin-bottom: 2px; display: block; }
+  .inp { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 0.5rem 0.75rem; font-size: 11px; font-weight: 700; color: #334155; outline: none; transition: all; }
+  .inp:focus { border-color: #94a3b8; background: #fff; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+`;
+document.head.appendChild(document.createElement("style")).innerHTML = css;

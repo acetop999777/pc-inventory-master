@@ -8,103 +8,124 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// 数据库连接配置
 const pool = new Pool({
   user: process.env.POSTGRES_USER || 'admin',
-  host: process.env.POSTGRES_HOST || 'localhost',
+  host: process.env.POSTGRES_HOST || 'db', // Docker service name
   database: process.env.POSTGRES_DB || 'inventory_db',
   password: process.env.POSTGRES_PASSWORD || 'securepassword',
   port: 5432,
 });
 
-// --- 辅助函数：将数据库下划线字段转为前端驼峰命名 ---
-const mapInventory = (row) => ({
-    id: row.id,
-    category: row.category,
-    name: row.name,
-    keyword: row.keyword,
-    sku: row.sku,
-    quantity: row.quantity,
-    cost: parseFloat(row.cost),
-    barcode: row.barcode
+// --- Helper: DB Mapping ---
+const mapInv = r => ({ ...r, cost: parseFloat(r.cost), quantity: parseInt(r.quantity) });
+const mapClient = r => ({
+    id: r.id, wechatName: r.wechat_name, wechatId: r.wechat_id,
+    xhsName: r.xhs_name, xhsId: r.xhs_id, payerName: r.payer_name,
+    source: r.source, status: r.status,
+    orderDate: r.order_date, depositDate: r.deposit_date, deliveryDate: r.delivery_date,
+    address: r.address_line, city: r.city, state: r.state, zip: r.zip_code,
+    totalPrice: parseFloat(r.total_price||0), actualCost: parseFloat(r.actual_cost||0),
+    laborCost: parseFloat(r.labor_cost||0), profit: parseFloat(r.profit||0),
+    specs: r.specs || {}
 });
 
-// --- API 路由 ---
+// --- API Routes ---
 
-// 1. 获取所有库存
+// 1. Inventory GET
 app.get('/api/inventory', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM inventory ORDER BY name ASC');
-        res.json(rows.map(mapInventory));
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Database error' });
-    }
+        const { rows } = await pool.query('SELECT * FROM inventory ORDER BY category, name');
+        res.json(rows.map(mapInv));
+    } catch (e) { res.status(500).json(e); }
 });
 
-// 2. 同步/更新单个库存项 (Upsert)
-app.post('/api/inventory/sync', async (req, res) => {
-    const { id, category, name, keyword, sku, quantity, cost, barcode } = req.body;
-    try {
-        await pool.query(
-            `INSERT INTO inventory (id, category, name, keyword, sku, quantity, cost, barcode)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (id) DO UPDATE SET
-             quantity = EXCLUDED.quantity, 
-             cost = EXCLUDED.cost, 
-             name = EXCLUDED.name, 
-             category = EXCLUDED.category, 
-             keyword = EXCLUDED.keyword,
-             barcode = EXCLUDED.barcode`,
-            [id, category, name, keyword || '', sku || '', quantity || 0, cost || 0, barcode || '']
-        );
-        res.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 3. 批量更新库存 (用于 Scan 扫码入库)
+// 2. Inventory Batch Update (Stock In/Out with WAC Logic)
 app.post('/api/inventory/batch', async (req, res) => {
-    const items = req.body; // Array of items
+    const items = req.body; // Array of operations
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         for (const item of items) {
-            await client.query(
-                `INSERT INTO inventory (id, category, name, keyword, sku, quantity, cost, barcode)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                 ON CONFLICT (id) DO UPDATE SET
-                 quantity = EXCLUDED.quantity, 
-                 cost = EXCLUDED.cost`,
-                [item.id, item.category, item.name, item.keyword || '', item.sku || '', item.quantity, item.cost, item.barcode || '']
-            );
+            // Check existing
+            const { rows } = await client.query('SELECT * FROM inventory WHERE id = $1', [item.id]);
+            const existing = rows[0];
+
+            if (existing) {
+                // Update Logic
+                let newQty = item.quantity; // item.quantity here means FINAL quantity from frontend
+                let newCost = item.cost;    // item.cost means FINAL WAC from frontend
+
+                // Update DB
+                await client.query(
+                    `UPDATE inventory SET 
+                     quantity = $1, cost = $2, name = $3, keyword = $4, category = $5, sku = $6, updated_at = NOW()
+                     WHERE id = $7`,
+                    [newQty, newCost, item.name, item.keyword, item.category, item.sku, item.id]
+                );
+            } else {
+                // Insert New
+                await client.query(
+                    `INSERT INTO inventory (id, category, name, keyword, sku, quantity, cost)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [item.id, item.category, item.name, item.keyword, item.sku, item.quantity, item.cost]
+                );
+            }
         }
         await client.query('COMMIT');
         res.json({ success: true });
-    } catch (err) {
+    } catch (e) {
         await client.query('ROLLBACK');
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    } finally {
-        client.release();
-    }
+        console.error(e);
+        res.status(500).json(e);
+    } finally { client.release(); }
 });
 
-// 4. 获取日志
+// 3. Clients GET
+app.get('/api/clients', async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM clients ORDER BY order_date DESC');
+        res.json(rows.map(mapClient));
+    } catch (e) { res.status(500).json(e); }
+});
+
+// 4. Clients Upsert (Full Profile)
+app.post('/api/clients', async (req, res) => {
+    const c = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO clients (
+                id, wechat_name, wechat_id, xhs_name, xhs_id, payer_name, source,
+                status, order_date, deposit_date, delivery_date,
+                address_line, city, state, zip_code,
+                total_price, actual_cost, labor_cost, profit, specs
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            ON CONFLICT (id) DO UPDATE SET
+                wechat_name=EXCLUDED.wechat_name, wechat_id=EXCLUDED.wechat_id,
+                xhs_name=EXCLUDED.xhs_name, xhs_id=EXCLUDED.xhs_id, payer_name=EXCLUDED.payer_name,
+                source=EXCLUDED.source, status=EXCLUDED.status,
+                order_date=EXCLUDED.order_date, deposit_date=EXCLUDED.deposit_date, delivery_date=EXCLUDED.delivery_date,
+                address_line=EXCLUDED.address_line, city=EXCLUDED.city, state=EXCLUDED.state, zip_code=EXCLUDED.zip_code,
+                total_price=EXCLUDED.total_price, actual_cost=EXCLUDED.actual_cost, 
+                labor_cost=EXCLUDED.labor_cost, profit=EXCLUDED.profit, specs=EXCLUDED.specs`,
+            [
+                c.id, c.wechatName, c.wechatId, c.xhsName, c.xhsId, c.payerName, c.source,
+                c.status, c.orderDate || null, c.depositDate || null, c.deliveryDate || null,
+                c.address, c.city, c.state, c.zip,
+                c.totalPrice, c.actualCost, c.laborCost, c.profit, JSON.stringify(c.specs)
+            ]
+        );
+        res.json({ success: true });
+    } catch (e) { console.error(e); res.status(500).json(e); }
+});
+
+// 5. Logs
 app.get('/api/logs', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200');
-        // JSONB 字段 pg 库会自动解析
-        res.json(rows.map(r => ({...r, timestamp: parseInt(r.timestamp)}))); 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json(err);
-    }
+        const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 500');
+        res.json(rows.map(r => ({ ...r, timestamp: parseInt(r.timestamp) })));
+    } catch (e) { res.status(500).json(e); }
 });
 
-// 5. 写入日志
 app.post('/api/logs', async (req, res) => {
     const { id, timestamp, type, title, msg, meta } = req.body;
     try {
@@ -113,63 +134,7 @@ app.post('/api/logs', async (req, res) => {
             [id, timestamp, type, title, msg, meta]
         );
         res.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json(err);
-    }
+    } catch (e) { res.status(500).json(e); }
 });
 
-// 6. 客户 CRUD (更新版)
-app.get('/api/clients', async (req, res) => {
-    try {
-        const { rows } = await pool.query('SELECT * FROM clients ORDER BY created_at DESC');
-        res.json(rows.map(r => ({
-            id: r.id, 
-            wechatName: r.wechat_name, 
-            wechatId: r.wechat_id,
-            xhsName: r.xhs_name,
-            xhsId: r.xhs_id,
-            manifestText: r.manifest_text,
-            saleTarget: parseFloat(r.sale_target || 0),
-            resourceCost: parseFloat(r.resource_cost || 0),
-            status: r.status, 
-            orderDate: r.order_date
-        })));
-    } catch (err) { res.status(500).json(err); }
-});
-
-app.post('/api/clients', async (req, res) => {
-    // 接收所有扩展字段
-    const { 
-        id, wechatName, wechatId, xhsName, xhsId, 
-        manifestText, saleTarget, resourceCost, status, orderDate 
-    } = req.body;
-    
-    try {
-        await pool.query(
-            `INSERT INTO clients (
-                id, wechat_name, wechat_id, xhs_name, xhs_id, 
-                manifest_text, sale_target, resource_cost, status, order_date
-            ) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (id) DO UPDATE SET 
-                wechat_name = EXCLUDED.wechat_name,
-                wechat_id = EXCLUDED.wechat_id,
-                xhs_name = EXCLUDED.xhs_name,
-                xhs_id = EXCLUDED.xhs_id,
-                manifest_text = EXCLUDED.manifest_text,
-                sale_target = EXCLUDED.sale_target,
-                resource_cost = EXCLUDED.resource_cost,
-                status = EXCLUDED.status`,
-            [
-                id, wechatName, wechatId || '', xhsName || '', xhsId || '', 
-                manifestText || '', saleTarget || 0, resourceCost || 0, 
-                status, orderDate
-            ]
-        );
-        res.json({ success: true });
-    } catch (err) { 
-        console.error(err);
-        res.status(500).json(err); 
-    }
-});
+app.listen(port, () => console.log(`Server running on ${port}`));
