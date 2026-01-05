@@ -3,21 +3,25 @@ CREATE TABLE IF NOT EXISTS inventory (
     id VARCHAR(255) PRIMARY KEY,
     category VARCHAR(50),
     name VARCHAR(255),
-    keyword VARCHAR(100), -- 核心：这是解决名称不一致的关键
+    keyword VARCHAR(100),
     sku VARCHAR(100),
     quantity INTEGER DEFAULT 0,
     cost NUMERIC(10, 2) DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. 客户表 (合并了 payer_name 到 real_name)
+-- 2. 客户表 (photo 改为 photos JSONB)
 CREATE TABLE IF NOT EXISTS clients (
     id VARCHAR(255) PRIMARY KEY,
     wechat_name VARCHAR(255),
     wechat_id VARCHAR(255),
-    real_name VARCHAR(255), -- 真实姓名 (合并后)
+    real_name VARCHAR(255),
     xhs_name VARCHAR(255),
     xhs_id VARCHAR(255),
+    
+    photos JSONB DEFAULT '[]'::jsonb, -- 核心改变：存储图片数组
+    rating INTEGER DEFAULT 2,
+    notes TEXT,
     
     order_date DATE,
     deposit_date DATE,
@@ -32,11 +36,11 @@ CREATE TABLE IF NOT EXISTS clients (
     zip_code VARCHAR(20),
     
     status VARCHAR(50),
-    total_price NUMERIC(10, 2) DEFAULT 0, -- 最终售价
-    actual_cost NUMERIC(10, 2) DEFAULT 0, -- 实际硬件成本
+    total_price NUMERIC(10, 2) DEFAULT 0,
+    actual_cost NUMERIC(10, 2) DEFAULT 0,
     profit NUMERIC(10, 2) DEFAULT 0,
     
-    specs JSONB DEFAULT '{}'::jsonb,      -- 包含配置详情
+    specs JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
