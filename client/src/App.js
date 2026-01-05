@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, Users, Package, ScanLine, X, Search, CheckCircle, 
   AlertCircle, History, Activity, TrendingUp, UserPlus, ArrowRight, Zap, 
-  Loader2, Scan, ChevronLeft, Save, FileText, DollarSign, ExternalLink
+  Loader2, Scan, ChevronLeft, Save, FileText, DollarSign, ExternalLink,
+  Cpu, HardDrive, Monitor, Fan
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 /**
  * Project: PC Inventory Master (Full Stack Edition)
- * Version: 2.1.0 Feature Complete
+ * Version: 2.2.0 Intelligence Update
+ * Feature: PCPartPicker Parsing & Auto-Costing
  */
 
 const API_BASE = `http://${window.location.hostname}:5001/api`;
@@ -23,6 +25,7 @@ const CATEGORY_SHORTHAND = {
 const getCategoryDisplay = (cat) => CATEGORY_SHORTHAND[cat] || cat;
 const INITIAL_CATEGORIES = Object.keys(CATEGORY_SHORTHAND);
 
+// --- API Methods ---
 async function apiGet(endpoint) {
     try { const res = await fetch(`${API_BASE}${endpoint}`); return await res.json(); } catch (e) { console.error("API Error", e); return []; }
 }
@@ -40,6 +43,7 @@ async function fetchProductInfo(code) {
   return null;
 }
 
+// --- Main Component ---
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [inventory, setInventory] = useState([]);
@@ -117,12 +121,13 @@ const NavButton = ({ icon: Icon, label, active, onClick }) => (
   </button>
 );
 
-// --- Dashboard & Logs (Unchanged) ---
+// --- Sub Views ---
+
 const DashboardView = ({ clients, inventory, logs }) => {
   const totalStockValue = inventory.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
-      <header><h1 className="text-3xl font-black text-slate-900 tracking-tight">Console</h1><p className="text-slate-400 font-medium mt-1">v2.1.0 • System Ready</p></header>
+      <header><h1 className="text-3xl font-black text-slate-900 tracking-tight">Console</h1><p className="text-slate-400 font-medium mt-1">v2.2.0 • Intelligence Active</p></header>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Stock Value" value={formatCurrency(totalStockValue)} icon={Package} color="text-blue-600" bg="bg-blue-50" />
         <StatCard label="Active Clients" value={clients.length} icon={Users} color="text-amber-600" bg="bg-amber-50" />
@@ -134,14 +139,13 @@ const DashboardView = ({ clients, inventory, logs }) => {
 const StatCard = ({ label, value, icon: Icon, color, bg }) => (<div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"><div className={`p-3 rounded-2xl ${bg} ${color} w-fit mb-4`}><Icon size={22} strokeWidth={2.5}/></div><h3 className="text-2xl font-black text-slate-900 tracking-tighter">{value}</h3><p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">{label}</p></div>);
 const LogsView = ({ logs }) => (<div className="p-6 md:p-8 max-w-4xl mx-auto h-full flex flex-col"><header className="mb-8"><h1 className="text-2xl font-black tracking-widest uppercase text-slate-400">Audit Logs</h1></header><div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col p-4"><div className="overflow-y-auto flex-1 space-y-2">{logs.map(log => (<div key={log.id} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100"><div className={`p-2 rounded-xl shrink-0 ${log.type.startsWith('INV') ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}><Activity size={16}/></div><div className="flex-1 min-w-0"><div className="text-[10px] font-black uppercase text-slate-300 tracking-widest mb-0.5">{log.type}</div><div className="text-xs font-bold text-slate-800">{log.title}</div><div className="text-xs text-slate-400 truncate">{log.msg}</div></div><div className="text-[10px] font-mono text-slate-300">{formatDateTime(log.timestamp)}</div></div>))}</div></div></div>);
 
-// --- 修复版 StockView (Unchanged but included for completeness) ---
 const StockView = ({ inventory, setInventory, logs, createLog, addNotification, syncItem }) => {
   const [selectedCat, setSelectedCat] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [adjustModalItem, setAdjustModalItem] = useState(null);
   const [adjustQty, setAdjustQty] = useState(1);
   const [adjustCost, setAdjustCost] = useState(0);
-
+  
   const filteredInventory = inventory.filter(item => {
     const matchesCat = selectedCat === 'All' || item.category === selectedCat;
     const search = searchTerm.toLowerCase();
@@ -172,7 +176,6 @@ const StockView = ({ inventory, setInventory, logs, createLog, addNotification, 
   );
 };
 
-// --- 重写版: ScanView (支持 Newegg 解析) ---
 const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
   const [mode, setMode] = useState('scan');
   const [inputCode, setInputCode] = useState('');
@@ -212,17 +215,13 @@ const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
         if (lines[i].startsWith('Item #:')) {
           const sku = lines[i].split(':')[1].trim();
           let name = lines[i-1];
-          // Simple heuristics for name
           if (name.includes('Return Policy') || name.startsWith('COMBO')) name = lines[i-2];
           let qty = 1; let listedTotal = 0;
-          
-          // Look ahead for price/qty
           for (let j = 1; j <= 6; j++) {
              const nL = lines[i+j] || "";
              if (/^\d+$/.test(nL) && lines[i+j+1]?.startsWith('$')) qty = parseInt(nL);
              if (nL.startsWith('$') && !nL.includes('ea.')) { listedTotal = parseFloat(nL.replace(/[$,]/g, '')); break; }
           }
-          
           let category = 'Other';
           const n = name.toLowerCase();
           if (n.includes('cpu')) category = 'CPU';
@@ -233,8 +232,6 @@ const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
           items.push({ id: generateId(), sku, name, category, quantity: qty, listedTotal, cost: 0, keyword: '' });
         }
     }
-    
-    // Distribute cost proportionally
     const paidItems = items.filter(i => i.listedTotal > 0);
     const sumListed = paidItems.reduce((s, i) => s + i.listedTotal, 0);
     items = items.map(it => ({
@@ -280,7 +277,6 @@ const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
         <button onClick={() => setMode('scan')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${mode === 'scan' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400'}`}>Laser</button>
         <button onClick={() => setMode('newegg')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${mode === 'newegg' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400'}`}>Newegg</button>
       </div>
-
       {mode === 'scan' ? (
         <div className="flex flex-col flex-1 overflow-hidden">
            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm mb-6"><form onSubmit={handleBarcodeSubmit}><div className="relative"><Scan className="absolute left-4 top-4 text-slate-300" size={24}/><input ref={inputRef} autoFocus className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-12 text-xl font-black font-mono outline-none" placeholder="AWAITING PULSE..." value={inputCode} onChange={e => setInputCode(e.target.value)} /></div></form></div>
@@ -290,12 +286,11 @@ const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
       ) : (
         <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-6 flex flex-col items-center"><textarea className="w-full h-72 bg-slate-50 border-none rounded-[2rem] p-6 font-mono text-[10px] outline-none" placeholder="Paste Newegg Order Logic..." value={neweggText} onChange={e => setNeweggText(e.target.value)}/><button onClick={parseNeweggOrder} className="w-full bg-blue-600 text-white font-black py-5 rounded-3xl uppercase tracking-widest text-xs shadow-xl shadow-blue-200 active:scale-95 transition-all">Execute Logic Extraction</button></div>
       )}
-
       {showReview && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in">
            <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] flex flex-col p-8 shadow-2xl">
               <div className="flex justify-between items-center mb-6 font-black text-lg uppercase tracking-widest text-slate-900 leading-none"><h3>Import Analysis</h3><button onClick={() => setShowReview(false)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><X size={24}/></button></div>
-              <div className="flex-1 overflow-y-auto space-y-3 p-2 bg-slate-50 rounded-2xl no-scrollbar">{parsedItems.map((item, idx) => (<div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col gap-3"><div className="flex items-center justify-between gap-4"><div className="flex-1 min-w-0"><input className="w-full font-black text-sm bg-transparent border-none outline-none focus:text-blue-600 truncate h-6" value={item.name} onChange={e => { const n = [...parsedItems]; n[idx].name = e.target.value; setParsedItems(n); }} /></div><div className="flex items-center gap-1 font-black text-blue-600 shrink-0 border-b-2 border-blue-100"><span className="text-xs">$</span><input type="number" className="w-24 bg-transparent text-right outline-none py-1" value={item.cost} onChange={e => { const n = [...parsedItems]; n[idx].cost = e.target.value; setParsedItems(n); }} /></div></div><div className="flex items-center gap-3 flex-wrap"><div className="flex items-center gap-2 flex-1"><select className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 border border-slate-200 rounded px-2 h-7 outline-none appearance-none" value={item.category} onChange={e => { const n = [...parsedItems]; n[idx].category = e.target.value; setParsedItems(n); }}>{INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{getCategoryDisplay(c)}</option>)}</select><div className="flex items-center bg-slate-50 border border-blue-100 rounded px-2 h-7 flex-1 max-w-[120px]"><span className="text-[10px] text-blue-300 font-bold mr-1">#</span><input className="bg-transparent text-[10px] font-black text-blue-600 outline-none w-full placeholder:text-slate-300 uppercase font-mono" placeholder="TAG" value={item.keyword} onChange={e => { const n = [...parsedItems]; n[idx].keyword = e.target.value; setParsedItems(n); }} /></div><span className="text-[10px] font-mono text-slate-300">#{item.sku}</span></div></div></div>))}</div>
+              <div className="flex-1 overflow-y-auto space-y-3 p-2 bg-slate-50 rounded-2xl no-scrollbar">{parsedItems.map((item, idx) => (<div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col gap-3"><div className="flex items-center justify-between gap-4"><div className="flex-1 min-w-0"><input className="w-full font-black text-sm bg-transparent border-none outline-none focus:text-blue-600 truncate h-6" value={item.name} onChange={e => { const n = [...parsedItems]; n[idx].name = e.target.value; setParsedItems(n); }} /></div><div className="flex items-center gap-1 font-black text-blue-600 shrink-0 border-b-2 border-blue-100"><span className="text-xs">$</span><input type="number" className="w-24 bg-transparent text-right outline-none py-1" value={item.cost} onChange={e => { const n = [...parsedItems]; n[idx].cost = e.target.value; setParsedItems(n); }} /></div></div><div className="flex items-center gap-3 flex-wrap"><div className="flex items-center gap-2 flex-1"><select className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 border border-slate-200 rounded px-2 h-7 outline-none appearance-none" value={item.category} onChange={e => { const n = [...parsedItems]; n[idx].category = e.target.value; setParsedItems(n); }}>{INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{getCategoryDisplay(c)}</option>)}</select><div className="flex items-center bg-slate-50 border border-blue-100 rounded px-2 h-7 flex-1 max-w-[120px]"><span className="text-[10px] text-blue-300 font-bold mr-1">#</span><input className="bg-transparent text-[10px] font-black text-blue-600 outline-none w-full placeholder:text-slate-300 uppercase font-mono" placeholder="TAG" value={item.keyword} onChange={e => { const n = [...parsedItems]; n[idx].keyword = e.target.value; setParsedItems(n); }} /></div></div></div></div>))}</div>
               <button onClick={() => commitBatch(parsedItems)} className="w-full bg-slate-900 text-white font-black py-5 rounded-[2rem] mt-6 uppercase tracking-[0.2em] text-sm shadow-2xl active:scale-95 transition-all">Merge assets to Vault</button>
            </div>
         </div>
@@ -304,44 +299,73 @@ const ScanView = ({ inventory, setInventory, createLog, addNotification }) => {
   );
 };
 
-// --- 重写版: ClientsView (支持详情页) ---
+// --- ClientsView: With PCPartPicker Parsing ---
 const ClientsView = ({ clients, setClients, createLog, addNotification, syncClient }) => {
    const [selectedClient, setSelectedClient] = useState(null);
+   const [parsedManifest, setParsedManifest] = useState([]);
+
+   useEffect(() => {
+     if(selectedClient && selectedClient.manifestText) parseManifest(selectedClient.manifestText, false);
+   }, [selectedClient]);
 
    const handleCreateClient = () => {
-      // 创建一个临时草稿对象，不直接保存到 setClients，直到用户点击 Update
       const newClient = { 
           id: generateId(), 
           wechatName: "New Entity", 
-          wechatId: "",
-          xhsName: "",
-          xhsId: "",
-          manifestText: "",
-          status: 'Deposit', 
-          saleTarget: 0,
-          resourceCost: 0,
+          wechatId: "", xhsName: "", xhsId: "", manifestText: "", status: 'Deposit', 
+          saleTarget: 0, resourceCost: 0, 
           orderDate: new Date().toISOString().split('T')[0] 
       };
       setSelectedClient(newClient);
+      setParsedManifest([]);
+   };
+
+   const parseManifest = (text, updateCost = true) => {
+       if(!text) { setParsedManifest([]); return; }
+       const lines = text.split('\n');
+       const parts = [];
+       let totalCost = 0;
+
+       lines.forEach(line => {
+           // Regex matches: Type: Name ($Price ... or Type: Name $Price
+           // Handles the specific PCPartPicker list format provided
+           const regex = /^([a-zA-Z\s]+):\s+(.+?)\s+(?:-|@|–)\s+\$([\d\.]+)/; 
+           const regex2 = /^([a-zA-Z\s]+):\s+(.+?)\s+\(\$([\d\.]+)/; // For the ($Price @ Vendor) format
+           
+           const match = line.match(regex) || line.match(regex2);
+           if (match) {
+               const type = match[1].trim();
+               const name = match[2].trim();
+               const price = parseFloat(match[3]);
+               if (type !== 'Total' && type !== 'Generated by') {
+                   parts.push({ type, name, price });
+                   totalCost += price;
+               }
+           }
+       });
+
+       setParsedManifest(parts);
+       
+       if (updateCost && selectedClient) {
+           setSelectedClient(prev => ({ ...prev, resourceCost: parseFloat(totalCost.toFixed(2)) }));
+           addNotification(`Extracted ${parts.length} parts. Cost updated.`);
+       }
    };
 
    const handleSaveClient = () => {
        if (!selectedClient) return;
-       // 更新前端列表
        setClients(prev => {
            const exists = prev.find(c => c.id === selectedClient.id);
            if (exists) return prev.map(c => c.id === selectedClient.id ? selectedClient : c);
            return [selectedClient, ...prev];
        });
-       // 同步后端
        syncClient(selectedClient);
        createLog('CLIENT_UPDATE', 'Entity Log', `Updated Record: ${selectedClient.wechatName}`);
        addNotification('Entity Saved');
-       setSelectedClient(null); // 返回列表
+       setSelectedClient(null);
    };
 
    if (selectedClient) {
-       // --- 详情模式 ---
        return (
          <div className="p-6 md:p-8 max-w-4xl mx-auto h-full flex flex-col animate-in slide-in-from-right">
             <header className="mb-6 flex justify-between items-center">
@@ -350,11 +374,7 @@ const ClientsView = ({ clients, setClients, createLog, addNotification, syncClie
             </header>
             
             <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm space-y-6">
-                <div className="flex items-center gap-4 mb-4">
-                    <div className="text-3xl font-black text-slate-800">{selectedClient.wechatName}</div>
-                </div>
-
-                {/* 基本信息 */}
+                <div className="flex items-center gap-4 mb-4"><div className="text-3xl font-black text-slate-800">{selectedClient.wechatName}</div></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
                     <div className="space-y-4">
                         <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WeChat Name</label><input className="w-full bg-white border border-slate-200 rounded-xl p-3 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-100" value={selectedClient.wechatName} onChange={e => setSelectedClient({...selectedClient, wechatName: e.target.value})} /></div>
@@ -366,21 +386,31 @@ const ClientsView = ({ clients, setClients, createLog, addNotification, syncClie
                     </div>
                 </div>
 
-                {/* Manifest */}
                 <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">PCPartPicker Manifest</label>
-                    <textarea className="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 font-mono text-xs outline-none focus:ring-2 focus:ring-blue-50" placeholder="Paste PCPartPicker manifest..." value={selectedClient.manifestText} onChange={e => setSelectedClient({...selectedClient, manifestText: e.target.value})} />
-                    <button className="mt-3 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2"><Scan size={14}/> Extract Assets (Beta)</button>
+                    <textarea className="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 font-mono text-xs outline-none focus:ring-2 focus:ring-blue-50" placeholder="Paste PCPartPicker text here..." value={selectedClient.manifestText} onChange={e => { setSelectedClient({...selectedClient, manifestText: e.target.value}); parseManifest(e.target.value, false); }} />
+                    <button onClick={() => parseManifest(selectedClient.manifestText, true)} className="mt-3 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 active:scale-95 transition-all"><Scan size={14}/> Extract & Calculate Cost</button>
                 </div>
+
+                {parsedManifest.length > 0 && (
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 animate-in fade-in">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Configuration Breakdown</h4>
+                    <div className="space-y-2">
+                      {parsedManifest.map((part, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-100">
+                           <div className="flex items-center gap-2"><span className="font-black text-slate-400 w-16 uppercase text-[9px]">{part.type}</span><span className="font-bold text-slate-700 truncate max-w-[200px]">{part.name}</span></div>
+                           <div className="font-mono font-bold text-slate-900">{formatCurrency(part.price)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
 
-            {/* 财务栏 */}
             <div className="mt-6 bg-slate-900 rounded-[2.5rem] p-8 text-white flex flex-col md:flex-row gap-8 items-center shadow-2xl">
                 <div className="flex-1">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Yield</div>
-                    <div className={`text-4xl font-black tracking-tighter ${(selectedClient.saleTarget - selectedClient.resourceCost) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {formatCurrency(selectedClient.saleTarget - selectedClient.resourceCost)}
-                    </div>
+                    <div className={`text-4xl font-black tracking-tighter ${(selectedClient.saleTarget - selectedClient.resourceCost) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(selectedClient.saleTarget - selectedClient.resourceCost)}</div>
                 </div>
                 <div className="flex gap-6">
                     <div><label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Sale Target</label><input type="number" className="bg-slate-800 border-none rounded-xl py-2 px-3 text-white font-black w-32 outline-none" value={selectedClient.saleTarget} onChange={e => setSelectedClient({...selectedClient, saleTarget: parseFloat(e.target.value) || 0})} /></div>
@@ -391,7 +421,6 @@ const ClientsView = ({ clients, setClients, createLog, addNotification, syncClie
        );
    }
 
-   // --- 列表模式 ---
    return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto h-full">
         <header className="mb-8 flex justify-between items-center"><div><h1 className="text-3xl font-black uppercase tracking-[0.1em] text-slate-800 leading-none">Hub</h1></div><button onClick={handleCreateClient} className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl active:scale-95"><UserPlus size={24}/></button></header>
@@ -400,10 +429,7 @@ const ClientsView = ({ clients, setClients, createLog, addNotification, syncClie
                 <div key={c.id} onClick={() => setSelectedClient(c)} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group">
                     <div className="flex flex-col">
                         <div className="font-black text-slate-800 text-lg group-hover:text-blue-600 transition-colors">{c.wechatName}</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2">
-                            <span>{c.orderDate}</span>
-                            {c.xhsName && <span className="bg-slate-100 px-1.5 rounded text-slate-500">XHS: {c.xhsName}</span>}
-                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2"><span>{c.orderDate}</span>{c.xhsName && <span className="bg-slate-100 px-1.5 rounded text-slate-500">XHS: {c.xhsName}</span>}</div>
                     </div>
                     <div className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase bg-blue-50 text-blue-600 border border-blue-100">{c.status}</div>
                 </div>
