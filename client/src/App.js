@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, Users, Package, ScanLine, Search, CheckCircle, AlertCircle, 
   History, TrendingUp, Plus, Minus, Filter, Save, X, ExternalLink, MapPin, 
-  Truck, Calendar, Hash, ChevronRight, DollarSign, Box, Cpu, ChevronDown
+  Truck, Calendar, Hash, ChevronRight, ChevronLeft, DollarSign, Box, Cpu, ChevronDown, Scan
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
