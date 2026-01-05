@@ -2,32 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, Package, ScanLine, Search, CheckCircle, AlertCircle, 
   Plus, Save, X, Truck, ChevronLeft, Box, Cpu, Scan, Trash2, ArrowRight, 
-  Calendar, CreditCard, MapPin, Link as LinkIcon, TrendingUp, User
+  Calendar, CreditCard, Link as LinkIcon, User
 } from 'lucide-react';
 
 /**
  * Project: PC Inventory Master
- * Version: 5.0.0 Elegant UI
+ * Version: 5.1.0 "Clean & Smart"
  */
 
 const API_BASE = `http://${window.location.hostname}:5001/api`;
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const formatMoney = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 
-const SPEC_CATS = ['CPU', 'CPU Cooler', 'Motherboard', 'Memory', 'Storage', 'Video Card', 'Case', 'Power Supply', 'Case Fan', 'Monitor', 'Strimer', 'Labor', 'Custom'];
-const STATUS_OPTS = ['Deposit Paid', 'Parts Ordered', 'Building', 'Ready to Ship', 'Delivered'];
+// Default Cats: 8 Hardware + Service
+const DEFAULT_CATS = ['CPU', 'CPU Cooler', 'Motherboard', 'Memory', 'Storage', 'Video Card', 'Case', 'Power Supply', 'Service Fee'];
+// Full Cats for reference
+const ALL_CATS = [...DEFAULT_CATS, 'Case Fan', 'Monitor', 'Strimer', 'Custom'];
+const STATUS_OPTS = ['Deposit Paid', 'Waiting Parts', 'Building', 'Ready', 'Delivered'];
 
 // --- Helper: Auto Categorize ---
 const guessCategory = (name) => {
     const n = name.toLowerCase();
-    if(n.includes('cpu') || n.includes('ryzen') || n.includes('intel core')) return 'CPU';
-    if(n.includes('motherboard') || n.includes('b650') || n.includes('x670') || n.includes('z790')) return 'Motherboard';
+    if(n.includes('cpu') || n.includes('ryzen') || n.includes('intel')) return 'CPU';
+    if(n.includes('motherboard') || n.includes('b650') || n.includes('z790')) return 'Motherboard';
     if(n.includes('memory') || n.includes('ram') || n.includes('ddr5')) return 'Memory';
-    if(n.includes('video card') || n.includes('geforce') || n.includes('rtx') || n.includes('radeon')) return 'Video Card';
-    if(n.includes('ssd') || n.includes('nvme') || n.includes('storage')) return 'Storage';
+    if(n.includes('video card') || n.includes('geforce') || n.includes('rtx')) return 'Video Card';
+    if(n.includes('ssd') || n.includes('nvme')) return 'Storage';
     if(n.includes('cooler') || n.includes('liquid') || n.includes('aio')) return 'CPU Cooler';
-    if(n.includes('power supply') || n.includes('psu') || n.includes('gold')) return 'Power Supply';
-    if(n.includes('case') || n.includes('tower') || n.includes('atx')) return 'Case';
+    if(n.includes('power supply') || n.includes('psu')) return 'Power Supply';
+    if(n.includes('case') || n.includes('tower')) return 'Case';
     return 'Other';
 };
 
@@ -41,19 +44,32 @@ async function apiCall(url, method='GET', body=null) {
     } catch(e) { return null; }
 }
 
-// --- Fuzzy Match ---
+// --- Fuzzy Match Logic (The Solution to Naming Mismatch) ---
 function findBestMatch(targetName, inventory) {
     if(!targetName) return null;
     const cleanTarget = targetName.toLowerCase().replace(/[^a-z0-9]/g, '');
     let best = null; let bestScore = 0;
+
     inventory.forEach(item => {
         let score = 0;
         const cleanName = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanKey = (item.keyword || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Keyword is KING (Matches "#9800X3D" in "AMD Ryzen 7 9800X3D...")
+        if(cleanKey && cleanTarget.includes(cleanKey)) score += 100;
+        
+        // 2. Name Match
         if(cleanTarget.includes(cleanName) || cleanName.includes(cleanTarget)) score += 50;
-        targetName.split(' ').forEach(t => { if(t.length > 2 && item.name.toLowerCase().includes(t.toLowerCase())) score += 5; });
+        
+        // 3. Token Match
+        targetName.split(' ').forEach(t => { 
+            if(t.length > 3 && item.name.toLowerCase().includes(t.toLowerCase())) score += 5; 
+        });
+
         if(score > bestScore) { bestScore = score; best = item; }
     });
-    return bestScore > 15 ? best : null;
+    // Threshold to prevent bad matches
+    return bestScore > 20 ? best : null;
 }
 
 export default function App() {
@@ -108,8 +124,8 @@ const Dashboard = ({ data }) => {
        <header><h1 className="text-3xl font-black text-slate-900 tracking-tight">Command Center</h1><p className="text-sm font-medium text-slate-400">Inventory & Order Management System</p></header>
        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card label="Total Inventory Asset" val={formatMoney(stockVal)} color="text-blue-600" bg="bg-blue-50" icon={Package}/>
-          <Card label="Total Revenue (All Time)" val={formatMoney(revenue)} color="text-slate-700" bg="bg-slate-50" icon={CreditCard}/>
-          <Card label="Net Profit Realized" val={formatMoney(profit)} color="text-emerald-600" bg="bg-emerald-50" icon={TrendingUp}/>
+          <Card label="Total Revenue" val={formatMoney(revenue)} color="text-slate-700" bg="bg-slate-50" icon={CreditCard}/>
+          <Card label="Realized Profit" val={formatMoney(profit)} color="text-emerald-600" bg="bg-emerald-50" icon={TrendingUp}/>
        </div>
     </div>
   );
@@ -134,20 +150,16 @@ const StockVault = ({ data, refresh, notify, log }) => {
 
     return (
         <div className="p-8 max-w-5xl mx-auto">
-            <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">{['All', ...SPEC_CATS].map(c => <button key={c} onClick={()=>setCat(c)} className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm border ${cat===c?'bg-slate-900 text-white border-slate-900':'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>{c}</button>)}</div>
+            <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">{['All', ...ALL_CATS].map(c => <button key={c} onClick={()=>setCat(c)} className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm border ${cat===c?'bg-slate-900 text-white border-slate-900':'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>{c}</button>)}</div>
             <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                 <div className="grid grid-cols-12 gap-4 p-4 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <div className="col-span-1">Cat</div>
-                    <div className="col-span-5">Product Name</div>
-                    <div className="col-span-2">SKU / Key</div>
-                    <div className="col-span-2 text-right">Stock Level</div>
-                    <div className="col-span-2 text-right">Actions</div>
+                    <div className="col-span-1">Cat</div><div className="col-span-5">Product Name</div><div className="col-span-2">SKU / Key</div><div className="col-span-2 text-right">Stock</div><div className="col-span-2 text-right">Action</div>
                 </div>
                 {filtered.map(i => (
                     <div key={i.id} className="grid grid-cols-12 gap-4 p-4 border-b border-slate-50 hover:bg-slate-50 items-center transition-colors">
                         <div className="col-span-1"><span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg text-[10px] font-bold uppercase">{i.category.substring(0,3)}</span></div>
                         <div className="col-span-5 font-bold text-sm text-slate-800 truncate" title={i.name}>{i.name}</div>
-                        <div className="col-span-2 text-xs font-mono text-slate-400 truncate">{i.sku}</div>
+                        <div className="col-span-2 text-xs font-mono text-slate-400 truncate">{i.keyword || i.sku}</div>
                         <div className="col-span-2 text-right"><div className="font-black text-sm">{i.quantity}</div><div className="text-[10px] text-slate-400">@ {formatMoney(i.cost)}</div></div>
                         <div className="col-span-2 flex justify-end gap-2"><button onClick={()=>{setEditItem(i);setAdjQty(1);setAdjCost(i.cost);}} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors shadow-sm"><Plus size={16}/></button></div>
                     </div>
@@ -176,32 +188,14 @@ const StockVault = ({ data, refresh, notify, log }) => {
 
 // --- INTAKE NODE ---
 const IntakeNode = ({ data, refresh, notify, log }) => {
-    const [scanVal, setScanVal] = useState('');
     const [neweggTxt, setNeweggTxt] = useState('');
     const [batch, setBatch] = useState([]);
 
-    const handleScan = (e) => {
-        e.preventDefault();
-        if(!scanVal) return;
-        const match = data.inv.find(i => i.sku === scanVal || i.keyword === scanVal);
-        setBatch(p => [{
-            id: match?.id || generateId(),
-            name: match?.name || 'New Item',
-            category: match?.category || 'Other',
-            sku: scanVal,
-            quantity: match?.quantity || 0, cost: match?.cost || 0,
-            qtyInput: 1, costInput: 0,
-            isMatch: !!match
-        }, ...p]);
-        setScanVal('');
-    };
-
     const parseNewegg = () => {
         try {
-            const text = neweggTxt;
-            const gtMatch = text.match(/Grand Total\s*\$?([\d,]+\.\d{2})/);
+            const lines = neweggTxt.split('\n').map(l => l.trim());
+            const gtMatch = neweggTxt.match(/Grand Total\s*\$?([\d,]+\.\d{2})/);
             const grandTotal = gtMatch ? parseFloat(gtMatch[1].replace(/,/g,'')) : 0;
-            const lines = text.split('\n').map(l => l.trim());
             const items = [];
             
             for(let i=0; i<lines.length; i++) {
@@ -211,12 +205,13 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
                     if(name.includes('Return Policy') || name.startsWith('COMBO')) name = lines[i-2]; 
                     
                     let subtotal = 0; let qty = 1;
+                    // Look ahead for "($xxx.xx ea.)" which anchors the subtotal above it
                     for(let j=1; j<8; j++) {
                         const l = lines[i+j];
                         if(l && l.includes('ea.)')) {
-                             const subLine = lines[i+j-1];
+                             const subLine = lines[i+j-1]; // Line above (ea.) is Subtotal
                              if(subLine && subLine.startsWith('$')) subtotal = parseFloat(subLine.replace(/[$,]/g, ''));
-                             const qtyLine = lines[i+j-2];
+                             const qtyLine = lines[i+j-2]; // Line above Subtotal is Qty
                              if(qtyLine && /^\d+$/.test(qtyLine)) qty = parseInt(qtyLine);
                              break;
                         }
@@ -228,7 +223,7 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
                     items.push({
                         id: dbMatch?.id || generateId(),
                         name: dbMatch?.name || name,
-                        category: autoCat, // Auto-Cat Applied Here
+                        category: autoCat,
                         sku: dbMatch?.sku || sku,
                         qtyInput: qty, subtotal: subtotal, isGift: isGift, isMatch: !!dbMatch,
                         quantity: dbMatch?.quantity || 0, cost: dbMatch?.cost || 0
@@ -260,22 +255,13 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
 
     return (
         <div className="p-8 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                    <h3 className="font-black uppercase text-xs mb-4 text-slate-400 tracking-widest">Scanner Input</h3>
-                    <form onSubmit={handleScan} className="relative">
-                        <Scan className="absolute left-4 top-3.5 text-slate-400" size={20}/>
-                        <input autoFocus className="w-full bg-slate-50 pl-12 pr-4 py-3.5 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" placeholder="Scan SKU / UPC..." value={scanVal} onChange={e=>setScanVal(e.target.value)}/>
-                    </form>
-                </div>
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 h-96 flex flex-col">
-                    <h3 className="font-black uppercase text-xs mb-4 text-slate-400 tracking-widest">Newegg Intelligent Import</h3>
-                    <textarea className="flex-1 bg-slate-50 rounded-xl p-4 text-xs font-mono mb-4 outline-none resize-none focus:ring-2 focus:ring-blue-100 transition-all leading-relaxed" placeholder="Paste Newegg Order Summary here..." value={neweggTxt} onChange={e=>setNeweggTxt(e.target.value)}/>
-                    <button onClick={parseNewegg} className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors">Analyze & Extract Assets</button>
-                </div>
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col h-[70vh]">
+                <h3 className="font-black uppercase text-xs mb-4 text-slate-400 tracking-widest">Newegg Intelligent Import</h3>
+                <textarea className="flex-1 bg-slate-50 rounded-xl p-4 text-xs font-mono mb-4 outline-none resize-none focus:ring-2 focus:ring-blue-100 transition-all leading-relaxed" placeholder="Paste Newegg Order Summary here..." value={neweggTxt} onChange={e=>setNeweggTxt(e.target.value)}/>
+                <button onClick={parseNewegg} className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors">Analyze & Extract Assets</button>
             </div>
 
-            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 flex flex-col h-[80vh]">
+            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 flex flex-col h-[70vh]">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black uppercase text-xs text-slate-400 tracking-widest">Staging Area ({batch.length})</h3>
                     {batch.length>0 && <button onClick={commit} className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase shadow-lg active:scale-95 transition-all">Commit All</button>}
@@ -290,7 +276,7 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
                             <div className="flex flex-wrap gap-2">
                                 <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${item.isMatch?'bg-emerald-50 text-emerald-600':'bg-blue-50 text-blue-600'}`}>{item.isMatch?'Matched':'New'}</span>
                                 {item.isGift && <span className="text-[10px] font-black px-2 py-1 rounded-lg uppercase bg-purple-50 text-purple-600">Gift</span>}
-                                <select className="text-[10px] font-bold bg-slate-50 text-slate-500 rounded-lg px-2 py-1 outline-none uppercase" value={item.category} onChange={e=>{const n=[...batch];n[i].category=e.target.value;setBatch(n)}}>{SPEC_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                                <select className="text-[10px] font-bold bg-slate-50 text-slate-500 rounded-lg px-2 py-1 outline-none uppercase" value={item.category} onChange={e=>{const n=[...batch];n[i].category=e.target.value;setBatch(n)}}>{ALL_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select>
                             </div>
                             <div className="grid grid-cols-2 gap-4 mt-1">
                                 <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-between px-3"><span className="text-[10px] font-bold text-slate-400 uppercase">Qty</span><input type="number" className="bg-transparent text-right font-black text-sm w-12 outline-none" value={item.qtyInput} onChange={e=>{const n=[...batch];n[i].qtyInput=parseInt(e.target.value)||0;setBatch(n)}}/></div>
@@ -311,68 +297,93 @@ const ClientHub = ({ data, refresh, notify, log }) => {
     const [search, setSearch] = useState('');
 
     const handleNew = () => {
+        // Init with Default Categories and Service Fee
+        const initSpecs = {};
+        DEFAULT_CATS.forEach(c => {
+            initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 };
+            if(c === 'Service Fee') initSpecs[c] = { name: 'Assembly Service', sku: 'LABOR', cost: 0, price: 180, qty: 1 };
+        });
         setActive({ 
-            id: generateId(), wechatName: 'New Client', isShipping: false, specs: {}, status: 'Deposit Paid', 
+            id: generateId(), wechatName: 'New Client', isShipping: false, specs: initSpecs, status: 'Deposit Paid', 
             orderDate: new Date().toISOString().split('T')[0], depositDate: '', deliveryDate: '',
-            realName: '', payerName: '', wechatId: '', xhsId: '', xhsName: '', pcppLink: '', trackingNumber: ''
+            realName: '', wechatId: '', xhsId: '', xhsName: '', pcppLink: '', trackingNumber: ''
         });
         setView('detail');
     };
 
     const save = async () => {
         let actual = 0;
-        SPEC_CATS.forEach(c => { if(active.specs[c]) actual += (active.specs[c].cost || 0); });
-        const profit = (active.totalPrice || 0) - actual;
+        // Cost Calculation: Sum of all parts' COST
+        Object.values(active.specs).forEach(s => actual += (s.cost || 0));
+        // Profit defaults to 0 if we haven't entered sale price yet
+        const profit = active.totalPrice ? (active.totalPrice - actual) : 0;
+        
         await apiCall('/clients', 'POST', { ...active, actualCost: actual, profit });
-        notify('Profile Saved'); refresh(); setView('list');
+        notify('Profile Saved'); await refresh(); setView('list');
     };
 
     const parsePCPP = (text) => {
         if(!text) return;
         const lines = text.split('\n');
         const newSpecs = { ...active.specs };
-        let link = '';
+        
+        // If parsed, we might want to show all categories including Custom found
         lines.forEach(l => {
-            if(l.includes('pcpartpicker.com/list/')) link = l.match(/(https?:\/\/\S+)/)[0];
+            if(l.includes('pcpartpicker.com/list/')) active.pcppLink = l.match(/(https?:\/\/\S+)/)[0];
             const splitIdx = l.indexOf(': ');
             if(splitIdx > -1) {
                 const catRaw = l.substring(0, splitIdx).trim();
                 const rest = l.substring(splitIdx + 2).trim();
-                const cat = SPEC_CATS.find(c => c.toLowerCase() === catRaw.toLowerCase()) || (catRaw==='Video Card'?'Video Card':null);
+                const cat = ALL_CATS.find(c => c.toLowerCase() === catRaw.toLowerCase()) || (catRaw==='Video Card'?'Video Card':null);
+                
                 if(cat) {
                     const name = rest.split('($')[0].trim();
                     const dbItem = findBestMatch(name, data.inv);
-                    newSpecs[cat] = { name, sku: dbItem?.sku || '', cost: dbItem?.cost || 0, qty: 1 };
+                    newSpecs[cat] = {
+                        name: name,
+                        sku: dbItem?.sku || '',
+                        cost: dbItem?.cost || 0, // Auto-fill Cost if found
+                        qty: 1
+                    };
                 }
             }
         });
-        setActive(p => ({ ...p, specs: newSpecs, pcppLink: link || p.pcppLink }));
-        notify('Specs Parsed');
+        // Ensure Service Fee exists
+        if(!newSpecs['Service Fee']) newSpecs['Service Fee'] = { name: 'Assembly Service', sku: 'LABOR', cost: 0, price: 180 };
+        setActive(p => ({ ...p, specs: newSpecs }));
+        notify('PCPP Parsed');
     };
 
+    // Helper to get active categories (defaults + any extras that have data)
+    const displayCats = useMemo(() => {
+        if(!active) return [];
+        const keys = Object.keys(active.specs);
+        // Show default cats OR any cat that has a name filled in
+        return ALL_CATS.filter(c => DEFAULT_CATS.includes(c) || (active.specs[c] && active.specs[c].name));
+    }, [active]);
+
     if(view === 'detail') return (
-        <div className="p-8 max-w-6xl mx-auto pb-32 animate-in slide-in-from-right">
+        <div className="p-8 max-w-7xl mx-auto pb-32 animate-in slide-in-from-right">
             <div className="flex justify-between items-center mb-6">
                 <button onClick={()=>setView('list')} className="text-slate-400 font-bold text-xs flex items-center gap-1 hover:text-slate-600 transition-colors"><ChevronLeft size={16}/> BACK TO HUB</button>
                 <div className="flex gap-3">
-                    {active.pcppLink && <a href={active.pcppLink} target="_blank" className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-blue-100 transition-colors"><LinkIcon size={14}/> View PCPartPicker</a>}
+                    {active.pcppLink && <a href={active.pcppLink} target="_blank" className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-blue-100 transition-colors"><LinkIcon size={14}/> PCPartPicker</a>}
                     {active.trackingNumber && <a href={`https://www.ups.com/track?tracknum=${active.trackingNumber}`} target="_blank" className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-amber-100 transition-colors"><Truck size={14}/> Track Package</a>}
                     <button onClick={save} className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold text-xs uppercase shadow-lg hover:bg-slate-800 transition-colors">Save Profile</button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                {/* Left Col: Identity & Logistics */}
+                {/* Left Col: Identity */}
                 <div className="xl:col-span-1 space-y-6">
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                         <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><User size={20}/></div><h3 className="font-black text-sm text-slate-800">Client Identity</h3></div>
                         <div className="space-y-4">
-                            <div><label className="l">WeChat Name</label><input className="i" value={active.wechatName} onChange={e=>setActive({...active, wechatName:e.target.value})}/></div>
-                            <div><label className="l">WeChat ID</label><input className="i" value={active.wechatId||''} onChange={e=>setActive({...active, wechatId:e.target.value})}/></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="l">Real Name</label><input className="i" value={active.realName||''} onChange={e=>setActive({...active, realName:e.target.value})}/></div>
-                                <div><label className="l">Payer Name</label><input className="i" value={active.payerName||''} onChange={e=>setActive({...active, payerName:e.target.value})}/></div>
+                                <div><label className="l">WeChat Name</label><input className="i" value={active.wechatName} onChange={e=>setActive({...active, wechatName:e.target.value})}/></div>
+                                <div><label className="l">WeChat ID</label><input className="i" value={active.wechatId||''} onChange={e=>setActive({...active, wechatId:e.target.value})}/></div>
                             </div>
+                            <div><label className="l">Real Name</label><input className="i" value={active.realName||''} onChange={e=>setActive({...active, realName:e.target.value})}/></div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="l">XHS Name</label><input className="i" value={active.xhsName||''} onChange={e=>setActive({...active, xhsName:e.target.value})}/></div>
                                 <div><label className="l">XHS ID</label><input className="i" value={active.xhsId||''} onChange={e=>setActive({...active, xhsId:e.target.value})}/></div>
@@ -411,7 +422,7 @@ const ClientHub = ({ data, refresh, notify, log }) => {
                     </div>
                 </div>
 
-                {/* Right Col: Build Spec & Financials */}
+                {/* Right Col: Build Spec */}
                 <div className="xl:col-span-2 space-y-6">
                     <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6">
                         <div className="w-full">
@@ -419,8 +430,8 @@ const ClientHub = ({ data, refresh, notify, log }) => {
                             <div className="flex items-center text-4xl font-black"><span className="text-slate-600 mr-2">$</span><input className="bg-transparent outline-none w-full placeholder:text-slate-700" placeholder="0.00" value={active.totalPrice||''} onChange={e=>setActive({...active, totalPrice:parseFloat(e.target.value)})}/></div>
                         </div>
                         <div className="w-full md:text-right">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 block">Net Profit</label>
-                            <div className={`text-3xl font-black ${(active.totalPrice||0)-(Object.values(active.specs).reduce((a,b)=>a+(b.cost||0),0)) > 0 ? 'text-emerald-400':'text-red-400'}`}>{formatMoney((active.totalPrice||0)-(Object.values(active.specs).reduce((a,b)=>a+(b.cost||0),0)))}</div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 block">Est. Net Profit</label>
+                            <div className={`text-3xl font-black ${(active.totalPrice||0)-(Object.values(active.specs).reduce((a,b)=>a+(b.cost||0),0)) > 0 ? 'text-emerald-400':'text-red-400'}`}>{formatMoney(active.totalPrice ? (active.totalPrice - Object.values(active.specs).reduce((a,b)=>a+(b.cost||0),0)) : 0)}</div>
                         </div>
                     </div>
 
@@ -433,22 +444,22 @@ const ClientHub = ({ data, refresh, notify, log }) => {
                             <textarea className="w-full h-20 bg-transparent text-xs font-mono outline-none resize-none placeholder:text-slate-400" placeholder="Paste PCPartPicker list here to auto-fill..." onChange={e=>parsePCPP(e.target.value)}/>
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                             <div className="grid grid-cols-12 gap-4 px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                <div className="col-span-2">Component</div>
-                                <div className="col-span-6">Model / Name</div>
-                                <div className="col-span-2">SKU</div>
-                                <div className="col-span-2 text-right">Cost</div>
+                                <div className="col-span-2">Part Type</div><div className="col-span-6">Model / Name</div><div className="col-span-2">SKU</div><div className="col-span-2 text-right">My Cost</div>
                             </div>
-                            {SPEC_CATS.map(cat => {
-                                const item = active.specs[cat];
+                            {displayCats.map(cat => {
+                                const item = active.specs[cat] || { name: '', sku: '', cost: 0 };
                                 return (
                                     <div key={cat} className="grid grid-cols-12 gap-4 items-center py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors px-4 -mx-4">
                                         <div className="col-span-2 text-[10px] font-bold text-slate-500 uppercase">{cat}</div>
-                                        <div className="col-span-6"><input className="w-full text-sm font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-200" placeholder="Empty Slot" value={item?.name||''} onChange={e=>setActive(p=>({...p, specs:{...p.specs, [cat]:{...item, name:e.target.value}}}))}/></div>
-                                        <div className="col-span-2"><input className="w-full text-[10px] font-mono text-slate-400 bg-transparent outline-none placeholder:text-slate-200" placeholder="-" value={item?.sku||''} onChange={e=>setActive(p=>({...p, specs:{...p.specs, [cat]:{...item, sku:e.target.value}}}))}/></div>
+                                        <div className="col-span-6"><input className="w-full text-sm font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-200" placeholder="-" value={item.name||''} onChange={e=>setActive(p=>({...p, specs:{...p.specs, [cat]:{...item, name:e.target.value}}}))}/></div>
+                                        <div className="col-span-2"><input className="w-full text-[10px] font-mono text-slate-400 bg-transparent outline-none placeholder:text-slate-200" placeholder="-" value={item.sku||''} onChange={e=>setActive(p=>({...p, specs:{...p.specs, [cat]:{...item, sku:e.target.value}}}))}/></div>
                                         <div className="col-span-2 flex justify-end">
-                                            <input type="number" className="w-20 text-sm font-bold text-right text-slate-700 bg-transparent outline-none placeholder:text-slate-200" placeholder="0.00" value={item?.cost||''} onChange={e=>setActive(p=>({...p, specs:{...p.specs, [cat]:{...item, cost:parseFloat(e.target.value)}}}))}/>
+                                            <div className="bg-slate-100 rounded-lg px-2 py-1 flex items-center">
+                                                <span className="text-[10px] text-slate-400 mr-1">$</span>
+                                                <input type="number" className="w-16 text-xs font-bold text-right text-emerald-600 bg-transparent outline-none placeholder:text-slate-300" placeholder="0" value={item.cost||''} onChange={e=>setActive(p=>({...p, specs:{...p.specs, [cat]:{...item, cost:parseFloat(e.target.value)}}}))}/>
+                                            </div>
                                         </div>
                                     </div>
                                 )
@@ -461,14 +472,14 @@ const ClientHub = ({ data, refresh, notify, log }) => {
     );
 
     return (
-        <div className="p-8 max-w-5xl mx-auto">
+        <div className="p-8 max-w-6xl mx-auto">
              <div className="flex justify-between items-center mb-8">
                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">Client Hub</h1>
                  <button onClick={handleNew} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase shadow-lg hover:bg-slate-800 transition-colors flex items-center gap-2"><Plus size={16}/> New Client</button>
              </div>
              <div className="mb-6 relative">
                  <Search size={18} className="absolute left-4 top-3.5 text-slate-400"/>
-                 <input className="w-full bg-white pl-12 pr-6 py-3.5 rounded-2xl border border-slate-100 shadow-sm outline-none text-sm font-bold transition-all focus:ring-2 focus:ring-blue-50" placeholder="Search by Name, Real Name, or Part (e.g. 4090)..." value={search} onChange={e=>setSearch(e.target.value)}/>
+                 <input className="w-full bg-white pl-12 pr-6 py-3.5 rounded-2xl border border-slate-100 shadow-sm outline-none text-sm font-bold transition-all focus:ring-2 focus:ring-blue-50" placeholder="Search by Name, Real Name, or Part..." value={search} onChange={e=>setSearch(e.target.value)}/>
              </div>
              <div className="space-y-4">
                  {data.clients.filter(c => JSON.stringify(c).toLowerCase().includes(search.toLowerCase())).map(c => (
@@ -494,6 +505,7 @@ const ClientHub = ({ data, refresh, notify, log }) => {
     );
 };
 
+// Styles
 const s = document.createElement('style');
 s.innerHTML = `.l{font-size:10px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:6px;display:block;letter-spacing:0.05em}.i{width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.75rem;padding:0.75rem 1rem;font-size:13px;font-weight:600;color:#334155;outline:none;transition:all}.i:focus{background:#fff;border-color:#94a3b8;box-shadow:0 4px 12px rgba(0,0,0,0.03)}`;
 document.head.appendChild(s);
