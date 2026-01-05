@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, Users, Package, ScanLine, Search, CheckCircle, AlertCircle, 
-  History, TrendingUp, Plus, Minus, Save, X, ExternalLink, Truck, Calendar, 
-  ChevronLeft, DollarSign, Box, Cpu, Scan, User, FileText, ArrowRight
+  Plus, Minus, Save, X, ExternalLink, Truck, ChevronLeft, Box, Cpu, Scan, 
+  Trash2, ArrowRight
 } from 'lucide-react';
+
+/**
+ * Project: PC Inventory Master
+ * Version: 4.2.0 Critical Hotfix
+ * Fixes: Newegg Cost Allocation Algorithm, PCPartPicker Text Parsing
+ */
 
 const API_BASE = `http://${window.location.hostname}:5001/api`;
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const formatMoney = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 
-const SPEC_CATS = ['CPU', 'CPU Cooler', 'Motherboard', 'Memory', 'Storage', 'Video Card', 'Case', 'Power Supply', 'Case Fan', 'Monitor', 'Strimer', 'Labor'];
+const SPEC_CATS = ['CPU', 'CPU Cooler', 'Motherboard', 'Memory', 'Storage', 'Video Card', 'Case', 'Power Supply', 'Case Fan', 'Monitor', 'Strimer', 'Labor', 'Custom'];
 const STATUS_OPTS = ['Deposit Paid', 'Waiting Parts', 'Building', 'Ready', 'Delivered'];
 
 // --- API ---
@@ -36,13 +42,14 @@ function findBestMatch(targetName, inventory) {
         if(cleanTarget.includes(cleanName) || cleanName.includes(cleanTarget)) score += 50;
         if(cleanKey && cleanTarget.includes(cleanKey)) score += 30;
         
+        // Simple token match
         targetName.split(' ').forEach(t => { 
             if(t.length > 2 && item.name.toLowerCase().includes(t.toLowerCase())) score += 5; 
         });
 
         if(score > bestScore) { bestScore = score; best = item; }
     });
-    return bestScore > 15 ? best : null;
+    return bestScore > 10 ? best : null;
 }
 
 export default function App() {
@@ -93,7 +100,7 @@ const Dashboard = ({ data }) => {
   const pending = data.clients.filter(c => c.status !== 'Delivered').length;
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">
-       <header><h1 className="text-3xl font-black text-slate-900">Console</h1><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">v4.1.0 • System Online</p></header>
+       <header><h1 className="text-3xl font-black text-slate-900">Console</h1><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">v4.2.0 • Fixes Applied</p></header>
        <div className="grid grid-cols-2 gap-4">
           <Card label="Vault Value" val={formatMoney(stockVal)} color="text-blue-600" bg="bg-blue-50" icon={Package}/>
           <Card label="Pending Orders" val={pending} color="text-amber-600" bg="bg-amber-50" icon={Users}/>
@@ -143,10 +150,18 @@ const StockVault = ({ data, refresh, notify, log }) => {
             {editItem && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex items-center justify-center p-6">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl">
-                        <h3 className="font-black uppercase text-xs mb-4">Adjust Stock: {editItem.name}</h3>
+                        <h3 className="font-black uppercase text-xs mb-4">Adjust: {editItem.name}</h3>
+                        <div className="bg-blue-50 p-3 rounded-xl mb-4 text-xs font-bold text-blue-800">Current: {editItem.quantity} units @ {formatMoney(editItem.cost)}</div>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div><label className="l">Qty Change</label><input type="number" className="i text-center text-lg" value={adjQty} onChange={e=>setAdjQty(parseInt(e.target.value)||0)}/></div>
                             <div><label className="l">Unit Cost</label><input type="number" className="i text-center text-lg" value={adjCost} onChange={e=>setAdjCost(parseFloat(e.target.value)||0)}/></div>
+                        </div>
+                        {/* Real-time WAC Preview */}
+                        <div className="mb-4 text-center">
+                            <div className="text-[9px] uppercase font-bold text-slate-400">Projected WAC</div>
+                            <div className="text-xl font-black text-slate-800">
+                                {formatMoney( (editItem.quantity*editItem.cost + adjQty*adjCost) / (editItem.quantity+adjQty) )}
+                            </div>
                         </div>
                         <div className="flex gap-2">
                              <button onClick={()=>commit('sub')} className="flex-1 bg-red-50 text-red-600 py-3 rounded-xl font-bold text-xs uppercase">Remove</button>
@@ -160,7 +175,7 @@ const StockVault = ({ data, refresh, notify, log }) => {
     );
 };
 
-// --- INTAKE NODE ---
+// --- INTAKE NODE (NEWEGG FIX) ---
 const IntakeNode = ({ data, refresh, notify, log }) => {
     const [scanVal, setScanVal] = useState('');
     const [neweggTxt, setNeweggTxt] = useState('');
@@ -170,54 +185,60 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
         e.preventDefault();
         if(!scanVal) return;
         const match = data.inv.find(i => i.sku === scanVal || i.keyword === scanVal);
-        const newItem = {
+        setBatch(p => [{
             id: match?.id || generateId(),
             name: match?.name || 'New Item',
             category: match?.category || 'Other',
             sku: scanVal,
-            quantity: 0, cost: match?.cost || 0,
-            qtyInput: 1, costInput: 0,
+            quantity: match?.quantity || 0, 
+            cost: match?.cost || 0,
+            qtyInput: 1, 
+            costInput: 0,
             isMatch: !!match
-        };
-        setBatch(p => [newItem, ...p]);
+        }, ...p]);
         setScanVal('');
     };
 
     const parseNewegg = () => {
         try {
             const text = neweggTxt;
+            // 1. Get Grand Total
             const gtMatch = text.match(/Grand Total\s*\$?([\d,]+\.\d{2})/);
             const grandTotal = gtMatch ? parseFloat(gtMatch[1].replace(/,/g,'')) : 0;
             
             const lines = text.split('\n').map(l => l.trim());
             const items = [];
             
-            // Revised Logic: Find "Item #:" anchors
             for(let i=0; i<lines.length; i++) {
                 if(lines[i].startsWith('Item #:')) {
                     const sku = lines[i].split(':')[1].trim();
-                    let name = lines[i-1] || 'Unknown';
-                    // Clean up common prefixes
-                    if(name.startsWith('COMBO')) name = lines[i-2]; 
+                    let name = lines[i-1];
+                    if(name.includes('Return Policy') || name.startsWith('COMBO')) name = lines[i-2]; 
                     
-                    // Look ahead for price "($xxx.xx ea.)"
-                    let listedPrice = 0;
+                    const isGift = lines.slice(Math.max(0,i-6), i).some(l => l.includes('Free Gift Item'));
+                    
+                    // 2. Precise Extraction of Subtotal and Quantity using "ea." anchor
+                    let subtotal = 0;
                     let qty = 1;
-                    
-                    // Look in next 10 lines for price pattern
-                    for(let j=1; j<10; j++) {
+
+                    // Look ahead for "($xxx.xx ea.)" pattern
+                    for(let j=1; j<8; j++) {
                         const l = lines[i+j];
-                        if(l && l.match(/\(\$[\d,]+\.\d{2}\sea\.\)/)) {
-                            listedPrice = parseFloat(l.match(/\$([\d,]+\.\d{2})/)[1].replace(/,/g,''));
-                            // Qty is usually line above price or line above that
-                             if(lines[i+j-1] && /^\d+$/.test(lines[i+j-1])) qty = parseInt(lines[i+j-1]);
-                            break;
+                        if(l && l.includes('ea.)')) {
+                             // Line directly above 'ea.' is the Subtotal (e.g. $428.00)
+                             const subLine = lines[i+j-1];
+                             if(subLine && subLine.startsWith('$')) {
+                                subtotal = parseFloat(subLine.replace(/[$,]/g, ''));
+                             }
+                             // Line above Subtotal is Quantity (e.g. 2)
+                             const qtyLine = lines[i+j-2];
+                             if(qtyLine && /^\d+$/.test(qtyLine)) {
+                                qty = parseInt(qtyLine);
+                             }
+                             break;
                         }
                     }
 
-                    const isGift = lines.slice(Math.max(0,i-5), i).some(l => l.includes('Free Gift Item'));
-                    
-                    // Fuzzy Match
                     const dbMatch = findBestMatch(name, data.inv);
                     
                     items.push({
@@ -226,7 +247,7 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
                         category: dbMatch?.category || 'Other',
                         sku: dbMatch?.sku || sku,
                         qtyInput: qty,
-                        listedPrice: listedPrice,
+                        subtotal: subtotal, // Store raw subtotal for calc
                         isGift: isGift,
                         isMatch: !!dbMatch,
                         quantity: dbMatch?.quantity || 0,
@@ -235,22 +256,23 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
                 }
             }
 
-            // Calc Costs
+            // 3. User's Requested Algorithm: (Subtotal / SumNonGiftSubtotals) * GrandTotal / Qty
             const validItems = items.filter(i => !i.isGift);
-            const sumListed = validItems.reduce((a, b) => a + b.listedPrice, 0);
+            const sumSubtotals = validItems.reduce((a, b) => a + b.subtotal, 0);
             
             const finalBatch = items.map(item => {
                 let costInput = 0;
-                if(!item.isGift && sumListed > 0) {
-                    costInput = ((item.listedPrice / sumListed) * grandTotal) / item.qtyInput;
+                if(!item.isGift && sumSubtotals > 0) {
+                    // This is the specific math requested
+                    costInput = (item.subtotal / sumSubtotals) * grandTotal / item.qtyInput;
                 }
                 return { ...item, costInput: parseFloat(costInput.toFixed(2)) };
             });
 
             setBatch(p => [...finalBatch, ...p]);
             setNeweggTxt('');
-            notify(`Parsed ${items.length} items`);
-        } catch(e) { notify('Parse Error', 'error'); }
+            notify(`Parsed ${items.length} items. Total: ${formatMoney(grandTotal)}`);
+        } catch(e) { notify('Parse Error', 'error'); console.error(e); }
     };
 
     const commit = async () => {
@@ -267,44 +289,52 @@ const IntakeNode = ({ data, refresh, notify, log }) => {
     return (
         <div className="p-4 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
+                {/* Scan Box Always Visible */}
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                    <h3 className="font-black uppercase text-xs mb-3 text-slate-400">Quick Scan</h3>
+                    <h3 className="font-black uppercase text-xs mb-3 text-slate-400">Scanner / Manual</h3>
                     <form onSubmit={handleScan} className="relative">
                         <Scan className="absolute left-4 top-3 text-slate-300" size={20}/>
-                        <input autoFocus className="w-full bg-slate-50 pl-12 pr-4 py-3 rounded-xl font-bold outline-none" placeholder="SKU / UPC..." value={scanVal} onChange={e=>setScanVal(e.target.value)}/>
+                        <input autoFocus className="w-full bg-slate-50 pl-12 pr-4 py-3 rounded-xl font-bold outline-none" placeholder="Enter SKU..." value={scanVal} onChange={e=>setScanVal(e.target.value)}/>
                     </form>
                 </div>
+                {/* Newegg Box Always Visible */}
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                     <h3 className="font-black uppercase text-xs mb-3 text-slate-400">Newegg Import</h3>
-                    <textarea className="w-full h-32 bg-slate-50 rounded-xl p-3 text-[10px] font-mono mb-3 outline-none" placeholder="Paste order summary..." value={neweggTxt} onChange={e=>setNeweggTxt(e.target.value)}/>
+                    <textarea className="w-full h-32 bg-slate-50 rounded-xl p-3 text-[10px] font-mono mb-3 outline-none resize-none" placeholder="Paste Newegg Order Summary..." value={neweggTxt} onChange={e=>setNeweggTxt(e.target.value)}/>
                     <button onClick={parseNewegg} className="w-full bg-blue-50 text-blue-600 py-3 rounded-xl font-bold text-xs uppercase">Parse Text</button>
                 </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 pb-24">
                 {batch.map((item, i) => (
                     <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm animate-in slide-in-from-right">
                         <div className="flex justify-between items-start mb-2">
                             <input className="font-black text-xs w-full bg-transparent outline-none" value={item.name} onChange={e=>{const n=[...batch];n[i].name=e.target.value;setBatch(n)}}/>
-                            <button onClick={()=>setBatch(batch.filter((_,idx)=>idx!==i))}><X size={16} className="text-slate-300"/></button>
+                            <button onClick={()=>setBatch(batch.filter((_,idx)=>idx!==i))}><Trash2 size={16} className="text-slate-300 hover:text-red-500"/></button>
                         </div>
                         <div className="flex gap-2 mb-2">
                              <span className={`text-[9px] font-black px-1.5 rounded uppercase ${item.isMatch?'bg-emerald-100 text-emerald-600':'bg-blue-50 text-blue-500'}`}>{item.isMatch?'Matched':'New'}</span>
+                             {item.isGift && <span className="text-[9px] font-black px-1.5 rounded uppercase bg-purple-100 text-purple-600">Gift</span>}
                              <select className="text-[9px] bg-slate-50 rounded outline-none" value={item.category} onChange={e=>{const n=[...batch];n[i].category=e.target.value;setBatch(n)}}>{SPEC_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                              <div><label className="l">Add Qty</label><input type="number" className="i text-center" value={item.qtyInput} onChange={e=>{const n=[...batch];n[i].qtyInput=parseInt(e.target.value)||0;setBatch(n)}}/></div>
                              <div><label className="l">Unit Cost</label><input type="number" className="i text-center" value={item.costInput} onChange={e=>{const n=[...batch];n[i].costInput=parseFloat(e.target.value)||0;setBatch(n)}}/></div>
                         </div>
+                        {item.isMatch && (
+                            <div className="mt-2 text-[9px] text-slate-400 font-mono text-center">
+                                Current: {item.quantity} units @ {formatMoney(item.cost)}
+                            </div>
+                        )}
                     </div>
                 ))}
-                {batch.length>0 && <button onClick={commit} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">Commit All</button>}
+                {batch.length>0 && <button onClick={commit} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">Commit All ({batch.length})</button>}
             </div>
         </div>
     );
 };
 
-// --- CLIENT HUB (FIXED) ---
+// --- CLIENT HUB (PCPP FIXED) ---
 const ClientHub = ({ data, refresh, notify, log }) => {
     const [view, setView] = useState('list');
     const [active, setActive] = useState(null);
@@ -326,28 +356,47 @@ const ClientHub = ({ data, refresh, notify, log }) => {
     };
 
     const parsePCPP = () => {
+        if(!pcppText) return;
         const lines = pcppText.split('\n');
         const newSpecs = { ...active.specs };
         let link = '';
+        
         lines.forEach(l => {
             if(l.includes('pcpartpicker.com/list/')) link = l.match(/(https?:\/\/\S+)/)[0];
-            const match = l.match(/^([a-zA-Z\s]+):\s+(.+?)\s+(?:-|@|–)\s+\$/);
-            if(match) {
-                let type = match[1].trim(); const name = match[2].trim();
-                // Map category
-                const cat = SPEC_CATS.find(c => type.includes(c) || c.includes(type)) || 'Custom';
-                // Auto Match
-                const dbItem = findBestMatch(name, data.inv);
-                newSpecs[cat] = {
-                    name, 
-                    sku: dbItem?.sku || '',
-                    cost: dbItem?.cost || 0, // Auto-fill Cost
-                    qty: 1
-                };
+            
+            // Fix: Simple Split by ': ' to find Category vs Name
+            // Example: "CPU: AMD Ryzen 7..."
+            const splitIdx = l.indexOf(': ');
+            if(splitIdx > -1) {
+                const catRaw = l.substring(0, splitIdx).trim();
+                const rest = l.substring(splitIdx + 2).trim();
+                
+                // Match Category
+                const cat = SPEC_CATS.find(c => c.toLowerCase() === catRaw.toLowerCase()) || (catRaw==='Video Card'?'Video Card':null);
+                
+                if(cat) {
+                    // Extract Price from ($511.82 ...)
+                    const priceMatch = rest.match(/\(\$([\d\.]+)/);
+                    const priceEstimate = priceMatch ? parseFloat(priceMatch[1]) : 0;
+                    
+                    // Extract Name (everything before the price parenthesis)
+                    const name = rest.split('($')[0].trim();
+                    
+                    // Auto Match with Inventory for COST
+                    const dbItem = findBestMatch(name, data.inv);
+                    
+                    newSpecs[cat] = {
+                        name: name,
+                        sku: dbItem?.sku || '',
+                        cost: dbItem?.cost || 0, // Fill actual cost from inventory if match
+                        qty: 1
+                    };
+                }
             }
         });
+        
         setActive(p => ({ ...p, specs: newSpecs, pcppLink: link || p.pcppLink }));
-        notify('Specs Parsed & Matched');
+        notify('PCPP Data Applied');
     };
 
     if(view === 'detail') return (
@@ -361,7 +410,6 @@ const ClientHub = ({ data, refresh, notify, log }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left: Info */}
                 <div className="space-y-4">
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                         <h3 className="font-black uppercase text-xs mb-4 text-slate-400">Identity</h3>
@@ -371,7 +419,6 @@ const ClientHub = ({ data, refresh, notify, log }) => {
                             <div><label className="l">WeChat ID</label><input className="i" value={active.wechatId||''} onChange={e=>setActive({...active, wechatId:e.target.value})}/></div>
                             <div><label className="l">Status</label><select className="i" value={active.status} onChange={e=>setActive({...active, status:e.target.value})}>{STATUS_OPTS.map(s=><option key={s}>{s}</option>)}</select></div>
                         </div>
-                        
                         <div className="pt-4 border-t border-slate-100">
                             <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={()=>setActive({...active, isShipping:!active.isShipping})}>
                                 <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${active.isShipping?'bg-blue-600':'bg-slate-200'}`}><div className={`w-3 h-3 bg-white rounded-full transition-transform ${active.isShipping?'translate-x-4':''}`}/></div>
@@ -402,14 +449,12 @@ const ClientHub = ({ data, refresh, notify, log }) => {
                     </div>
                 </div>
 
-                {/* Right: Specs */}
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                     <h3 className="font-black uppercase text-xs mb-3 text-slate-400">Build Spec</h3>
                     <div className="mb-4">
                         <textarea className="w-full h-24 bg-slate-50 rounded-xl p-3 text-[10px] font-mono outline-none mb-2" placeholder="Paste PCPartPicker List..." value={pcppText} onChange={e=>setPcppText(e.target.value)}/>
                         <button onClick={parsePCPP} className="w-full py-2 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase hover:bg-slate-200">Parse & Auto Match</button>
                     </div>
-
                     <div className="space-y-1">
                         {SPEC_CATS.map(cat => {
                             const item = active.specs[cat];
@@ -435,12 +480,12 @@ const ClientHub = ({ data, refresh, notify, log }) => {
              <div className="flex gap-4 mb-6">
                  <div className="flex-1 bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-2">
                      <Search size={16} className="ml-2 text-slate-400"/>
-                     <input className="w-full text-xs font-bold outline-none" placeholder="Search Clients / Parts..." value={search} onChange={e=>setSearch(e.target.value)}/>
+                     <input className="w-full text-xs font-bold outline-none" placeholder="Search Clients..." value={search} onChange={e=>setSearch(e.target.value)}/>
                  </div>
                  <button onClick={handleNew} className="bg-slate-900 text-white px-4 rounded-xl shadow-lg active:scale-95"><Plus/></button>
              </div>
              <div className="space-y-3">
-                 {data.clients.filter(c => c.wechatName.toLowerCase().includes(search.toLowerCase()) || JSON.stringify(c.specs).toLowerCase().includes(search.toLowerCase())).map(c => (
+                 {data.clients.filter(c => c.wechatName.toLowerCase().includes(search.toLowerCase())).map(c => (
                      <div key={c.id} onClick={()=>{setActive(c); setView('detail');}} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-200">
                          <div>
                              <div className="font-black text-sm text-slate-800">{c.wechatName} <span className="text-slate-400 font-normal">| {c.realName}</span></div>
@@ -459,7 +504,6 @@ const ClientHub = ({ data, refresh, notify, log }) => {
     );
 };
 
-// Styles
 const s = document.createElement('style');
 s.innerHTML = `.l{font-size:9px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-left:2px;display:block}.i{width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.4rem;font-size:11px;font-weight:700;outline:none;transition:all}.i:focus{background:#fff;border-color:#cbd5e1}`;
 document.head.appendChild(s);
