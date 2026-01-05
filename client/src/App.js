@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+// 确保这一行包含了 useMemo
+import React, { useState, useEffect, useMemo } from 'react'; 
+
+// 确保这一行包含了 TrendingUp
 import { 
   LayoutDashboard, Users, Package, ScanLine, Search, CheckCircle, AlertCircle, 
   Plus, Save, X, Truck, ChevronLeft, Box, Cpu, Scan, Trash2, ArrowRight, 
-  Calendar, CreditCard, Link as LinkIcon, User
+  Calendar, CreditCard, Link as LinkIcon, User, TrendingUp
 } from 'lucide-react';
 
 /**
