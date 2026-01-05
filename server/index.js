@@ -119,29 +119,57 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
-// 6. 客户 CRUD
+// 6. 客户 CRUD (更新版)
 app.get('/api/clients', async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM clients ORDER BY created_at DESC');
         res.json(rows.map(r => ({
-            id: r.id, wechatName: r.wechat_name, status: r.status, orderDate: r.order_date
+            id: r.id, 
+            wechatName: r.wechat_name, 
+            wechatId: r.wechat_id,
+            xhsName: r.xhs_name,
+            xhsId: r.xhs_id,
+            manifestText: r.manifest_text,
+            saleTarget: parseFloat(r.sale_target || 0),
+            resourceCost: parseFloat(r.resource_cost || 0),
+            status: r.status, 
+            orderDate: r.order_date
         })));
     } catch (err) { res.status(500).json(err); }
 });
 
 app.post('/api/clients', async (req, res) => {
-    const { id, wechatName, status, orderDate } = req.body;
+    // 接收所有扩展字段
+    const { 
+        id, wechatName, wechatId, xhsName, xhsId, 
+        manifestText, saleTarget, resourceCost, status, orderDate 
+    } = req.body;
+    
     try {
         await pool.query(
-            `INSERT INTO clients (id, wechat_name, status, order_date) 
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status`,
-            [id, wechatName, status, orderDate]
+            `INSERT INTO clients (
+                id, wechat_name, wechat_id, xhs_name, xhs_id, 
+                manifest_text, sale_target, resource_cost, status, order_date
+            ) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (id) DO UPDATE SET 
+                wechat_name = EXCLUDED.wechat_name,
+                wechat_id = EXCLUDED.wechat_id,
+                xhs_name = EXCLUDED.xhs_name,
+                xhs_id = EXCLUDED.xhs_id,
+                manifest_text = EXCLUDED.manifest_text,
+                sale_target = EXCLUDED.sale_target,
+                resource_cost = EXCLUDED.resource_cost,
+                status = EXCLUDED.status`,
+            [
+                id, wechatName, wechatId || '', xhsName || '', xhsId || '', 
+                manifestText || '', saleTarget || 0, resourceCost || 0, 
+                status, orderDate
+            ]
         );
         res.json({ success: true });
-    } catch (err) { res.status(500).json(err); }
-});
-
-app.listen(port, () => {
-    console.log(`Backend Server running on port ${port}`);
+    } catch (err) { 
+        console.error(err);
+        res.status(500).json(err); 
+    }
 });

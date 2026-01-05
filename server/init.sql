@@ -11,10 +11,16 @@ CREATE TABLE IF NOT EXISTS inventory (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 客户表
+-- 客户表 (增加了截图中的详细字段)
 CREATE TABLE IF NOT EXISTS clients (
     id VARCHAR(255) PRIMARY KEY,
     wechat_name VARCHAR(255),
+    wechat_id VARCHAR(255),
+    xhs_name VARCHAR(255),
+    xhs_id VARCHAR(255),
+    manifest_text TEXT,
+    sale_target NUMERIC(10, 2) DEFAULT 0,
+    resource_cost NUMERIC(10, 2) DEFAULT 0,
     status VARCHAR(50),
     order_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
