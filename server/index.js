@@ -78,58 +78,17 @@ const mapClient = r => ({
     rating: r.rating || 2, notes: r.notes || ''
 });
 
-// --- Helper: BarcodeLookup Scraper (Fallback) ---
-const lookupFallback = async (code) => {
-    try {
-        console.log(`[API] Trying fallback source for ${code}...`);
-        // 伪装成浏览器请求 barcodelookup.com 页面
-        const res = await fetch(`https://www.barcodelookup.com/${code}`, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-        
-        if (!res.ok) return null;
-        
-        const html = await res.text();
-        
-        // 1. 尝试提取 H1 (通常是商品标题)
-        let titleMatch = html.match(/<h1[^>]*>\s*(.*?)\s*<\/h1>/i);
-        // 2. 如果没有 H1，尝试提取 H4 (有时候在列表或卡片布局里)
-        if (!titleMatch) titleMatch = html.match(/<h4[^>]*>\s*(.*?)\s*<\/h4>/i);
-        // 3. 最后尝试 title 标签 (通常格式是 "Name | Barcode Lookup")
-        if (!titleMatch) titleMatch = html.match(/<title>(.*?) \|/i);
-
-        if (titleMatch && titleMatch[1]) {
-            // 清理一下标题里的 HTML 实体字符
-            const rawTitle = titleMatch[1].trim();
-            // 简单的 HTML 实体解码 (例如 &amp; -> &)
-            const cleanTitle = rawTitle.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
-            
-            console.log(`[API] Fallback found: ${cleanTitle}`);
-            
-            // 构造符合 upcitemdb 格式的返回
-            return {
-                items: [{
-                    title: cleanTitle,
-                    category: 'Hardware > Graphics Cards', // 默认分类，因为爬不到准确分类
-                    brand: cleanTitle.split(' ')[0] || 'Unknown'
-                }]
-            };
-        }
-    } catch (err) {
-        console.error('[API] Fallback error:', err.message);
-    }
-    return { items: [] };
-};
-
 // --- APIs ---
 
 // 1. Dashboard Stats & Chart API
 app.get('/api/dashboard/chart', async (req, res) => {
     try {
+        // A. 基础统计
+        // 修正点：COUNT(*) 改为 SUM(quantity)，这样统计的就是所有配件的总个数
         const invRes = await pool.query('SELECT SUM(cost * quantity) as total_inv_value, SUM(quantity) as total_items FROM inventory');
         const clientRes = await pool.query('SELECT COUNT(*) as total_clients, SUM(profit) as total_profit FROM clients');
+        
+        // B. 图表数据：过去 14 天的资金流动
         const chartRes = await pool.query(`
             SELECT 
                 to_char(date, 'YYYY-MM-DD') as day,
@@ -140,19 +99,26 @@ app.get('/api/dashboard/chart', async (req, res) => {
             GROUP BY day
             ORDER BY day ASC
         `);
+
         res.json({
             stats: {
                 inventoryValue: parseFloat(invRes.rows[0].total_inv_value || 0),
-                totalItems: parseInt(invRes.rows[0].total_items || 0),
+                totalItems: parseInt(invRes.rows[0].total_items || 0), // 这里现在是总数量了
                 totalClients: parseInt(clientRes.rows[0].total_clients || 0),
                 totalProfit: parseFloat(clientRes.rows[0].total_profit || 0)
             },
-            chart: chartRes.rows.map(r => ({ date: r.day, in: parseFloat(r.value_in), out: parseFloat(r.value_out) }))
+            chart: chartRes.rows.map(r => ({
+                date: r.day,
+                in: parseFloat(r.value_in),
+                out: parseFloat(r.value_out)
+            }))
         });
-    } catch (err) { res.status(500).json(err); }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json(err);
+    }
 });
 
-// 2. Audit Log API
 app.get('/api/audit/:sku', async (req, res) => {
     try {
         const { sku } = req.params;
@@ -166,34 +132,14 @@ app.get('/api/audit/:sku', async (req, res) => {
     } catch (e) { res.status(500).send(e); }
 });
 
-// 3. UPC Lookup API (UPDATED with Fallback)
 app.get('/api/lookup/:code', async (req, res) => {
-    const code = req.params.code;
     try {
-        // A. 尝试主 API (upcitemdb)
+        const code = req.params.code;
         const apiRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
-        if (apiRes.ok) {
-            const data = await apiRes.json();
-            // 如果找到了数据，直接返回
-            if (data.items && data.items.length > 0) {
-                return res.json(data);
-            }
-        }
-        
-        // B. 如果没找到，启动备用方案 (BarcodeLookup)
-        const fallbackData = await lookupFallback(code);
-        if (fallbackData && fallbackData.items.length > 0) {
-            return res.json(fallbackData);
-        }
-
-        // C. 实在找不到
-        res.json({ items: [] });
-    } catch (e) {
-        console.error('Lookup Error:', e);
-        // 出错时也尝试备用方案
-        const fallbackData = await lookupFallback(code);
-        res.json(fallbackData || { items: [] });
-    }
+        if (!apiRes.ok) throw new Error('API Failed');
+        const data = await apiRes.json();
+        res.json(data);
+    } catch (e) { res.json({ items: [] }); }
 });
 
 app.get('/api/inventory', async (req, res) => {
