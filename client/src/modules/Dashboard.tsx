@@ -1,125 +1,170 @@
-import React, { useMemo } from 'react';
-import { Package, CreditCard, TrendingUp, Zap, Star, BarChart3 } from 'lucide-react';
-import { Card } from '../components/Shared';
+import React, { useEffect, useState } from 'react';
+import { TrendingUp, Users, Package, Wallet, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 import { formatMoney } from '../utils';
-import { AppData } from '../types';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-interface Props { data: AppData; }
+// --- Types ---
+interface ChartData {
+    date: string;
+    in: number;
+    out: number;
+}
 
-export default function Dashboard({ data }: Props) {
-    const stockVal = data.inv.reduce((a, b) => a + (b.cost * b.quantity), 0);
-    const revenue = data.clients.reduce((a, b) => a + (b.totalPrice || 0), 0);
-    const profit = data.clients.reduce((a, b) => a + (b.profit || 0), 0);
+interface DashboardStats {
+    inventoryValue: number;
+    totalItems: number;
+    totalClients: number;
+    totalProfit: number;
+}
 
-    // 1. 利润趋势图数据 (最近 30 天)
-    const chartData = useMemo(() => {
-        const groups: Record<string, number> = {};
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today.setDate(today.getDate() - 30));
+export default function Dashboard() {
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [chartData, setChartData] = useState<ChartData[]>([]);
+    const [loading, setLoading] = useState(true);
 
-        data.clients.forEach(c => {
-            if (!c.orderDate) return;
-            const d = new Date(c.orderDate);
-            if (d >= thirtyDaysAgo) {
-                const dateStr = c.orderDate.split('T')[0].substring(5); // MM-DD
-                groups[dateStr] = (groups[dateStr] || 0) + (c.profit || 0);
-            }
-        });
+    useEffect(() => {
+        loadData();
+    }, []);
 
-        return Object.entries(groups)
-            .map(([date, value]) => ({ date, value }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-    }, [data.clients]);
+    const loadData = async () => {
+        try {
+            // 使用新接口获取所有数据
+            // 加时间戳防止缓存
+            const res = await fetch(`/api/dashboard/chart?_=${Date.now()}`);
+            if(!res.ok) throw new Error('API Error');
+            const data = await res.json();
+            setStats(data.stats);
+            setChartData(data.chart || []);
+        } catch (e) {
+            console.error("Dashboard load failed", e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    // 2. 最畅销配件排行榜 (Top 5)
-    const bestSellers = useMemo(() => {
-        const counts: Record<string, number> = {};
-        data.clients.forEach(c => {
-            Object.values(c.specs).forEach(s => {
-                if (s.name && !s.name.includes('New Item')) {
-                    counts[s.name] = (counts[s.name] || 0) + 1;
-                }
-            });
-        });
-        return Object.entries(counts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5);
-    }, [data.clients]);
+    // --- Components ---
+    
+    const StatCard = ({ title, value, sub, icon: Icon, color }: any) => (
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+            <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform ${color}`}>
+                <Icon size={64} />
+            </div>
+            <div className="relative z-10">
+                <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">{title}</div>
+                <div className="text-3xl font-black text-slate-800 mb-1">{value}</div>
+                <div className="text-xs text-slate-400 font-medium">{sub}</div>
+            </div>
+        </div>
+    );
+
+    // CSS-Only Bar Chart
+    const BarChart = ({ data }: { data: ChartData[] }) => {
+        if (!data || data.length === 0) return <div className="h-40 flex items-center justify-center text-slate-300 text-xs uppercase font-bold">No activity data</div>;
+        
+        // 找出最大值以计算比例
+        const maxVal = Math.max(...data.map(d => Math.max(d.in, d.out)));
+        const safeMax = maxVal === 0 ? 100 : maxVal; // 防止除以0
+
+        return (
+            <div className="w-full h-48 flex items-end gap-2 md:gap-4 mt-4 px-2">
+                {data.map((d, i) => {
+                    const hIn = (d.in / safeMax) * 100;
+                    const hOut = (d.out / safeMax) * 100;
+                    const dateLabel = d.date.slice(5); // "01-06"
+
+                    return (
+                        <div key={i} className="flex-1 flex flex-col justify-end gap-1 group relative min-w-[20px]">
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
+                                <div className="text-emerald-300">IN: {formatMoney(d.in)}</div>
+                                <div className="text-red-300">OUT: {formatMoney(d.out)}</div>
+                                <div className="text-slate-400 font-mono mt-1 border-t border-slate-600 pt-1">{d.date}</div>
+                            </div>
+
+                            {/* Bars */}
+                            <div className="w-full flex gap-0.5 items-end h-full">
+                                {d.in > 0 && <div style={{ height: `${hIn}%` }} className="flex-1 bg-emerald-400 rounded-t-sm opacity-80 group-hover:opacity-100 transition-all"></div>}
+                                {d.out > 0 && <div style={{ height: `${hOut}%` }} className="flex-1 bg-red-400 rounded-t-sm opacity-80 group-hover:opacity-100 transition-all"></div>}
+                            </div>
+                            
+                            {/* Date Label */}
+                            <div className="text-[9px] text-center text-slate-300 font-mono mt-1 group-hover:text-slate-500">{dateLabel}</div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    if (loading) return <div className="p-10 text-center text-slate-400 animate-pulse">Loading Command Center...</div>;
 
     return (
-        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 pb-32">
-            <header className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Analytics</h1>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Business Intelligence</p>
-                </div>
-                {/* 移动端专属：快速操作提示 */}
-                <div className="md:hidden flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-                    <Zap size={12}/> Live Data
-                </div>
-            </header>
-
-            {/* 核心指标卡片 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                <Card label="Inventory Value" val={formatMoney(stockVal)} color="text-blue-600" bg="bg-blue-50" icon={Package}/>
-                <Card label="Total Revenue" val={formatMoney(revenue)} color="text-slate-700" bg="bg-slate-50" icon={CreditCard}/>
-                <Card label="Net Profit" val={formatMoney(profit)} color="text-emerald-600" bg="bg-emerald-50" icon={TrendingUp}/>
-                
-                {/* 移动端大按钮适配 */}
-                <div className="md:hidden bg-slate-900 text-white p-6 rounded-[2rem] flex justify-between items-center shadow-xl active:scale-95 transition-transform" onClick={() => window.scrollTo(0, 1000)}>
-                    <div>
-                        <div className="text-lg font-black">Scan Inbound</div>
-                        <div className="text-[10px] opacity-60 font-bold uppercase">Tap 'Inbound' tab below</div>
-                    </div>
-                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><BarChart3 size={24}/></div>
-                </div>
+        <div className="p-4 md:p-8 max-w-[95rem] mx-auto pb-32 space-y-8">
+            {/* 1. Header */}
+            <div>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight">Command Center</h1>
+                <p className="text-slate-400 text-sm font-medium">Real-time financial & inventory overview</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 利润趋势图 */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden h-80 flex flex-col">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">30-Day Profit Trend</h3>
-                        <div className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-lg">+ Growth</div>
+            {/* 2. Key Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard 
+                    title="Inventory Value" 
+                    value={formatMoney(stats?.inventoryValue || 0)} 
+                    sub={`${stats?.totalItems || 0} Units in stock`}
+                    icon={Package} 
+                    color="text-blue-500" 
+                />
+                <StatCard 
+                    title="Total Profit" 
+                    value={formatMoney(stats?.totalProfit || 0)} 
+                    sub="Lifetime gross profit"
+                    icon={TrendingUp} 
+                    color="text-emerald-500" 
+                />
+                <StatCard 
+                    title="Active Clients" 
+                    value={stats?.totalClients || 0} 
+                    sub="Total orders processed"
+                    icon={Users} 
+                    color="text-purple-500" 
+                />
+                <StatCard 
+                    title="Cash Flow (14 Days)" 
+                    value={chartData.length > 0 ? "Active" : "Quiet"} 
+                    sub="Recent logs detected"
+                    icon={Activity} 
+                    color="text-orange-500" 
+                />
+            </div>
+
+            {/* 3. Financial Flow Chart */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                            <Wallet size={20} className="text-slate-400"/> 
+                            Capital Flow (14 Days)
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">
+                            <span className="text-emerald-500 font-bold">● Inbound (Investment)</span> vs <span className="text-red-400 font-bold">● Outbound (Usage)</span>
+                        </p>
                     </div>
-                    <div className="flex-1 w-full min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 700}} dy={10}/>
-                                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 700}} />
-                                <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 'bold'}} />
-                                <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    {/* Summary for Chart */}
+                    <div className="hidden md:flex gap-6 text-right">
+                        <div>
+                            <div className="text-[10px] font-black text-slate-300 uppercase">Period In</div>
+                            <div className="font-bold text-emerald-600">{formatMoney(chartData.reduce((a,b)=>a+b.in,0))}</div>
+                        </div>
+                        <div>
+                            <div className="text-[10px] font-black text-slate-300 uppercase">Period Out</div>
+                            <div className="font-bold text-red-500">{formatMoney(chartData.reduce((a,b)=>a+b.out,0))}</div>
+                        </div>
                     </div>
                 </div>
 
-                {/* 最畅销配件榜单 */}
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-80 overflow-y-auto no-scrollbar">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 sticky top-0 bg-white pb-2">Best Sellers</h3>
-                    <div className="space-y-3">
-                        {bestSellers.map(([name, count], i) => (
-                            <div key={name} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className={`w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center font-black text-xs ${i===0?'bg-yellow-100 text-yellow-600':i===1?'bg-slate-200 text-slate-600':'bg-orange-100 text-orange-600'}`}>
-                                    {i+1}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-slate-700 truncate">{name}</div>
-                                    <div className="text-[9px] font-bold text-slate-400 uppercase">{count} Units Sold</div>
-                                </div>
-                                {i===0 && <Star size={12} className="text-yellow-400 fill-yellow-400"/>}
-                            </div>
-                        ))}
-                        {bestSellers.length === 0 && <div className="text-center text-slate-300 text-xs italic mt-10">No sales data yet</div>}
-                    </div>
+                {/* The Custom Bar Chart */}
+                <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100">
+                    <BarChart data={chartData} />
                 </div>
             </div>
         </div>

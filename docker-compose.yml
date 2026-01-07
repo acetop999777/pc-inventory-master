@@ -41,6 +41,8 @@ services:
       - "8090:80"
     depends_on:
       - server
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
 
 volumes:
   pgdata:

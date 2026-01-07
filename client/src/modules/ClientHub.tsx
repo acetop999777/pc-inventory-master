@@ -22,10 +22,17 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
     const handleNew = () => {
         const initSpecs: any = {};
         CORE_CATS.forEach(c => { initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 }; });
+        
+        // 修复点：补全缺失的 city, zip, state, address 字段
         const newClient: Client = { 
             id: generateId(), wechatName: 'New Client', isShipping: false, specs: initSpecs, status: STATUS_STEPS[0], 
             orderDate: new Date().toISOString().split('T')[0], depositDate: '', deliveryDate: '',
             realName: '', wechatId: '', xhsId: '', xhsName: '', pcppLink: '', trackingNumber: '',
+            
+            // --- 这里是之前缺少的字段 ---
+            city: '', zip: '', state: '', address: '',
+            // -------------------------
+
             totalPrice: 0, actualCost: 0, profit: 0, photos: [], 
             rating: 0, 
             notes: ''

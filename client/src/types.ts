@@ -1,13 +1,20 @@
+// --- Inventory Types ---
 export interface InventoryItem {
     id: string;
-    category: string;
     name: string;
-    keyword?: string;
-    sku?: string;
+    category: string;
     quantity: number;
     cost: number;
+    price: number;
+    sku: string;
+    keyword?: string; // 修复：加回 keyword 字段 (设为可选)
+    location: string;
+    status: string;
+    notes: string;
+    photos: string[];
 }
 
+// --- Client/Order Types ---
 export interface SpecItem {
     name: string;
     sku: string;
@@ -16,43 +23,60 @@ export interface SpecItem {
 }
 
 export interface ClientSpecs {
-    [key: string]: SpecItem;
+    [category: string]: SpecItem;
 }
 
 export interface Client {
     id: string;
     wechatName: string;
-    wechatId?: string;
-    realName?: string;
-    xhsName?: string;
-    xhsId?: string;
-    
-    orderDate?: string;
-    depositDate?: string;
-    deliveryDate?: string;
-    
+    realName: string;
+    wechatId: string;
+    xhsName: string;
+    xhsId: string;
+    isShipping: boolean;
+    city: string;
+    zip: string;
+    state: string;
+    address: string;
+    trackingNumber: string;
     status: string;
-    
+    specs: ClientSpecs;
     totalPrice: number;
     actualCost: number;
     profit: number;
-    
-    specs: ClientSpecs;
-    photos: string[]; 
-    rating: number;   
+    orderDate: string;
+    depositDate: string;
+    deliveryDate: string;
+    photos: string[];
+    rating: number;
+    pcppLink: string;
     notes: string;
-    
-    isShipping: boolean;
-    address?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    trackingNumber?: string;
-    pcppLink?: string;
 }
 
+// --- App Data ---
 export interface AppData {
     inv: InventoryItem[];
     clients: Client[];
-    logs: any[];
+    stats: {
+        inventoryValue: number;
+        totalItems: number;
+        totalClients: number;
+        totalProfit: number;
+    };
+}
+
+// --- Audit Log Types ---
+export type AuditType = 'IN' | 'OUT' | 'ADJUST' | 'COMMIT';
+
+export interface AuditLog {
+    id: string;
+    sku: string;
+    name: string;
+    type: AuditType;
+    qtyChange: number;
+    unitCost: number;
+    totalValue: number;
+    refId?: string;
+    operator: string;
+    date: string;
 }

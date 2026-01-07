@@ -4,7 +4,6 @@ const { Pool } = require('pg');
 const app = express();
 
 app.use(cors());
-// 提升到 50MB 以支持多图上传
 app.use(express.json({ limit: '50mb' })); 
 
 const pool = new Pool({
@@ -14,6 +13,54 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD || 'securepassword',
   port: 5432,
 });
+
+// --- Init DB ---
+const initDB = async () => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id TEXT PRIMARY KEY,
+                sku TEXT NOT NULL,
+                name TEXT,
+                type TEXT NOT NULL,
+                qty_change INTEGER NOT NULL,
+                unit_cost NUMERIC(10, 2) DEFAULT 0,
+                total_value NUMERIC(10, 2) DEFAULT 0,
+                ref_id TEXT,
+                operator TEXT DEFAULT 'Admin',
+                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('Database tables checked/initialized.');
+    } catch (err) {
+        console.error('Database init error:', err);
+    }
+};
+initDB();
+
+// --- Audit Helper ---
+const logInventoryChange = async (dbClient, sku, name, oldQty, newQty, cost, refId = 'MANUAL_ADJUST') => {
+    const qtyChange = newQty - oldQty;
+    if (qtyChange === 0) return; 
+
+    const finalType = refId === 'MANUAL_ADJUST' || refId === 'BATCH_EDIT' 
+        ? (qtyChange > 0 ? 'IN' : 'ADJUST') 
+        : (qtyChange > 0 ? 'IN' : 'OUT');
+
+    const totalValue = Number((Math.abs(qtyChange) * cost).toFixed(2));
+    const logId = Math.random().toString(36).substr(2, 9);
+
+    try {
+        await dbClient.query(
+            `INSERT INTO audit_logs (id, sku, name, type, qty_change, unit_cost, total_value, ref_id, date)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+            [logId, sku, name, finalType, qtyChange, cost, totalValue, refId]
+        );
+        console.log(`[Audit] Logged ${finalType} for ${sku}: ${qtyChange} units`);
+    } catch (err) {
+        console.error('Failed to write audit log:', err);
+    }
+};
 
 const mapClient = r => ({
     ...r,
@@ -27,20 +74,126 @@ const mapClient = r => ({
     address: r.address_line, zip: r.zip_code,
     totalPrice: parseFloat(r.total_price), actualCost: parseFloat(r.actual_cost), profit: parseFloat(r.profit),
     specs: r.specs || {},
-    photos: r.photos || [], // 确保返回数组
+    photos: r.photos || [], 
     rating: r.rating || 2, notes: r.notes || ''
 });
 
+// --- Helper: BarcodeLookup Scraper (Fallback) ---
+const lookupFallback = async (code) => {
+    try {
+        console.log(`[API] Trying fallback source for ${code}...`);
+        // 伪装成浏览器请求 barcodelookup.com 页面
+        const res = await fetch(`https://www.barcodelookup.com/${code}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        
+        if (!res.ok) return null;
+        
+        const html = await res.text();
+        
+        // 1. 尝试提取 H1 (通常是商品标题)
+        let titleMatch = html.match(/<h1[^>]*>\s*(.*?)\s*<\/h1>/i);
+        // 2. 如果没有 H1，尝试提取 H4 (有时候在列表或卡片布局里)
+        if (!titleMatch) titleMatch = html.match(/<h4[^>]*>\s*(.*?)\s*<\/h4>/i);
+        // 3. 最后尝试 title 标签 (通常格式是 "Name | Barcode Lookup")
+        if (!titleMatch) titleMatch = html.match(/<title>(.*?) \|/i);
+
+        if (titleMatch && titleMatch[1]) {
+            // 清理一下标题里的 HTML 实体字符
+            const rawTitle = titleMatch[1].trim();
+            // 简单的 HTML 实体解码 (例如 &amp; -> &)
+            const cleanTitle = rawTitle.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+            
+            console.log(`[API] Fallback found: ${cleanTitle}`);
+            
+            // 构造符合 upcitemdb 格式的返回
+            return {
+                items: [{
+                    title: cleanTitle,
+                    category: 'Hardware > Graphics Cards', // 默认分类，因为爬不到准确分类
+                    brand: cleanTitle.split(' ')[0] || 'Unknown'
+                }]
+            };
+        }
+    } catch (err) {
+        console.error('[API] Fallback error:', err.message);
+    }
+    return { items: [] };
+};
+
 // --- APIs ---
 
-app.get('/api/lookup/:code', async (req, res) => {
+// 1. Dashboard Stats & Chart API
+app.get('/api/dashboard/chart', async (req, res) => {
     try {
-        const code = req.params.code;
+        const invRes = await pool.query('SELECT SUM(cost * quantity) as total_inv_value, SUM(quantity) as total_items FROM inventory');
+        const clientRes = await pool.query('SELECT COUNT(*) as total_clients, SUM(profit) as total_profit FROM clients');
+        const chartRes = await pool.query(`
+            SELECT 
+                to_char(date, 'YYYY-MM-DD') as day,
+                SUM(CASE WHEN type = 'IN' THEN total_value ELSE 0 END) as value_in,
+                SUM(CASE WHEN type = 'OUT' THEN total_value ELSE 0 END) as value_out
+            FROM audit_logs
+            WHERE date > NOW() - INTERVAL '14 days'
+            GROUP BY day
+            ORDER BY day ASC
+        `);
+        res.json({
+            stats: {
+                inventoryValue: parseFloat(invRes.rows[0].total_inv_value || 0),
+                totalItems: parseInt(invRes.rows[0].total_items || 0),
+                totalClients: parseInt(clientRes.rows[0].total_clients || 0),
+                totalProfit: parseFloat(clientRes.rows[0].total_profit || 0)
+            },
+            chart: chartRes.rows.map(r => ({ date: r.day, in: parseFloat(r.value_in), out: parseFloat(r.value_out) }))
+        });
+    } catch (err) { res.status(500).json(err); }
+});
+
+// 2. Audit Log API
+app.get('/api/audit/:sku', async (req, res) => {
+    try {
+        const { sku } = req.params;
+        const { rows } = await pool.query('SELECT * FROM audit_logs WHERE sku = $1 ORDER BY date DESC LIMIT 50', [sku]);
+        const camelRows = rows.map(r => ({
+            id: r.id, sku: r.sku, name: r.name, type: r.type,
+            qtyChange: r.qty_change, unitCost: parseFloat(r.unit_cost),
+            totalValue: parseFloat(r.total_value), refId: r.ref_id, operator: r.operator, date: r.date
+        }));
+        res.json(camelRows);
+    } catch (e) { res.status(500).send(e); }
+});
+
+// 3. UPC Lookup API (UPDATED with Fallback)
+app.get('/api/lookup/:code', async (req, res) => {
+    const code = req.params.code;
+    try {
+        // A. 尝试主 API (upcitemdb)
         const apiRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
-        if (!apiRes.ok) throw new Error('API Failed');
-        const data = await apiRes.json();
-        res.json(data);
-    } catch (e) { res.json({ items: [] }); }
+        if (apiRes.ok) {
+            const data = await apiRes.json();
+            // 如果找到了数据，直接返回
+            if (data.items && data.items.length > 0) {
+                return res.json(data);
+            }
+        }
+        
+        // B. 如果没找到，启动备用方案 (BarcodeLookup)
+        const fallbackData = await lookupFallback(code);
+        if (fallbackData && fallbackData.items.length > 0) {
+            return res.json(fallbackData);
+        }
+
+        // C. 实在找不到
+        res.json({ items: [] });
+    } catch (e) {
+        console.error('Lookup Error:', e);
+        // 出错时也尝试备用方案
+        const fallbackData = await lookupFallback(code);
+        res.json(fallbackData || { items: [] });
+    }
 });
 
 app.get('/api/inventory', async (req, res) => {
@@ -54,7 +207,10 @@ app.post('/api/inventory/batch', async (req, res) => {
         await client.query('BEGIN');
         for (const item of items) {
             const { rows } = await client.query('SELECT * FROM inventory WHERE id = $1', [item.id]);
-            if (rows.length > 0) {
+            const oldItem = rows.length > 0 ? rows[0] : null;
+            const oldQty = oldItem ? Number(oldItem.quantity) : 0;
+
+            if (oldItem) {
                 await client.query(
                     `UPDATE inventory SET quantity=$1, cost=$2, name=$3, keyword=$4, sku=$5, category=$6 WHERE id=$7`,
                     [item.quantity, item.cost, item.name, item.keyword, item.sku, item.category, item.id]
@@ -65,6 +221,9 @@ app.post('/api/inventory/batch', async (req, res) => {
                     [item.id, item.category, item.name, item.keyword, item.sku, item.quantity, item.cost]
                 );
             }
+
+            const refId = oldItem ? 'BATCH_EDIT' : 'INITIAL_STOCK';
+            await logInventoryChange(client, item.sku || 'NO-SKU', item.name, oldQty, Number(item.quantity), Number(item.cost), refId);
         }
         await client.query('COMMIT');
         res.json({ success: true });
@@ -82,7 +241,6 @@ app.get('/api/clients', async (req, res) => {
 app.post('/api/clients', async (req, res) => {
     const c = req.body;
     try {
-        // 这里的 photos 需要转为 JSON 字符串存储
         await pool.query(
             `INSERT INTO clients (
                 id, wechat_name, wechat_id, real_name, xhs_name, xhs_id, 

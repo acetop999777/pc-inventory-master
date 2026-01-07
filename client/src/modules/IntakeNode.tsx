@@ -78,6 +78,13 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
             quantity: fuzzyMatch ? fuzzyMatch.quantity : 0,
             cost: fuzzyMatch ? fuzzyMatch.cost : 0,
             
+            // 补全 InventoryItem 必填字段 (避免 TS 报错)
+            price: fuzzyMatch ? fuzzyMatch.price : 0,
+            location: fuzzyMatch ? fuzzyMatch.location : '',
+            status: fuzzyMatch ? fuzzyMatch.status : 'In Stock',
+            notes: fuzzyMatch ? fuzzyMatch.notes : '',
+            photos: fuzzyMatch ? fuzzyMatch.photos : [],
+            
             qtyInput: 1,
             costInput: 0,
             isMatch: !!fuzzyMatch, // 标记为已匹配
@@ -155,6 +162,13 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
                         quantity: dbMatch?.quantity || 0,
                         cost: dbMatch?.cost || 0,
                         
+                        // 补全 InventoryItem 必填字段
+                        price: dbMatch?.price || 0,
+                        location: dbMatch?.location || '',
+                        status: dbMatch?.status || 'In Stock',
+                        notes: dbMatch?.notes || '',
+                        photos: dbMatch?.photos || [],
+                        
                         qtyInput: qty,
                         tempSubtotal: subtotal, 
                         isGift: isGift,
@@ -207,35 +221,13 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
 
     // 4. 提交入库
     const commit = async () => {
-        // 在提交前，再次检查 ID 是否重复。
-        // 如果 batch 里有多个 item 指向同一个 db id (比如扫了两次)，或者 Newegg 解析出来两个一样的
-        // 我们应该把它们先合并，算出总的加权平均成本，再发给后端。
-        
         const payloadMap = new Map<string, InventoryItem>();
 
         batch.forEach(item => {
             const existing = payloadMap.get(item.id);
             
             if (existing) {
-                // 如果 Map 里已经有这个 ID (比如之前解析过一次，现在又扫了一次)
-                // 合并逻辑：
-                const totalNewQty = item.qtyInput;
-                const totalNewVal = item.qtyInput * item.costInput;
-                
-                // 更新 Map 里的数据 (注意：这里只是计算本次入库的总和，不涉及库存原有的量，后端会处理原有量)
-                // 但实际上我们发给后端的是 "最终状态" 还是 "增量"？
-                // 此时我们需要小心。我们的 API /inventory/batch 是覆写式更新 (UPDATE ... SET quantity=$1)。
-                // 所以我们必须在前端算出 最终库存量 和 最终WAC。
-                
-                // 这很复杂，简单点：我们让后端处理增量？不，现有 API 是全量更新。
-                // 所以必须基于 item.quantity (库存原量) + item.qtyInput (增量)
-                
-                // 这里的 item.quantity 是指 "入库前的库存"。
-                // 如果 multiple batch items point to same ID:
-                // 第一个 item: BaseQty: 10, Add: 2 -> Final: 12
-                // 第二个 item: BaseQty: 10, Add: 3 -> Final: 13 (错误！应该是 15)
-                
-                // 因此，我们需要动态维护 "Running Total"
+                // 如果 Map 里已经有这个 ID (合并逻辑)
                 const runningQty = existing.quantity + item.qtyInput;
                 const runningVal = (existing.quantity * existing.cost) + (item.qtyInput * item.costInput);
                 const runningCost = runningQty > 0 ? runningVal / runningQty : 0;
@@ -262,6 +254,8 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
 
         const payload = Array.from(payloadMap.values());
         
+        // 后端 server/index.js 里的 /batch 接口已经集成了日志功能
+        // 只要 POST 过去，后端就会自动记录 audit log，无需前端额外处理
         await apiCall('/inventory/batch', 'POST', payload);
         notify(`Inventory Updated: ${payload.length} items merged`); 
         setBatch([]); 
@@ -270,7 +264,6 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
 
     return (
         <div className="p-8 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-8rem)]">
-            {/* ... UI 部分保持不变，因为核心逻辑都在上面 ... */}
             <div className="space-y-6 h-full flex flex-col">
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex-shrink-0">
                     <h3 className="font-black uppercase text-xs mb-4 text-slate-400 tracking-widest flex items-center gap-2"><Scan size={14}/> Scanner Input</h3>
@@ -289,12 +282,10 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
                 <div className="flex justify-between items-center mb-6 flex-shrink-0"><h3 className="font-black uppercase text-xs text-slate-400 tracking-widest">Staging ({batch.length})</h3>{batch.length>0 && <button onClick={commit} className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase shadow-lg active:scale-95 transition-all">Commit All</button>}</div>
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 no-scrollbar pb-10">
                     {batch.map((item, i) => {
-                        // 模糊搜索逻辑：只要包含名字的一部分，或者关键字匹配，就列出来
                         const suggestions = activeDrop === i ? data.inv.filter(inv => {
                             const searchStr = item.name.toLowerCase();
                             const invName = inv.name.toLowerCase();
                             const invKey = (inv.keyword || '').toLowerCase();
-                            // 简单的包含匹配，或者单词重叠匹配
                             if (invName.includes(searchStr)) return true;
                             if (invKey && searchStr.includes(invKey)) return true;
                             return false; 
