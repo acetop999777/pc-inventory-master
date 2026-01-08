@@ -31,6 +31,21 @@ const initDB = async () => {
                 date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS clients (
+                id TEXT PRIMARY KEY,
+                wechat_name TEXT, wechat_id TEXT, real_name TEXT,
+                xhs_name TEXT, xhs_id TEXT,
+                order_date DATE, deposit_date DATE, delivery_date DATE,
+                pcpp_link TEXT, is_shipping BOOLEAN DEFAULT FALSE, tracking_number TEXT,
+                address_line TEXT, city TEXT, state TEXT, zip_code TEXT,
+                status TEXT,
+                total_price NUMERIC(10, 2) DEFAULT 0,
+                actual_cost NUMERIC(10, 2) DEFAULT 0,
+                profit NUMERIC(10, 2) DEFAULT 0,
+                specs JSONB, photos JSONB, rating INTEGER DEFAULT 0, notes TEXT
+            );
+        `);
         console.log('Database tables checked/initialized.');
     } catch (err) {
         console.error('Database init error:', err);
@@ -75,20 +90,15 @@ const mapClient = r => ({
     totalPrice: parseFloat(r.total_price), actualCost: parseFloat(r.actual_cost), profit: parseFloat(r.profit),
     specs: r.specs || {},
     photos: r.photos || [], 
-    rating: r.rating || 2, notes: r.notes || ''
+    rating: r.rating || 0, notes: r.notes || ''
 });
 
 // --- APIs ---
 
-// 1. Dashboard Stats & Chart API
 app.get('/api/dashboard/chart', async (req, res) => {
     try {
-        // A. 基础统计
-        // 修正点：COUNT(*) 改为 SUM(quantity)，这样统计的就是所有配件的总个数
         const invRes = await pool.query('SELECT SUM(cost * quantity) as total_inv_value, SUM(quantity) as total_items FROM inventory');
         const clientRes = await pool.query('SELECT COUNT(*) as total_clients, SUM(profit) as total_profit FROM clients');
-        
-        // B. 图表数据：过去 14 天的资金流动
         const chartRes = await pool.query(`
             SELECT 
                 to_char(date, 'YYYY-MM-DD') as day,
@@ -103,7 +113,7 @@ app.get('/api/dashboard/chart', async (req, res) => {
         res.json({
             stats: {
                 inventoryValue: parseFloat(invRes.rows[0].total_inv_value || 0),
-                totalItems: parseInt(invRes.rows[0].total_items || 0), // 这里现在是总数量了
+                totalItems: parseInt(invRes.rows[0].total_items || 0),
                 totalClients: parseInt(clientRes.rows[0].total_clients || 0),
                 totalProfit: parseFloat(clientRes.rows[0].total_profit || 0)
             },
@@ -212,6 +222,17 @@ app.post('/api/clients', async (req, res) => {
         );
         res.json({ success: true });
     } catch (e) { console.error(e); res.status(500).send(e); }
+});
+
+// --- 新增：删除客户接口 ---
+app.delete('/api/clients/:id', async (req, res) => {
+    try { 
+        await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]); 
+        res.json({ success: true }); 
+    } catch (e) { 
+        console.error(e); 
+        res.status(500).send(e); 
+    }
 });
 
 app.get('/api/logs', async (req, res) => { try { const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200'); res.json(rows); } catch (e) { res.status(500).send(e); } });
