@@ -1,76 +1,175 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Package, ScanLine, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { ClientEntity } from './domain/client/client.types';
+import { calculateFinancials, createEmptyClient } from './domain/client/client.logic';
+import { InventoryItem } from './types';
 import { apiCall, generateId } from './utils';
-import { NavIcon } from './components/Shared';
 
-import Dashboard from './modules/Dashboard';
-import ClientHub from './modules/ClientHub';
-import StockVault from './modules/StockVault';
-import IntakeNode from './modules/IntakeNode';
+import { MainLayout } from './presentation/layouts/MainLayout';
+import Dashboard from './presentation/modules/Dashboard/Dashboard';
+import ClientHub from './presentation/modules/ClientHub/ClientHub';
+import InventoryHub from './presentation/modules/Inventory/InventoryHub';
+import InboundHub from './presentation/modules/Inbound/InboundHub';
+
+import { IdentityCard } from './presentation/modules/ClientEditor/components/IdentityCard';
+import { LogisticsCard } from './presentation/modules/ClientEditor/components/LogisticsCard';
+import { FinancialsCard } from './presentation/modules/ClientEditor/components/FinancialsCard';
+import { NotesCard } from './presentation/modules/ClientEditor/components/NotesCard';
+import { SpecsTable } from './presentation/modules/ClientEditor/components/SpecsTable';
+import { CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
+
+const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'];
 
 export default function App() {
-  const [tab, setTab] = useState('dash');
-  // 保持之前的 any 类型修复，防止报错
-  const [data, setData] = useState<any>({ inv: [], clients: [], logs: [] });
-  const [toast, setToast] = useState<any[]>([]);
+    const [mainView, setMainView] = useState('clients'); 
+    const [subView, setSubView] = useState<'list' | 'detail'>('list');
+    
+    const [clients, setClients] = useState<ClientEntity[]>([]);
+    const [activeClient, setActiveClient] = useState<ClientEntity | null>(null);
+    const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [saving, setSaving] = useState(false);
+    
+    const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { refresh(); }, []);
-  
-  const refresh = async () => {
-    try {
-        const [inv, cl, lg] = await Promise.all([
-            apiCall('/inventory'), 
-            apiCall('/clients'), 
-            apiCall('/logs')
-        ]);
-        setData({ 
-            inv: inv || [], 
-            clients: cl || [], 
-            logs: lg || [] 
+    const refreshData = async () => {
+        try {
+            const [cData, iData] = await Promise.all([
+                apiCall('/clients'),
+                apiCall('/inventory')
+            ]);
+            setClients(Array.isArray(cData) ? cData : []);
+            setInventory(Array.isArray(iData) ? iData : []);
+        } catch (e) {
+            console.error("Failed to load data", e);
+        }
+    };
+
+    useEffect(() => { refreshData(); }, []);
+
+    const handleNewClient = () => {
+        const newClient = createEmptyClient();
+        newClient.id = generateId();
+        setActiveClient(newClient);
+        setMainView('clients');
+        setSubView('detail');
+    };
+
+    const handleSelectClient = (client: ClientEntity) => {
+        setActiveClient(client);
+        setSubView('detail');
+    };
+
+    const handleDeleteClient = async (id: string, name: string) => {
+        if (!window.confirm(`Delete ${name}?`)) return;
+        await apiCall(`/clients/${id}`, 'DELETE');
+        refreshData();
+    };
+
+    const handleUpdateField = (field: keyof ClientEntity, val: any) => {
+        if (!activeClient) return;
+        setActiveClient(prev => prev ? ({ ...prev, [field]: val }) : null);
+    };
+
+    const handleSave = async () => {
+        if (!activeClient) return;
+        setSaving(true);
+        const financials = calculateFinancials(activeClient);
+        await apiCall('/clients', 'POST', { 
+            ...activeClient, 
+            actualCost: financials.totalCost, 
+            profit: financials.profit 
         });
-    } catch (e) {
-        console.error("Refresh failed", e);
-        notify("Data sync failed", "error");
-    }
-  };
+        setSaving(false);
+        refreshData(); 
+    };
 
-  const notify = (msg: string, type='success') => {
-    const id = generateId(); 
-    setToast(p => [...p, {id, msg, type}]);
-    setTimeout(() => setToast(p => p.filter(x => x.id !== id)), 3000);
-  };
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (activeClient && mainView === 'clients' && subView === 'detail') handleSave();
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, [activeClient]);
 
-  const log = (type: string, title: string, msg: string) => apiCall('/logs', 'POST', { id: generateId(), timestamp: Date.now(), type, title, msg });
+    const financials = useMemo(() => 
+        activeClient ? calculateFinancials(activeClient) : { totalCost:0, profit:0, balanceDue:0, isPaidOff:false }, 
+        [activeClient]
+    );
 
-  return (
-    <div className="flex h-screen bg-[#F8FAFC] text-slate-900 font-sans overflow-hidden select-text">
-      {/* Toast Layer */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] space-y-2 w-full max-w-sm px-4 pointer-events-none">
-         {toast.map(t => (
-             <div key={t.id} className={`pointer-events-auto px-4 py-3 rounded-xl shadow-2xl text-xs font-bold flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-5 ${t.type==='error'?'bg-red-50/95 text-red-600 border border-red-100':'bg-emerald-50/95 text-emerald-600 border border-emerald-100'}`}>
-                 {t.type==='error'?<AlertCircle size={16}/>:<CheckCircle size={16}/>}
-                 {t.msg}
-             </div>
-         ))}
-      </div>
+    const renderContent = () => {
+        if (mainView === 'dashboard') return <Dashboard />;
+        if (mainView === 'inventory') return <InventoryHub inventory={inventory} />;
+        if (mainView === 'inbound') return <InboundHub inventory={inventory} />; // 注入 inventory
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto pb-32 no-scrollbar">
-         {tab === 'dash' && <Dashboard notify={notify} />}
-         {tab === 'clients' && <ClientHub data={data} refresh={refresh} notify={notify} log={log} />}
-         {tab === 'inbound' && <IntakeNode data={data} refresh={refresh} notify={notify} log={log} />}
-         {tab === 'stock' && <StockVault data={data} refresh={refresh} notify={notify} log={log} />}
-      </div>
+        if (mainView === 'clients') {
+            if (subView === 'list') {
+                return (
+                    <ClientHub 
+                        clients={clients} 
+                        onSelectClient={handleSelectClient}
+                        onNewClient={handleNewClient}
+                        onDeleteClient={handleDeleteClient}
+                    />
+                );
+            }
+            if (subView === 'detail' && activeClient) {
+                return (
+                    <div className="min-h-screen pb-40 animate-in slide-in-from-right duration-300">
+                        <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center sticky top-0 z-40">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setSubView('list')} className="text-slate-500 hover:text-slate-800 transition-colors">
+                                    <ChevronLeft size={20}/>
+                                </button>
+                                <div className="h-6 w-px bg-slate-200"></div>
+                                <span className="font-black text-lg text-slate-800">{activeClient.wechatName || 'New Client'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {saving ? <Loader2 size={12} className="animate-spin text-blue-500"/> : <CheckCircle2 size={12} className="text-emerald-500"/>}
+                                {saving ? 'Syncing...' : 'Saved'}
+                            </div>
+                        </div>
 
-      {/* Bottom Dock - Fixed back to English */}
-      <div className="fixed bottom-8 left-0 right-0 flex justify-center z-50 pointer-events-none">
-        <div className="bg-white/80 backdrop-blur-xl border border-slate-200/50 shadow-2xl rounded-2xl px-6 py-4 flex gap-8 pointer-events-auto">
-           <NavIcon icon={LayoutDashboard} active={tab==='dash'} onClick={()=>setTab('dash')} label="Overview"/>
-           <NavIcon icon={Users} active={tab==='clients'} onClick={()=>setTab('clients')} label="Clients"/>
-           <NavIcon icon={ScanLine} active={tab==='inbound'} onClick={()=>setTab('inbound')} label="Inbound"/>
-           <NavIcon icon={Package} active={tab==='stock'} onClick={()=>setTab('stock')} label="Inventory"/>
-        </div>
-      </div>
-    </div>
-  );
+                        <div className="max-w-[1600px] mx-auto p-6 grid grid-cols-12 gap-6">
+                            <div className="col-span-12 xl:col-span-4 space-y-6">
+                                <IdentityCard 
+                                    data={activeClient} 
+                                    update={handleUpdateField} 
+                                    onPhotoUpload={() => fileRef.current?.click()} 
+                                    onPhotoRemove={() => {}} 
+                                />
+                                <LogisticsCard 
+                                    data={activeClient} 
+                                    update={handleUpdateField} 
+                                    statusOptions={STATUS_STEPS}
+                                />
+                                <NotesCard data={activeClient} update={handleUpdateField} />
+                                <input type="file" multiple hidden ref={fileRef} accept="image/*" onChange={() => {}}/>
+                            </div>
+                            <div className="col-span-12 xl:col-span-8 space-y-6">
+                                <FinancialsCard 
+                                    data={activeClient} 
+                                    financials={financials} 
+                                    update={handleUpdateField}
+                                />
+                                <SpecsTable 
+                                    data={activeClient}
+                                    inventory={inventory}
+                                    update={handleUpdateField}
+                                    onCalculate={handleSave}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+        }
+        return <div>Loading...</div>;
+    };
+
+    return (
+        <MainLayout 
+            currentView={mainView} 
+            onChangeView={(view) => { setMainView(view); setSubView('list'); }}
+        >
+            {renderContent()}
+        </MainLayout>
+    );
 }
