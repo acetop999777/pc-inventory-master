@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Camera, X, DollarSign, Cpu, ChevronDown, ChevronUp, Link as LinkIcon, Truck, Calendar, ChevronLeft, Cloud, CheckCircle2, Loader2, MapPin } from 'lucide-react';
+import { Camera, X, DollarSign, Cpu, ChevronDown, ChevronUp, Link as LinkIcon, Truck, Calendar, ChevronLeft, Cloud, CheckCircle2, Loader2, MapPin, Wallet, HandCoins, FileText, User } from 'lucide-react';
 import { CORE_CATS, ALL_CATS, STATUS_STEPS, formatMoney, compressImage, findBestMatch } from '../utils';
 import { Client, InventoryItem } from '../types';
 
@@ -25,12 +25,12 @@ export default function ClientEditor({ client, inventory, onUpdate, onSave, onBa
         let totalCost = 0;
         Object.values(c.specs || {}).forEach(item => { totalCost += (Number(item.cost) || 0); });
         const salePrice = Number(c.totalPrice) || 0;
-        return { cost: totalCost, profit: salePrice - totalCost };
+        const paid = Number(c.paidAmount) || 0;
+        return { cost: totalCost, profit: salePrice - totalCost, balanceDue: salePrice - paid };
     };
 
     const financialData = useMemo(() => calculateFinancials(client), [client]);
 
-    // --- Auto Save Logic ---
     const handleBlur = async () => {
         setSaveStatus('saving');
         const { cost, profit } = calculateFinancials(client);
@@ -79,78 +79,52 @@ export default function ClientEditor({ client, inventory, onUpdate, onSave, onBa
         }
     };
 
-    // --- PCPartPicker Parser (Fix: Non-inventory cost is 0) ---
     const parsePCPP = (text: string) => {
         if(!text) return;
-        
-        // 1. Reset Specs
         const initSpecs: any = {};
         CORE_CATS.forEach(c => { initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 }; });
         const newSpecs = { ...initSpecs };
-        
         const map: Record<string, string> = { 
             'CPU':'CPU', 'CPU Cooler':'COOLER', 'Motherboard':'MB', 'Memory':'RAM', 
             'Storage':'SSD', 'Video Card':'GPU', 'Case':'CASE', 'Power Supply':'PSU',
             'Case Fan': 'FAN', 'Monitor': 'MONITOR', 'Operating System': 'OTHER'
         };
-
         const lines = text.split('\n');
         let link = '';
-
         lines.forEach(l => {
             const line = l.trim();
             if (!line) return;
             if (line.startsWith('Custom:')) return; 
             if(line.includes('pcpartpicker.com/list/')) link = line.match(/(https?:\/\/\S+)/)?.[0] || '';
-            
             for (const [pcppLabel, internalCat] of Object.entries(map)) {
                 if (line.startsWith(pcppLabel + ':')) {
                     const content = line.substring(pcppLabel.length + 1).trim(); 
                     const namePart = content.split('($')[0].trim();
                     const dbMatch = findBestMatch(namePart, inventory);
-
-                    // --- Cost Logic: Strictly 0 if not in inventory ---
                     const costToUse = dbMatch ? dbMatch.cost : 0;
-
-                    // --- Grouping Logic ---
                     let targetKey = internalCat;
                     let counter = 2;
-
                     while (newSpecs[targetKey] && newSpecs[targetKey].name) {
                         if (newSpecs[targetKey].name === (dbMatch ? dbMatch.name : namePart)) break;
                         targetKey = `${internalCat} ${counter}`;
                         counter++;
                     }
-
-                    if (!newSpecs[targetKey]) {
-                        newSpecs[targetKey] = { name: '', sku: '', cost: 0, qty: 0 };
-                    }
-
-                    // Assign Data
+                    if (!newSpecs[targetKey]) newSpecs[targetKey] = { name: '', sku: '', cost: 0, qty: 0 };
                     if (newSpecs[targetKey].name) {
-                        // Aggregate existing
                         newSpecs[targetKey].cost += costToUse;
                         newSpecs[targetKey].qty = (newSpecs[targetKey].qty || 1) + 1;
                     } else {
-                        // Create new
-                        newSpecs[targetKey] = {
-                            name: dbMatch ? dbMatch.name : namePart,
-                            sku: dbMatch?.sku || '',
-                            cost: costToUse, 
-                            qty: 1
-                        };
+                        newSpecs[targetKey] = { name: dbMatch ? dbMatch.name : namePart, sku: dbMatch?.sku || '', cost: costToUse, qty: 1 };
                     }
                     break; 
                 }
             }
         });
-        
         const newClient = { ...client, specs: newSpecs, pcppLink: link || client.pcppLink };
         immediateSave(newClient);
         notify('PCPP Reset & Parsed');
     };
 
-    // --- Dynamic List Rendering ---
     const displayCats = useMemo(() => {
         const keys = new Set([...CORE_CATS, ...Object.keys(client.specs)]);
         return Array.from(keys).sort((a, b) => {
@@ -183,12 +157,13 @@ export default function ClientEditor({ client, inventory, onUpdate, onSave, onBa
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative overflow-hidden">
                         <div className="mb-6">
                             <div className="flex items-center gap-3 mb-4">
-                                <input className="text-2xl font-black text-slate-800 bg-transparent outline-none flex-1 placeholder:text-slate-300 min-w-0" placeholder="Client Name" value={client.wechatName} onChange={e=>updateLocal('wechatName', e.target.value)} onBlur={handleBlur}/>
-                                <div className="flex items-center bg-slate-50 rounded-lg p-1 h-8 border border-slate-100 shrink-0">
-                                    <button onClick={() => updateImmediate('rating', client.rating === 1 ? 0 : 1)} className={`w-7 h-full flex items-center justify-center rounded-md transition-all ${client.rating === 1 ? 'bg-white shadow-sm text-yellow-400' : 'text-slate-300 hover:text-yellow-400 hover:bg-slate-100'}`}><ChevronUp size={16} strokeWidth={3} /></button>
-                                    <div className="w-px h-3 bg-slate-200 mx-0.5" />
-                                    <button onClick={() => updateImmediate('rating', client.rating === -1 ? 0 : -1)} className={`w-7 h-full flex items-center justify-center rounded-md transition-all ${client.rating === -1 ? 'bg-white shadow-sm text-red-500' : 'text-slate-300 hover:text-red-500 hover:bg-slate-100'}`}><ChevronDown size={16} strokeWidth={3} /></button>
-                                </div>
+                                <input 
+                                    className="text-2xl font-black text-slate-800 bg-transparent outline-none flex-1 placeholder:text-slate-300 min-w-0" 
+                                    placeholder="Client Name" 
+                                    value={client.wechatName} 
+                                    onChange={e=>updateLocal('wechatName', e.target.value)} 
+                                    onBlur={handleBlur}
+                                />
                             </div>
                             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                                 <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group" onClick={()=>fileRef.current?.click()}>
@@ -220,7 +195,7 @@ export default function ClientEditor({ client, inventory, onUpdate, onSave, onBa
                             ))}
                         </div>
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4"><div><label className={LABEL_STYLE}>Deposit Date</label><input type="date" className={INPUT_STYLE} value={client.depositDate?.split('T')[0]||''} onChange={e=>updateLocal('depositDate', e.target.value)} onBlur={handleBlur}/></div><div><label className={LABEL_STYLE}>Delivery Date</label><input type="date" className={INPUT_STYLE} value={client.deliveryDate?.split('T')[0]||''} onChange={e=>updateLocal('deliveryDate', e.target.value)} onBlur={handleBlur}/></div></div>
+                            <div className="grid grid-cols-2 gap-4"><div><label className={LABEL_STYLE}>Order Date</label><input type="date" className={INPUT_STYLE} value={client.orderDate?.split('T')[0]||''} onChange={e=>updateLocal('orderDate', e.target.value)} onBlur={handleBlur}/></div><div><label className={LABEL_STYLE}>Delivery Date</label><input type="date" className={INPUT_STYLE} value={client.deliveryDate?.split('T')[0]||''} onChange={e=>updateLocal('deliveryDate', e.target.value)} onBlur={handleBlur}/></div></div>
                             <div className="pt-4 border-t border-slate-50">
                                 <div className="grid grid-cols-2 gap-3 mb-4">
                                     <div><label className={LABEL_STYLE}>City</label><input className={INPUT_STYLE} value={client.city||''} onChange={e=>updateLocal('city', e.target.value)} onBlur={handleBlur}/></div>
@@ -242,14 +217,32 @@ export default function ClientEditor({ client, inventory, onUpdate, onSave, onBa
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100"><label className={LABEL_STYLE}>Notes</label><textarea className={`${INPUT_STYLE} h-24 resize-none`} value={client.notes||''} onChange={e=>updateLocal('notes', e.target.value)} onBlur={handleBlur}/></div>
+                    
+                    {/* Notes Card - Rating Buttons Moved Here */}
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
+                        <div className="flex justify-between items-center mb-2">
+                            <label className={LABEL_STYLE}>Notes</label>
+                            
+                            {/* Rating Buttons in Header */}
+                            <div className="flex items-center bg-slate-50 rounded-lg p-0.5 border border-slate-100">
+                                <button onClick={() => updateImmediate('rating', client.rating === 1 ? 0 : 1)} className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${client.rating === 1 ? 'bg-white shadow-sm text-yellow-400' : 'text-slate-300 hover:text-yellow-400 hover:bg-slate-100'}`}><ChevronUp size={14} strokeWidth={3} /></button>
+                                <div className="w-px h-3 bg-slate-200 mx-0.5" />
+                                <button onClick={() => updateImmediate('rating', client.rating === -1 ? 0 : -1)} className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${client.rating === -1 ? 'bg-white shadow-sm text-red-500' : 'text-slate-300 hover:text-red-500 hover:bg-slate-100'}`}><ChevronDown size={14} strokeWidth={3} /></button>
+                            </div>
+                        </div>
+                        <textarea className={`${INPUT_STYLE} h-24 resize-none`} value={client.notes||''} onChange={e=>updateLocal('notes', e.target.value)} onBlur={handleBlur}/>
+                    </div>
                 </div>
 
                 <div className="xl:col-span-2 space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between"><label className={LABEL_STYLE}><span className="flex items-center gap-1"><DollarSign size={12}/> Total Sale</span></label><input className="text-2xl font-black text-slate-800 bg-transparent outline-none w-full" placeholder="0.00" value={client.totalPrice||''} onChange={e=>updateLocal('totalPrice', parseFloat(e.target.value))} onBlur={handleBlur}/></div>
-                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/50 flex flex-col justify-between"><label className={LABEL_STYLE}>Cost (Auto)</label><div className="text-2xl font-black text-slate-500">{formatMoney(financialData.cost)}</div></div>
-                        <div className={`p-5 rounded-2xl border flex flex-col justify-between ${financialData.profit>=0?'bg-emerald-50/50 border-emerald-100':'bg-red-50/50 border-red-100'}`}><label className={`text-[10px] font-extrabold uppercase tracking-widest mb-1.5 block ml-1 ${financialData.profit>=0?'text-emerald-500':'text-red-400'}`}>Profit</label><div className={`text-2xl font-black ${financialData.profit>=0?'text-emerald-600':'text-red-500'}`}>{formatMoney(financialData.profit)}</div></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between"><label className={LABEL_STYLE}><span className="flex items-center gap-1"><DollarSign size={12}/> Total Sale</span></label><input className="text-xl font-black text-slate-800 bg-transparent outline-none w-full" placeholder="0.00" value={client.totalPrice||''} onChange={e=>updateLocal('totalPrice', parseFloat(e.target.value))} onBlur={handleBlur}/></div>
+                        
+                        <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 shadow-sm flex flex-col justify-between"><label className="text-[10px] font-extrabold text-blue-500 uppercase tracking-widest mb-1.5 block ml-1"><span className="flex items-center gap-1"><HandCoins size={12}/> Paid</span></label><input className="text-xl font-black text-blue-700 bg-transparent outline-none w-full" placeholder="0.00" value={client.paidAmount||''} onChange={e=>updateLocal('paidAmount', parseFloat(e.target.value))} onBlur={handleBlur}/></div>
+                        
+                        <div className={`p-5 rounded-2xl border flex flex-col justify-between ${financialData.balanceDue > 0 ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 border-slate-200'}`}><label className={`text-[10px] font-extrabold uppercase tracking-widest mb-1.5 block ml-1 ${financialData.balanceDue > 0 ? 'text-indigo-500' : 'text-slate-400'}`}><span className="flex items-center gap-1"><Wallet size={12}/> Due</span></label><div className={`text-xl font-black ${financialData.balanceDue > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>{formatMoney(financialData.balanceDue)}</div></div>
+                        
+                        <div className={`p-5 rounded-2xl border flex flex-col justify-between ${financialData.profit>=0?'bg-emerald-50/50 border-emerald-100':'bg-red-50/50 border-red-100'}`}><label className={`text-[10px] font-extrabold uppercase tracking-widest mb-1.5 block ml-1 ${financialData.profit>=0?'text-emerald-500':'text-red-400'}`}>Profit</label><div className={`text-xl font-black ${financialData.profit>=0?'text-emerald-600':'text-red-500'}`}>{formatMoney(financialData.profit)}</div></div>
                     </div>
 
                     <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">

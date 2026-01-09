@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Calendar, Truck, Star, Trash2 } from 'lucide-react';
+import { Search, Plus, Calendar, Truck, Star, Trash2, Wallet } from 'lucide-react';
 import { generateId, CORE_CATS, STATUS_STEPS, formatMoney, apiCall } from '../utils';
 import { AppData, Client } from '../types';
 import ClientEditor from './ClientEditor';
@@ -18,7 +18,6 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
 
     const filtered = (data.clients || []).filter(c => JSON.stringify(c).toLowerCase().includes(search.toLowerCase()));
     
-    // 创建新客户 (字段补全)
     const handleNew = () => {
         const initSpecs: any = {};
         CORE_CATS.forEach(c => { initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 }; });
@@ -31,13 +30,13 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
             status: STATUS_STEPS[0], 
             orderDate: new Date().toISOString().split('T')[0], depositDate: '', deliveryDate: '',
             totalPrice: 0, actualCost: 0, profit: 0, 
+            paidAmount: 0,
             specs: initSpecs, photos: [], rating: 0, notes: ''
         };
         setActive(newClient);
         setView('detail');
     };
 
-    // 保存逻辑
     const handleSave = async (finalClient: Client, cost: number, profit: number) => {
         try {
             await apiCall('/clients', 'POST', { ...finalClient, actualCost: cost, profit: profit });
@@ -47,11 +46,9 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
         }
     };
 
-    // --- 新增：删除逻辑 ---
     const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
-        e.stopPropagation(); // 阻止冒泡，别点删除的时候进详情页了
+        e.stopPropagation();
         if (!window.confirm(`Are you sure you want to DELETE client: ${name}?`)) return;
-        
         try {
             await apiCall(`/clients/${id}`, 'DELETE');
             notify('Client deleted');
@@ -61,7 +58,6 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
         }
     };
 
-    // 详情编辑器模式
     if(view === 'detail' && active) {
         return (
             <ClientEditor 
@@ -75,7 +71,6 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
         );
     }
 
-    // --- LIST VIEW ---
     return (
         <div className="p-4 md:p-8 max-w-[95rem] mx-auto pb-32">
              <div className="flex gap-4 mb-6 items-center">
@@ -96,9 +91,12 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
                      const isDelivered = c.status === 'Delivered';
                      const isPaid = c.status === 'Deposit Paid';
                      const statusColor = isDelivered ? 'bg-emerald-100 text-emerald-700' : (isPaid ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600');
+                     
+                     const balanceDue = (c.totalPrice || 0) - (c.paidAmount || 0);
+                     const hasBalance = balanceDue > 0;
 
                      return (
-                        <div key={c.id} onClick={()=>{setActive(c); setView('detail');}} className="grid grid-cols-1 md:grid-cols-12 gap-3 px-6 py-3 border-b border-slate-50 hover:bg-slate-50/50 cursor-pointer transition-colors items-center group">
+                        <div key={c.id} onClick={()=>{setActive(c); setView('detail');}} className="grid grid-cols-1 md:grid-cols-12 gap-3 px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 cursor-pointer transition-colors items-center group">
                             
                             {/* 1. Client Name */}
                             <div className="md:col-span-3">
@@ -120,18 +118,42 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
                             <div className="hidden md:flex md:col-span-2 items-center gap-2 text-xs font-mono text-slate-400"><Calendar size={12} className="text-slate-300"/>{c.orderDate ? c.orderDate.split('T')[0] : '-'}</div>
                             <div className="hidden md:flex md:col-span-2 items-center gap-2 text-xs font-mono text-slate-400"><Truck size={12} className="text-slate-300"/>{c.deliveryDate ? c.deliveryDate.split('T')[0] : '-'}</div>
                             
-                            {/* 4. Financials & Delete */}
+                            {/* 4. Financials (修复：强制单行显示) */}
                             <div className="hidden md:block md:col-span-3">
-                                <div className="flex items-center justify-end gap-4">
-                                    <div className="text-right">
-                                        <div className="text-[11px] font-bold text-slate-400">{formatMoney(c.totalPrice)}</div>
-                                        <div className="font-black text-sm text-emerald-600">{formatMoney(c.profit)}</div>
+                                <div className="flex items-center justify-end h-full">
+                                    {/* 容器：gap-4 隔开每个指标，items-center 垂直居中 */}
+                                    <div className="flex items-center gap-4">
+                                        
+                                        {/* Total */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[9px] font-bold text-slate-300 uppercase">Total</span>
+                                            <span className="text-xs font-bold text-slate-600 font-mono">{formatMoney(c.totalPrice)}</span>
+                                        </div>
+                                        
+                                        {/* Profit */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[9px] font-bold text-slate-300 uppercase">Profit</span>
+                                            <span className="text-xs font-bold text-emerald-600 font-mono">{formatMoney(c.profit)}</span>
+                                        </div>
+
+                                        {/* Due (Blue) */}
+                                        {hasBalance ? (
+                                            <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-md">
+                                                <span className="text-[9px] font-bold text-blue-400 uppercase flex items-center gap-1">Due</span>
+                                                <span className="text-xs font-black text-blue-600 font-mono">{formatMoney(balanceDue)}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 opacity-20">
+                                                <span className="text-[9px] font-bold text-slate-300 uppercase">Due</span>
+                                                <span className="text-xs font-bold text-slate-400">$0.00</span>
+                                            </div>
+                                        )}
                                     </div>
                                     
-                                    {/* --- 垃圾桶按钮 --- */}
+                                    {/* Delete Button */}
                                     <button 
                                         onClick={(e) => handleDelete(e, c.id, c.wechatName || 'Client')}
-                                        className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                        className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all ml-3"
                                         title="Delete"
                                     >
                                         <Trash2 size={16}/>

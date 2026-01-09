@@ -1,82 +1,68 @@
-// --- Inventory Types ---
 export interface InventoryItem {
     id: string;
+    sku: string;
     name: string;
     category: string;
+    cost: number;
     quantity: number;
-    cost: number;
-    price: number;
-    sku: string;
-    keyword?: string; // 修复：加回 keyword 字段 (设为可选)
-    location: string;
-    status: string;
-    notes: string;
-    photos: string[];
-}
-
-// --- Client/Order Types ---
-export interface SpecItem {
-    name: string;
-    sku: string;
-    cost: number;
-    qty: number;
-}
-
-export interface ClientSpecs {
-    [category: string]: SpecItem;
+    lastUpdated: number;
+    keyword?: string;
+    price?: number;
+    location?: string;
+    status?: string;
+    notes?: string;
+    photos?: string[];
 }
 
 export interface Client {
     id: string;
     wechatName: string;
-    realName: string;
-    wechatId: string;
-    xhsName: string;
-    xhsId: string;
+    wechatId?: string;
+    realName?: string;
+    xhsName?: string;
+    xhsId?: string;
+    orderDate: string;
+    depositDate?: string;
+    deliveryDate?: string;
+    pcppLink?: string;
     isShipping: boolean;
-    city: string;
-    zip: string;
-    state: string;
-    address: string;
-    trackingNumber: string;
+    trackingNumber?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
     status: string;
-    specs: ClientSpecs;
     totalPrice: number;
     actualCost: number;
     profit: number;
-    orderDate: string;
-    depositDate: string;
-    deliveryDate: string;
+    paidAmount: number;
+    specs: Record<string, {
+        name: string;
+        sku: string;
+        cost: number;
+        qty: number;
+    }>;
     photos: string[];
     rating: number;
-    pcppLink: string;
     notes: string;
 }
 
-// --- App Data ---
-export interface AppData {
-    inv: InventoryItem[];
-    clients: Client[];
-    stats: {
-        inventoryValue: number;
-        totalItems: number;
-        totalClients: number;
-        totalProfit: number;
-    };
-}
-
-// --- Audit Log Types ---
-export type AuditType = 'IN' | 'OUT' | 'ADJUST' | 'COMMIT';
-
+// 补全这个漏掉的接口
 export interface AuditLog {
     id: string;
     sku: string;
     name: string;
-    type: AuditType;
+    type: string;
     qtyChange: number;
     unitCost: number;
     totalValue: number;
     refId?: string;
-    operator: string;
+    operator?: string;
     date: string;
+}
+
+export interface AppData {
+    inv: InventoryItem[];
+    clients: Client[];
+    logs: any[];
 }

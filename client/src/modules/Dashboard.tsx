@@ -1,172 +1,110 @@
 import React, { useEffect, useState } from 'react';
-import { TrendingUp, Users, Package, Wallet, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
-import { formatMoney } from '../utils';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { DollarSign, Package, TrendingUp, Activity, RefreshCw, Calendar, Filter, Wallet } from 'lucide-react';
+import { apiCall } from '../utils';
 
-// --- Types ---
-interface ChartData {
-    date: string;
-    in: number;
-    out: number;
-}
+export default function Dashboard({ notify }: { notify: any }) {
+  const [stats, setStats] = useState<any>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-interface DashboardStats {
-    inventoryValue: number;
-    totalItems: number;
-    totalClients: number;
-    totalProfit: number;
-}
+  const loadStats = async () => {
+    try { const res = await apiCall('/dashboard/stats'); if (res) setStats(res); } catch (e) { console.error(e); }
+  };
 
-export default function Dashboard() {
-    const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [chartData, setChartData] = useState<ChartData[]>([]);
-    const [loading, setLoading] = useState(true);
+  const loadChart = async () => {
+    setLoading(true);
+    try {
+      const res = await apiCall('/dashboard/profit', 'POST', { start: startDate, end: endDate, group: groupBy });
+      if (res) setChartData(res as any[]);
+    } catch (e) { if(notify) notify("Failed to load chart", "error"); } 
+    finally { setLoading(false); }
+  };
 
-    useEffect(() => {
-        loadData();
-    }, []);
+  useEffect(() => { loadStats(); loadChart(); }, []);
+  useEffect(() => { loadChart(); }, [groupBy, startDate, endDate]);
 
-    const loadData = async () => {
-        try {
-            // 使用新接口获取所有数据
-            // 加时间戳防止缓存
-            const res = await fetch(`/api/dashboard/chart?_=${Date.now()}`);
-            if(!res.ok) throw new Error('API Error');
-            const data = await res.json();
-            setStats(data.stats);
-            setChartData(data.chart || []);
-        } catch (e) {
-            console.error("Dashboard load failed", e);
-        } finally {
-            setLoading(false);
-        }
-    };
+  if (!stats) return <div className="flex items-center justify-center h-[80vh] text-slate-400 gap-2"><RefreshCw className="animate-spin" /> Loading...</div>;
 
-    // --- Components ---
-    
-    const StatCard = ({ title, value, sub, icon: Icon, color }: any) => (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-            <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform ${color}`}>
-                <Icon size={64} />
-            </div>
-            <div className="relative z-10">
-                <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">{title}</div>
-                <div className="text-3xl font-black text-slate-800 mb-1">{value}</div>
-                <div className="text-xs text-slate-400 font-medium">{sub}</div>
-            </div>
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Activity className="w-6 h-6 text-blue-600" />Overview</h1>
+        <button onClick={() => { loadStats(); loadChart(); }} className="text-sm text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors"><RefreshCw size={14} /> Refresh</button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500 uppercase">Inventory Value</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">${stats.inventoryValue.toLocaleString()}</h3>
         </div>
-    );
 
-    // CSS-Only Bar Chart
-    const BarChart = ({ data }: { data: ChartData[] }) => {
-        if (!data || data.length === 0) return <div className="h-40 flex items-center justify-center text-slate-300 text-xs uppercase font-bold">No activity data</div>;
-        
-        // 找出最大值以计算比例
-        const maxVal = Math.max(...data.map(d => Math.max(d.in, d.out)));
-        const safeMax = maxVal === 0 ? 100 : maxVal; // 防止除以0
-
-        return (
-            <div className="w-full h-48 flex items-end gap-2 md:gap-4 mt-4 px-2">
-                {data.map((d, i) => {
-                    const hIn = (d.in / safeMax) * 100;
-                    const hOut = (d.out / safeMax) * 100;
-                    const dateLabel = d.date.slice(5); // "01-06"
-
-                    return (
-                        <div key={i} className="flex-1 flex flex-col justify-end gap-1 group relative min-w-[20px]">
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
-                                <div className="text-emerald-300">IN: {formatMoney(d.in)}</div>
-                                <div className="text-red-300">OUT: {formatMoney(d.out)}</div>
-                                <div className="text-slate-400 font-mono mt-1 border-t border-slate-600 pt-1">{d.date}</div>
-                            </div>
-
-                            {/* Bars */}
-                            <div className="w-full flex gap-0.5 items-end h-full">
-                                {d.in > 0 && <div style={{ height: `${hIn}%` }} className="flex-1 bg-emerald-400 rounded-t-sm opacity-80 group-hover:opacity-100 transition-all"></div>}
-                                {d.out > 0 && <div style={{ height: `${hOut}%` }} className="flex-1 bg-red-400 rounded-t-sm opacity-80 group-hover:opacity-100 transition-all"></div>}
-                            </div>
-                            
-                            {/* Date Label */}
-                            <div className="text-[9px] text-center text-slate-300 font-mono mt-1 group-hover:text-slate-500">{dateLabel}</div>
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    };
-
-    if (loading) return <div className="p-10 text-center text-slate-400 animate-pulse">Loading Command Center...</div>;
-
-    return (
-        <div className="p-4 md:p-8 max-w-[95rem] mx-auto pb-32 space-y-8">
-            {/* 1. Header */}
-            <div>
-                <h1 className="text-2xl font-black text-slate-800 tracking-tight">Command Center</h1>
-                <p className="text-slate-400 text-sm font-medium">Real-time financial & inventory overview</p>
-            </div>
-
-            {/* 2. Key Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard 
-                    title="Inventory Value" 
-                    value={formatMoney(stats?.inventoryValue || 0)} 
-                    sub={`${stats?.totalItems || 0} Units in stock`}
-                    icon={Package} 
-                    color="text-blue-500" 
-                />
-                <StatCard 
-                    title="Total Profit" 
-                    value={formatMoney(stats?.totalProfit || 0)} 
-                    sub="Lifetime gross profit"
-                    icon={TrendingUp} 
-                    color="text-emerald-500" 
-                />
-                <StatCard 
-                    title="Active Clients" 
-                    value={stats?.totalClients || 0} 
-                    sub="Total orders processed"
-                    icon={Users} 
-                    color="text-purple-500" 
-                />
-                <StatCard 
-                    title="Cash Flow (14 Days)" 
-                    value={chartData.length > 0 ? "Active" : "Quiet"} 
-                    sub="Recent logs detected"
-                    icon={Activity} 
-                    color="text-orange-500" 
-                />
-            </div>
-
-            {/* 3. Financial Flow Chart */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
-                            <Wallet size={20} className="text-slate-400"/> 
-                            Capital Flow (14 Days)
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1">
-                            <span className="text-emerald-500 font-bold">● Inbound (Investment)</span> vs <span className="text-red-400 font-bold">● Outbound (Usage)</span>
-                        </p>
-                    </div>
-                    {/* Summary for Chart */}
-                    <div className="hidden md:flex gap-6 text-right">
-                        <div>
-                            <div className="text-[10px] font-black text-slate-300 uppercase">Period In</div>
-                            <div className="font-bold text-emerald-600">{formatMoney(chartData.reduce((a,b)=>a+b.in,0))}</div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] font-black text-slate-300 uppercase">Period Out</div>
-                            <div className="font-bold text-red-500">{formatMoney(chartData.reduce((a,b)=>a+b.out,0))}</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* The Custom Bar Chart */}
-                <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100">
-                    <BarChart data={chartData} />
-                </div>
-            </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500 uppercase">Total Profit</p>
+          <h3 className="text-2xl font-bold text-emerald-600 mt-1">+${stats.totalProfit.toLocaleString()}</h3>
         </div>
-    );
+
+        {/* Balance Due - 改为蓝色系 */}
+        <div className="bg-blue-50/50 p-6 rounded-2xl shadow-sm border border-blue-100">
+           <div className="flex justify-between items-start">
+              <div>
+                  <p className="text-xs font-black text-blue-500 uppercase">Balance Due</p>
+                  <h3 className="text-2xl font-bold text-blue-700 mt-1">${stats.totalBalanceDue.toLocaleString()}</h3>
+              </div>
+              <Wallet className="text-blue-300" size={20}/>
+           </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500 uppercase">Total Items</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">{stats.totalItems}</h3>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500 uppercase">Total Clients</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">{stats.totalClients}</h3>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 min-h-[500px]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} /> Profit Trend</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+              {['day', 'week', 'month'].map(g => (
+                  <button key={g} onClick={() => setGroupBy(g as any)} className={`px-3 py-1 text-xs font-medium rounded-md capitalize ${groupBy===g?'bg-white text-slate-800 shadow-sm':'text-slate-500'}`}>{g}</button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+              <Calendar size={14} className="text-slate-400"/>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-xs font-medium text-slate-600 outline-none w-24"/>
+              <span className="text-slate-300">-</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-xs font-medium text-slate-600 outline-none w-24"/>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{fontSize: 11, fill: '#94a3b8'}} axisLine={false} tickLine={false} dy={10}/>
+                <YAxis tick={{fontSize: 11, fill: '#94a3b8'}} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`}/>
+                <Tooltip cursor={{stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}/>
+                <Area type="monotone" dataKey="profit" name="Net Profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+              </AreaChart>
+            </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
 }

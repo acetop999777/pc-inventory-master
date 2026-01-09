@@ -70,7 +70,7 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
         }
 
         const newItem: StagedItem = {
-            id: fuzzyMatch ? fuzzyMatch.id : generateId(), // 关键：如果模糊匹配到了，直接复用老 ID
+            id: fuzzyMatch ? fuzzyMatch.id : generateId(), 
             name: fuzzyMatch ? fuzzyMatch.name : (apiData ? apiData.name : 'New Item (Manual Entry)'),
             category: fuzzyMatch ? fuzzyMatch.category : (apiData ? apiData.category : 'Other'),
             sku: code,
@@ -78,7 +78,10 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
             quantity: fuzzyMatch ? fuzzyMatch.quantity : 0,
             cost: fuzzyMatch ? fuzzyMatch.cost : 0,
             
-            // 补全 InventoryItem 必填字段 (避免 TS 报错)
+            // 【修复】补全 lastUpdated 字段
+            lastUpdated: fuzzyMatch ? fuzzyMatch.lastUpdated : Date.now(),
+            
+            // 补全 InventoryItem 必填字段
             price: fuzzyMatch ? fuzzyMatch.price : 0,
             location: fuzzyMatch ? fuzzyMatch.location : '',
             status: fuzzyMatch ? fuzzyMatch.status : 'In Stock',
@@ -87,7 +90,7 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
             
             qtyInput: 1,
             costInput: 0,
-            isMatch: !!fuzzyMatch, // 标记为已匹配
+            isMatch: !!fuzzyMatch, 
             isApi: !!apiData
         };
 
@@ -103,7 +106,7 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
     const parseNewegg = () => {
         try {
             const text = neweggTxt;
-            const gtMatch = text.match(/Grand Total\s*\$?([\d,]+\.\d{2})/);
+            const gtMatch = text.match(/Grand Total\s*\n?\$?([\d,]+\.\d{2})/);
             const grandTotal = gtMatch ? parseFloat(gtMatch[1].replace(/,/g,'')) : 0;
 
             const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -146,13 +149,12 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
                         }
                     }
 
-                    // 关键：在这里进行模糊查找
                     const dbMatch = findBestMatch(name, data.inv);
                     const autoCat = dbMatch?.category || guessCategory(name);
-                    const isGift = lines.slice(Math.max(0, i-5), i).some(l => l.includes('Free Gift Item'));
+                    
+                    const isGift = lines.slice(Math.max(0, i-6), i).some(l => l.includes('Free Gift Item'));
 
                     items.push({
-                        // 核心逻辑：如果有模糊匹配(dbMatch)，强制使用它的 ID 和 Name，否则生成新 ID
                         id: dbMatch?.id || generateId(),
                         name: dbMatch?.name || name,
                         category: autoCat,
@@ -161,6 +163,9 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
                         
                         quantity: dbMatch?.quantity || 0,
                         cost: dbMatch?.cost || 0,
+                        
+                        // 【修复】补全 lastUpdated 字段
+                        lastUpdated: dbMatch ? dbMatch.lastUpdated : Date.now(),
                         
                         // 补全 InventoryItem 必填字段
                         price: dbMatch?.price || 0,
@@ -203,7 +208,6 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
     // 3. 手动选择匹配逻辑
     const matchToLocal = (batchIdx: number, localItem: InventoryItem) => {
         const newBatch = [...batch];
-        // 用户手动在下拉框选了 "Ryzen 9600X"，那就强制把这一行的数据对齐到那个 ID
         newBatch[batchIdx] = { 
             ...newBatch[batchIdx], 
             id: localItem.id, 
@@ -213,6 +217,17 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
             category: localItem.category, 
             quantity: localItem.quantity, 
             cost: localItem.cost, 
+            
+            // 【修复】补全 lastUpdated 字段
+            lastUpdated: localItem.lastUpdated,
+            
+            // 补全 InventoryItem 必填字段
+            price: localItem.price,
+            location: localItem.location,
+            status: localItem.status,
+            notes: localItem.notes,
+            photos: localItem.photos,
+
             isMatch: true 
         };
         setBatch(newBatch); 
@@ -227,7 +242,6 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
             const existing = payloadMap.get(item.id);
             
             if (existing) {
-                // 如果 Map 里已经有这个 ID (合并逻辑)
                 const runningQty = existing.quantity + item.qtyInput;
                 const runningVal = (existing.quantity * existing.cost) + (item.qtyInput * item.costInput);
                 const runningCost = runningQty > 0 ? runningVal / runningQty : 0;
@@ -235,11 +249,11 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
                 payloadMap.set(item.id, {
                     ...existing,
                     quantity: runningQty,
-                    cost: parseFloat(runningCost.toFixed(2))
+                    cost: parseFloat(runningCost.toFixed(2)),
+                    lastUpdated: Date.now() // 更新时间
                 });
 
             } else {
-                // 第一次遇到这个 ID
                 const finalQty = item.quantity + item.qtyInput;
                 const finalVal = (item.quantity * item.cost) + (item.qtyInput * item.costInput);
                 const finalCost = finalQty > 0 ? finalVal / finalQty : 0;
@@ -247,15 +261,14 @@ export default function IntakeNode({ data, refresh, notify, log }: Props) {
                 payloadMap.set(item.id, {
                     ...item,
                     quantity: finalQty,
-                    cost: parseFloat(finalCost.toFixed(2))
+                    cost: parseFloat(finalCost.toFixed(2)),
+                    lastUpdated: Date.now()
                 });
             }
         });
 
         const payload = Array.from(payloadMap.values());
         
-        // 后端 server/index.js 里的 /batch 接口已经集成了日志功能
-        // 只要 POST 过去，后端就会自动记录 audit log，无需前端额外处理
         await apiCall('/inventory/batch', 'POST', payload);
         notify(`Inventory Updated: ${payload.length} items merged`); 
         setBatch([]); 
