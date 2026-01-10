@@ -3,3 +3,17 @@ dist/
 build/
 .DS_Store
 .env
+# --- local/env ---
+client/.env*.local
+client/.env.local
+
+# --- backups / generated ---
+backups/
+*.sql
+backup.log
+
+# --- temporary / debug artifacts ---
+*.bak
+full_project_code.txt
+refactor_phase1.patch
+n
