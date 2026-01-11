@@ -176,8 +176,18 @@ export default function InventoryHub() {
               </button>
             </div>
 
+            
             <div className="col-span-2 text-right font-mono text-slate-600 font-bold">
-              ${Number(i.cost ?? 0)}
+              <div className="flex justify-end items-center gap-1">
+                <span className="text-slate-400">$</span>
+                <div className="min-w-[88px] text-right">
+                  <InlineEditor
+                    type="number"
+                    value={Number(i.cost ?? 0)}
+                    onChange={(v) => updateItem(i, { cost: Number(v) })}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="col-span-1 flex justify-end">
