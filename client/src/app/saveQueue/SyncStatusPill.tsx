@@ -1,9 +1,8 @@
-import React from 'react';
-import { useSyncExternalStore } from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
 
-export default function SyncStatusPill() {
+export function SyncStatusPill() {
   const { queue } = useSaveQueue();
 
   const snap = useSyncExternalStore(
@@ -38,10 +37,10 @@ export default function SyncStatusPill() {
     if (!busy && !hasError) setShowSaved(false);
   }, [busy, hasError]);
 
+  // ✅ 关键：idle 时不渲染（彻底去掉“常驻 Saved”）
   if (!busy && !hasError && !showSaved) return null;
 
   const retryAll = () => {
-    // 触发重试（不会阻塞 UI）
     void queue.flushAll({ timeoutMs: 8000 });
   };
 
@@ -85,3 +84,5 @@ export default function SyncStatusPill() {
     </div>
   );
 }
+
+export default SyncStatusPill;
