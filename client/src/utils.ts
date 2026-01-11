@@ -50,13 +50,74 @@ export const compressImage = (file: File): Promise<string> => {
     });
 };
 
-export async function apiCall<T>(url: string, method='GET', body: any = null): Promise<T | null> {
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+export class ApiCallError extends Error {
+    url: string;
+    status?: number;
+    responseBody?: unknown;
+
+    constructor(message: string, url: string, status?: number, responseBody?: unknown) {
+        super(message);
+        this.name = 'ApiCallError';
+        this.url = url;
+        this.status = status;
+        this.responseBody = responseBody;
+    }
+}
+
+async function parseResponseBody(res: Response): Promise<unknown> {
+    const ct = res.headers.get('content-type') || '';
     try {
-        const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
-        if(body) opts.body = JSON.stringify(body);
-        const res = await fetch(`${API_BASE}${url}`, opts);
-        return await res.json() as T;
-    } catch(e) { return null; }
+        if (ct.includes('application/json')) return await res.json();
+        return await res.text();
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Strict API: throws on network error or non-2xx response.
+ * Use this for React Query / mutations so errors are properly tracked.
+ */
+export async function apiCallOrThrow<T>(
+    url: string,
+    method: HttpMethod = 'GET',
+    body: any = null,
+    opts: { signal?: AbortSignal } = {}
+): Promise<T> {
+    const init: RequestInit = {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        signal: opts.signal,
+    };
+    if (body !== null && body !== undefined) init.body = JSON.stringify(body);
+
+    const res = await fetch(`${API_BASE}${url}`, init);
+    const data = await parseResponseBody(res);
+
+    if (!res.ok) {
+        throw new ApiCallError(`API ${method} ${url} failed`, url, res.status, data);
+    }
+    return data as T;
+}
+
+/**
+ * Compat API: returns null on error (so existing modules keep compiling).
+ * Prefer apiCallOrThrow in new code.
+ */
+export async function apiCall<T>(
+    url: string,
+    method: HttpMethod = 'GET',
+    body: any = null,
+    opts: { signal?: AbortSignal } = {}
+): Promise<T | null> {
+    try {
+        return await apiCallOrThrow<T>(url, method, body, opts);
+    } catch (e) {
+        console.error('apiCall failed:', method, url, e);
+        return null;
+    }
 }
 
 export async function lookupBarcode(code: string): Promise<{name: string, category: string} | null> {
