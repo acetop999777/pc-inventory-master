@@ -4,6 +4,7 @@ import { ALL_CATS } from '../../../utils';
 import { InventoryItem } from '../../../types';
 import { useInventoryQuery } from '../../../app/queries/inventory';
 import { useInventoryWriteBehind } from '../../../app/writeBehind/inventoryWriteBehind';
+import { StockAdjustModal } from './components/StockAdjustModal';
 
 type InlineEditorProps = {
   value: any;
@@ -68,15 +69,21 @@ const InlineEditor = ({ value, onChange, type = 'text' }: InlineEditorProps) => 
   );
 };
 
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
-}
-
 export default function InventoryHub() {
   const { data } = useInventoryQuery();
   const inventory: InventoryItem[] = data ?? [];
   const { update, remove } = useInventoryWriteBehind();
   const [search, setSearch] = useState('');
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalItem, setModalItem] = useState<InventoryItem | null>(null);
+  const [modalMode, setModalMode] = useState<'add' | 'remove'>('add');
+
+  const openModal = (item: InventoryItem, mode: 'add' | 'remove') => {
+    setModalItem(item);
+    setModalMode(mode);
+    setModalOpen(true);
+  };
 
   const filtered = inventory.filter((i) =>
     `${i.name} ${i.category} ${i.sku ?? ''}`.toLowerCase().includes(search.toLowerCase())
@@ -86,38 +93,19 @@ export default function InventoryHub() {
     update(item.id, fields);
   };
 
-  const handleDecrement = (item: InventoryItem) => {
-    const qty = Number(item.quantity ?? 0);
-    if (qty <= 0) return;
-
-    const ok = window.confirm(`Reduce stock by 1?\n\n${item.name}\n${qty} → ${qty - 1}`);
-    if (!ok) return;
-
-    updateItem(item, { quantity: qty - 1 });
-  };
-
-  const handleIncrementWithWac = (item: InventoryItem) => {
-    const qty = Number(item.quantity ?? 0);
-    const avg = Number(item.cost ?? 0);
-
-    const addQtyStr = window.prompt('Add quantity (default 1):', '1');
-    if (addQtyStr === null) return;
-    const addQty = Math.max(1, Math.floor(Number(addQtyStr)));
-    if (!Number.isFinite(addQty) || addQty <= 0) return;
-
-    const unitCostStr = window.prompt('Unit cost for this inbound stock:', String(avg || 0));
-    if (unitCostStr === null) return;
-    const unitCost = Number(unitCostStr);
-    if (!Number.isFinite(unitCost) || unitCost < 0) return;
-
-    const newQty = qty + addQty;
-    const newAvg = newQty > 0 ? ((qty * avg) + (addQty * unitCost)) / newQty : 0;
-
-    updateItem(item, { quantity: newQty, cost: round2(newAvg) });
-  };
-
   return (
     <div className="p-8 max-w-[1600px] mx-auto pb-40">
+      <StockAdjustModal
+        open={modalOpen}
+        item={modalItem}
+        initialMode={modalMode}
+        onClose={() => setModalOpen(false)}
+        onApply={(payload) => {
+          if (!modalItem) return;
+          updateItem(modalItem, payload);
+        }}
+      />
+
       <div className="flex gap-4 mb-6 items-center">
         <div className="flex-1 bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-2 shadow-sm">
           <Search size={16} className="ml-2 text-slate-400" />
@@ -134,7 +122,7 @@ export default function InventoryHub() {
         <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
           <div className="col-span-5">Component Name</div>
           <div className="col-span-2">Category</div>
-          <div className="col-span-2 text-center">Stock Control</div>
+          <div className="col-span-2 text-center">Stock</div>
           <div className="col-span-2 text-right">Avg. Cost (WAC)</div>
           <div className="col-span-1"></div>
         </div>
@@ -164,39 +152,32 @@ export default function InventoryHub() {
 
             <div className="col-span-2 flex items-center justify-center gap-3">
               <button
-                onClick={() => handleDecrement(i)}
-                className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                title="Decrement (confirm)"
+                onClick={() => openModal(i, 'remove')}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 border border-slate-200"
+                title="Remove stock"
               >
-                <Minus size={12} strokeWidth={3} />
+                <Minus size={14} strokeWidth={3} />
               </button>
 
-              <span className="font-mono font-bold w-12 text-center text-slate-700">
-                <InlineEditor
-                  type="number"
-                  value={i.quantity}
-                  onChange={(v) => updateItem(i, { quantity: Number(v) })}
-                />
-              </span>
+              <button
+                onClick={() => openModal(i, 'add')}
+                className="px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:bg-slate-50 font-mono font-black text-slate-700 min-w-[64px]"
+                title="Open stock dialog"
+              >
+                {Number(i.quantity ?? 0)}
+              </button>
 
               <button
-                onClick={() => handleIncrementWithWac(i)}
-                className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 text-slate-400 hover:bg-emerald-50 hover:text-emerald-500"
-                title="Increment (WAC)"
+                onClick={() => openModal(i, 'add')}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 border border-slate-200"
+                title="Add stock"
               >
-                <Plus size={12} strokeWidth={3} />
+                <Plus size={14} strokeWidth={3} />
               </button>
             </div>
 
             <div className="col-span-2 text-right font-mono text-slate-600 font-bold">
-              <div className="flex justify-end items-center gap-1">
-                <span>$</span>
-                <InlineEditor
-                  type="number"
-                  value={i.cost}
-                  onChange={(v) => updateItem(i, { cost: Number(v) })}
-                />
-              </div>
+              ${Number(i.cost ?? 0)}
             </div>
 
             <div className="col-span-1 flex justify-end">
