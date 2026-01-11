@@ -31,7 +31,7 @@ export default function AppLegacy() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
-  const savedTimerRef = useRef<any>(nulls=null as any);
+  const savedTimerRef = useRef<any>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
