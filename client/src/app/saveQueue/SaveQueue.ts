@@ -62,17 +62,35 @@ export class SaveQueue {
   private states = new Map<SaveKey, KeyState<any>>();
   private listeners = new Set<() => void>();
 
+  // IMPORTANT for useSyncExternalStore:
+  // getSnapshot MUST be referentially stable when store hasn't changed.
+  private snapshotDirty = true;
+  private cachedSnapshot: SaveQueueSnapshot = {
+    pendingCount: 0,
+    inFlightCount: 0,
+    errorCount: 0,
+    keys: [],
+  };
+
   subscribe = (cb: () => void) => {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
   };
 
+  private markDirty() {
+    this.snapshotDirty = true;
+  }
+
   private emit() {
+    // Mark snapshot dirty BEFORE notifying subscribers
+    // so next render sees a new stable snapshot.
+    this.markDirty();
+
     // Avoid for..of over Set (TS target ES5)
     this.listeners.forEach((cb) => cb());
   }
 
-  getSnapshot(): SaveQueueSnapshot {
+  private computeSnapshot(): SaveQueueSnapshot {
     const keys: SaveKeyStatus[] = [];
     let pendingCount = 0;
     let inFlightCount = 0;
@@ -103,6 +121,14 @@ export class SaveQueue {
     return { pendingCount, inFlightCount, errorCount, keys };
   }
 
+  getSnapshot(): SaveQueueSnapshot {
+    if (this.snapshotDirty) {
+      this.cachedSnapshot = this.computeSnapshot();
+      this.snapshotDirty = false;
+    }
+    return this.cachedSnapshot;
+  }
+
   getKeyStatus(key: SaveKey): SaveKeyStatus {
     const st = this.states.get(key);
     if (!st) return { key, pending: false, inFlight: false, hasError: false, updatedAt: 0 };
@@ -117,7 +143,6 @@ export class SaveQueue {
     };
   }
 
-  /** Enqueue a patch for a key; multiple patches for same key are merged. */
   enqueue<P>(req: EnqueueRequest<P>): Promise<void> {
     const now = Date.now();
 
@@ -146,7 +171,6 @@ export class SaveQueue {
       st.updatedAt = now;
     }
 
-    // new change clears error
     st.lastError = null;
 
     const waiter = defer<void>();
@@ -166,7 +190,6 @@ export class SaveQueue {
     }, st.debounceMs);
   }
 
-  /** Force-send a single key now. */
   async flushKey(key: SaveKey): Promise<void> {
     const st = this.states.get(key);
     if (!st) return;
@@ -206,7 +229,6 @@ export class SaveQueue {
       })
       .catch((e) => {
         st.lastError = e;
-        // Put patch back so it can be retried later (no data loss in-session)
         st.patch = st.patch === undefined ? patch : st.merge ? st.merge(st.patch, patch) : st.patch;
       })
       .finally(async () => {
@@ -226,15 +248,12 @@ export class SaveQueue {
     await p;
   }
 
-  /** Flush everything. Times out (default 8s) and does not block forever on persistent failures. */
   async flushAll(opts: { timeoutMs?: number } = {}): Promise<{ ok: boolean }> {
     const timeoutMs = opts.timeoutMs ?? 8000;
 
-    // Build keys array without iterating Map via for..of
     const keys: SaveKey[] = [];
     this.states.forEach((_st, key) => keys.push(key));
 
-    // cancel timers
     this.states.forEach((st) => {
       if (st.timer) {
         clearTimeout(st.timer);
@@ -272,7 +291,6 @@ export class SaveQueue {
     if (!idle) return;
     if (st.waiters.size === 0) return;
 
-    // Avoid for..of over Set
     st.waiters.forEach((w) => w.resolve());
     st.waiters.clear();
   }
