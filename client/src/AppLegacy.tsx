@@ -3,6 +3,8 @@ import { ClientEntity } from './domain/client/client.types';
 import { calculateFinancials, createEmptyClient } from './domain/client/client.logic';
 import { InventoryItem } from './types';
 import { apiCall, generateId } from './utils';
+import { useClientsQuery } from './app/queries/clients';
+import { useInventoryQuery } from './app/queries/inventory';
 
 import { MainLayout } from './presentation/layouts/MainLayout';
 import Dashboard from './presentation/modules/Dashboard/Dashboard';
@@ -22,27 +24,21 @@ const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'];
 export default function AppLegacy() {
   const [mainView, setMainView] = useState('clients');
   const [subView, setSubView] = useState<'list' | 'detail'>('list');
-
-  const [clients, setClients] = useState<ClientEntity[]>([]);
   const [activeClient, setActiveClient] = useState<ClientEntity | null>(null);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [saving, setSaving] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const refreshData = useCallback(async () => {
-    try {
-      const [cData, iData] = await Promise.all([apiCall('/clients'), apiCall('/inventory')]);
-      setClients(Array.isArray(cData) ? (cData as ClientEntity[]) : []);
-      setInventory(Array.isArray(iData) ? (iData as InventoryItem[]) : []);
-    } catch (e) {
-      console.error('Failed to load data', e);
-    }
-  }, []);
+  const clientsQuery = useClientsQuery();
+  const inventoryQuery = useInventoryQuery();
 
-  useEffect(() => {
-    void refreshData();
-  }, [refreshData]);
+  const clients = clientsQuery.data ?? [];
+  const inventory = inventoryQuery.data ?? [];
+
+  const refreshData = useCallback(async () => {
+    await Promise.all([clientsQuery.refetch(), inventoryQuery.refetch()]);
+  }, [clientsQuery, inventoryQuery]);
+
 
   const handleNewClient = () => {
     const newClient = createEmptyClient();
