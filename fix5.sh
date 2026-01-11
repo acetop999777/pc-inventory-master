@@ -487,4 +487,8 @@ git tag -a "$TAG" -m "phase4.2: inventory realtime + WAC + qty controls"
 $DC build --no-cache client
 $DC up -d
 
+$DC logs --tail=120 client
+$DC logs --tail=120 server
+
+
 ./scripts/smoke.sh
