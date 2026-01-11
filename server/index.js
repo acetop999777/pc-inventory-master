@@ -153,6 +153,61 @@ app.post('/api/inventory/batch', async (req, res) => {
     } catch (e) { await client.query('ROLLBACK'); res.status(500).send(e); } finally { client.release(); }
 });
 
+// Partial update for a single inventory item (supports patch-style body)
+// Body can include any subset of: category, name, keyword, sku, quantity, cost, price, location, status, notes
+app.put('/api/inventory/:id', async (req, res) => {
+    const id = req.params.id;
+    const body = req.body || {};
+    const allowed = ['category','name','keyword','sku','quantity','cost','price','location','status','notes'];
+
+    const sets = [];
+    const values = [];
+    let idx = 1;
+
+    for (const k of allowed) {
+        if (Object.prototype.hasOwnProperty.call(body, k)) {
+            sets.push(`${k} = $${idx++}`);
+            values.push(body[k]);
+        }
+    }
+
+    // If nothing to update, still bump timestamp
+    if (sets.length === 0) {
+        // try last_updated first, fallback to updated_at
+        try {
+            await pool.query(`UPDATE inventory SET last_updated = NOW() WHERE id = $1`, [id]);
+            const { rows } = await pool.query('SELECT * FROM inventory WHERE id = $1', [id]);
+            return res.json(rows[0] || { success: true });
+        } catch (e) {
+            try {
+                await pool.query(`UPDATE inventory SET updated_at = NOW() WHERE id = $1`, [id]);
+                const { rows } = await pool.query('SELECT * FROM inventory WHERE id = $1', [id]);
+                return res.json(rows[0] || { success: true });
+            } catch (e2) {
+                return res.status(500).send(e2);
+            }
+        }
+    }
+
+    values.push(id);
+
+    // Try schema with last_updated, fallback to updated_at (for older DB)
+    const q1 = `UPDATE inventory SET ${sets.join(', ')}, last_updated = NOW() WHERE id = $${idx} RETURNING *`;
+    const q2 = `UPDATE inventory SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
+
+    try {
+        const r = await pool.query(q1, values);
+        return res.json(r.rows[0] || { success: true });
+    } catch (e) {
+        try {
+            const r2 = await pool.query(q2, values);
+            return res.json(r2.rows[0] || { success: true });
+        } catch (e2) {
+            return res.status(500).send(e2);
+        }
+    }
+});
+
 app.delete('/api/inventory/:id', async (req, res) => { try { await pool.query('DELETE FROM inventory WHERE id = $1', [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).send(e); } });
 
 app.get('/api/clients', async (req, res) => { try { const { rows } = await pool.query('SELECT * FROM clients ORDER BY order_date DESC'); res.json(rows.map(mapClient)); } catch (e) { res.status(500).send(e); } });
