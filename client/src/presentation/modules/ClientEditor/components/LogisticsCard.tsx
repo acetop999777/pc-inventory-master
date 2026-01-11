@@ -24,8 +24,8 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions }) 
             </div>
             <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                    <CompactInput type="date" label="Order Date" value={data.orderDate} onChange={e => update('orderDate', e.target.value)} />
-                    <CompactInput type="date" label="Delivery Date" value={data.deliveryDate} onChange={e => update('deliveryDate', e.target.value)} />
+                    <CompactInput type="date" label="Order Date" value={data.orderDate ? data.orderDate.split('T')[0] : ''} onChange={e => update('orderDate', e.target.value)} />
+                    <CompactInput type="date" label="Delivery Date" value={data.deliveryDate ? data.deliveryDate.split('T')[0] : ''} onChange={e => update('deliveryDate', e.target.value)} />
                 </div>
                 <div className="pt-4 border-t border-slate-50">
                     <div className="grid grid-cols-2 gap-4 mb-4">

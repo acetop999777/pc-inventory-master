@@ -1,3 +1,70 @@
+set -euo pipefail
+cd ~/pc-inventory-master
+
+if docker compose version >/dev/null 2>&1; then
+  DC="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC="docker-compose"
+else
+  echo "ERROR: need docker compose v2 or docker-compose v1" >&2
+  exit 1
+fi
+
+# 1) 修复 Clients 详情页 date input：必须 YYYY-MM-DD
+if [ -f client/src/presentation/modules/ClientEditor/components/LogisticsCard.tsx ]; then
+  python3 - <<'PY'
+from pathlib import Path
+p = Path("client/src/presentation/modules/ClientEditor/components/LogisticsCard.tsx")
+s = p.read_text(encoding="utf-8")
+
+s = s.replace(
+  'value={data.orderDate}',
+  "value={data.orderDate ? data.orderDate.split('T')[0] : ''}"
+)
+s = s.replace(
+  'value={data.deliveryDate}',
+  "value={data.deliveryDate ? data.deliveryDate.split('T')[0] : ''}"
+)
+
+p.write_text(s, encoding="utf-8")
+print("patched", p)
+PY
+fi
+
+# 也顺手修老版本 ClientEditor（如果你项目里还留着）
+if [ -f client/src/modules/ClientEditor.tsx ]; then
+  python3 - <<'PY'
+from pathlib import Path
+p = Path("client/src/modules/ClientEditor.tsx")
+s = p.read_text(encoding="utf-8")
+# 旧文件一般已经 split 过，这里只确保不会把 ISO 直接塞给 date input
+s = s.replace("value={client.orderDate}", "value={client.orderDate?.split('T')[0]||''}")
+s = s.replace("value={client.deliveryDate}", "value={client.deliveryDate?.split('T')[0]||''}")
+p.write_text(s, encoding="utf-8")
+print("touched", p)
+PY
+fi
+
+# 2) 移除 SpecsTable 每次输入都触发 onCalculate/save（防止一直跳动）
+if [ -f client/src/presentation/modules/ClientEditor/components/SpecsTable.tsx ]; then
+  python3 - <<'PY'
+from pathlib import Path
+p = Path("client/src/presentation/modules/ClientEditor/components/SpecsTable.tsx")
+lines = p.read_text(encoding="utf-8").splitlines(True)
+out = []
+removed = 0
+for ln in lines:
+  if "setTimeout(onCalculate" in ln:
+    removed += 1
+    continue
+  out.append(ln)
+p.write_text("".join(out), encoding="utf-8")
+print(f"patched {p} (removed {removed} lines)")
+PY
+fi
+
+# 3) 重写 AppLegacy 的 autosave：dirty 才保存；Saved badge 自动消失；离开页面先 flush 一次
+cat > client/src/AppLegacy.tsx <<'EOF'
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ClientEntity } from './domain/client/client.types';
 import { calculateFinancials, createEmptyClient } from './domain/client/client.logic';
@@ -217,3 +284,17 @@ export default function AppLegacy() {
     </MainLayout>
   );
 }
+EOF
+
+git add -A
+git commit -m "phase5.1: fix client date inputs + sane autosave (dirty+debounce) + non-sticky saved badge" || true
+
+TAG="phase5_1-$(date +%Y%m%d)"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  TAG="${TAG}b"
+fi
+git tag -a "$TAG" -m "phase5.1: clients autosave sanity"
+
+$DC build --no-cache client
+$DC up -d
+./scripts/smoke.sh

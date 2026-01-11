@@ -55,14 +55,12 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
         });
         update('specs', newSpecs);
         if(link) update('pcppLink', link);
-        setTimeout(onCalculate, 100);
     };
 
     const updateSpec = (cat: string, field: 'name' | 'sku' | 'cost', val: any) => {
         const currentSpec = data.specs[cat] || { name: '', sku: '', cost: 0, qty: 1 };
         const newSpecs = { ...data.specs, [cat]: { ...currentSpec, [field]: val } };
         update('specs', newSpecs);
-        setTimeout(onCalculate, 100);
     };
 
     const selectInventoryItem = (cat: string, item: InventoryItem) => {
@@ -70,7 +68,6 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
         const newSpecs = { ...data.specs, [cat]: { ...currentSpec, name: item.name, sku: item.sku || '', cost: item.cost } };
         update('specs', newSpecs);
         setActiveDrop(null);
-        setTimeout(onCalculate, 100);
     };
 
     // 显示顺序处理
