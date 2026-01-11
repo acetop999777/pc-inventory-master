@@ -1,4 +1,33 @@
-import React from 'react';
+set -euo pipefail
+cd ~/pc-inventory-master
+
+if docker compose version >/dev/null 2>&1; then
+  DC="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC="docker-compose"
+else
+  echo "ERROR: need docker compose v2 or docker-compose v1" >&2
+  exit 1
+fi
+
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+ROOT = Path("client/src")
+candidates = list(ROOT.rglob("SyncStatusPill.tsx"))
+
+# fallback：找包含 SAVED + fixed(top/right) 的 TSX
+if not candidates:
+    for p in ROOT.rglob("*.tsx"):
+        s = p.read_text(encoding="utf-8", errors="ignore")
+        if ("SAVED" in s or "Saved" in s) and "fixed" in s and ("top" in s and "right" in s):
+            candidates.append(p)
+
+if not candidates:
+    raise SystemExit("ERROR: cannot find SyncStatusPill.tsx (or any fixed top-right SAVED pill component)")
+
+component = r"""import React from 'react';
 import { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
@@ -85,3 +114,28 @@ export default function SyncStatusPill() {
     </div>
   );
 }
+"""
+
+for p in candidates:
+    # 只覆盖真正的 SyncStatusPill 组件文件（避免误伤）
+    name_ok = (p.name == "SyncStatusPill.tsx")
+    content_ok = ("SyncStatusPill" in p.read_text(encoding="utf-8", errors="ignore")) or name_ok
+    if not content_ok:
+        continue
+    p.write_text(component, encoding="utf-8")
+    print("patched:", p)
+
+PY
+
+git add -A
+git commit -m "phase5.2: sync status pill not sticky (show only syncing/error; saved auto-hide)" || true
+
+TAG="phase5_2-$(date +%Y%m%d)"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  TAG="${TAG}b"
+fi
+git tag -a "$TAG" -m "phase5.2: hide sticky SAVED pill"
+
+$DC build --no-cache client
+$DC up -d
+./scripts/smoke.sh
