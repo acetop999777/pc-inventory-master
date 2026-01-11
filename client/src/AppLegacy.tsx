@@ -93,8 +93,8 @@ export default function AppLegacy() {
 
   const renderContent = () => {
     if (mainView === 'dashboard') return <Dashboard />;
-    if (mainView === 'inventory') return <InventoryHub inventory={inventory} />;
-    if (mainView === 'inbound') return <InboundHub inventory={inventory} />;
+    if (mainView === 'inventory') return <InventoryHub />;
+    if (mainView === 'inbound') return <InboundHub />;
 
     if (mainView === 'clients') {
       if (subView === 'list') {
