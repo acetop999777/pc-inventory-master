@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Minus, Search, Trash2 } from 'lucide-react';
 import { ALL_CATS, apiCall } from '../../../utils';
-import { AppData, InventoryItem } from '../../../types';
+import { InventoryItem } from '../../../types';
 
 interface Props {
     inventory?: InventoryItem[];
@@ -44,32 +44,6 @@ const InlineEditor = ({ value, onSave, type = "text" }: { value: any, onSave: (v
         </div>
     );
 };
-
-
-  // --- Optimistic save ---
-  const handleFieldChange = async (itemId: string, field: string, value: any) => {
-    setInventory(prev =>
-      prev.map(it => it.id === itemId ? { ...it, [field]: value } : it)
-    );
-    try {
-      await apiCall(`/inventory/${itemId}`, 'PUT', { [field]: value });
-    } catch (err) {
-      console.error('Save failed', err);
-    }
-  };
-
-  // --- Optimistic delete ---
-  const handleDelete = async (itemId: string) => {
-    if (!window.confirm('Delete this item?')) return;
-    const prev = inventory;
-    setInventory(prev => prev.filter(it => it.id !== itemId));
-    try {
-      await apiCall(`/inventory/${itemId}`, 'DELETE');
-    } catch (err) {
-      alert('Delete failed');
-      setInventory(prev); // rollback
-    }
-  };
 
 export default function InventoryHub(props: Props) {
     
