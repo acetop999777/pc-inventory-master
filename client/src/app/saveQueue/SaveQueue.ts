@@ -68,7 +68,8 @@ export class SaveQueue {
   };
 
   private emit() {
-    for (const cb of this.listeners) cb();
+    // Avoid for..of over Set (TS target ES5)
+    this.listeners.forEach((cb) => cb());
   }
 
   getSnapshot(): SaveQueueSnapshot {
@@ -77,7 +78,8 @@ export class SaveQueue {
     let inFlightCount = 0;
     let errorCount = 0;
 
-    for (const st of this.states.values()) {
+    // Avoid for..of over Map iterators
+    this.states.forEach((st) => {
       const pending = st.patch !== undefined;
       const inFlight = !!st.inFlight;
       const hasError = st.lastError != null;
@@ -95,7 +97,7 @@ export class SaveQueue {
         lastError: st.lastError,
         updatedAt: st.updatedAt,
       });
-    }
+    });
 
     keys.sort((a, b) => b.updatedAt - a.updatedAt);
     return { pendingCount, inFlightCount, errorCount, keys };
@@ -170,7 +172,11 @@ export class SaveQueue {
     if (!st) return;
 
     if (st.inFlight) {
-      try { await st.inFlight; } catch { /* ignore */ }
+      try {
+        await st.inFlight;
+      } catch {
+        /* ignore */
+      }
     }
 
     if (st.patch === undefined) {
@@ -190,10 +196,14 @@ export class SaveQueue {
       return;
     }
 
-    const run = async () => { await write(patch); };
+    const run = async () => {
+      await write(patch);
+    };
 
     const p = run()
-      .then(() => { st.lastError = null; })
+      .then(() => {
+        st.lastError = null;
+      })
       .catch((e) => {
         st.lastError = e;
         // Put patch back so it can be retried later (no data loss in-session)
@@ -219,15 +229,18 @@ export class SaveQueue {
   /** Flush everything. Times out (default 8s) and does not block forever on persistent failures. */
   async flushAll(opts: { timeoutMs?: number } = {}): Promise<{ ok: boolean }> {
     const timeoutMs = opts.timeoutMs ?? 8000;
-    const keys = Array.from(this.states.keys());
 
-    for (const key of keys) {
-      const st = this.states.get(key);
-      if (st?.timer) {
+    // Build keys array without iterating Map via for..of
+    const keys: SaveKey[] = [];
+    this.states.forEach((_st, key) => keys.push(key));
+
+    // cancel timers
+    this.states.forEach((st) => {
+      if (st.timer) {
         clearTimeout(st.timer);
         st.timer = null;
       }
-    }
+    });
 
     const work = Promise.allSettled(keys.map((k) => this.flushKey(k)));
 
@@ -258,7 +271,9 @@ export class SaveQueue {
     const idle = st.patch === undefined && !st.inFlight;
     if (!idle) return;
     if (st.waiters.size === 0) return;
-    for (const w of st.waiters) w.resolve();
+
+    // Avoid for..of over Set
+    st.waiters.forEach((w) => w.resolve());
     st.waiters.clear();
   }
 }
