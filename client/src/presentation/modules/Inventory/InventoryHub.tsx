@@ -45,6 +45,32 @@ const InlineEditor = ({ value, onSave, type = "text" }: { value: any, onSave: (v
     );
 };
 
+
+  // --- Optimistic save ---
+  const handleFieldChange = async (itemId: string, field: string, value: any) => {
+    setInventory(prev =>
+      prev.map(it => it.id === itemId ? { ...it, [field]: value } : it)
+    );
+    try {
+      await apiCall(`/inventory/${itemId}`, 'PUT', { [field]: value });
+    } catch (err) {
+      console.error('Save failed', err);
+    }
+  };
+
+  // --- Optimistic delete ---
+  const handleDelete = async (itemId: string) => {
+    if (!window.confirm('Delete this item?')) return;
+    const prev = inventory;
+    setInventory(prev => prev.filter(it => it.id !== itemId));
+    try {
+      await apiCall(`/inventory/${itemId}`, 'DELETE');
+    } catch (err) {
+      alert('Delete failed');
+      setInventory(prev); // rollback
+    }
+  };
+
 export default function InventoryHub(props: Props) {
     
     const inventory: InventoryItem[] =
@@ -59,7 +85,7 @@ const [search, setSearch] = useState('');
     const updateItem = async (item: InventoryItem, fields: Partial<InventoryItem>) => {
         try {
             await apiCall(`/inventory/${item.id}`, 'PUT', fields);
-            refresh();
+            
             notify("Inventory Updated");
         } catch (e) {
             notify("Update failed", "error");
@@ -108,7 +134,7 @@ const [search, setSearch] = useState('');
                             <div className="flex justify-end items-center gap-1"><span>$</span><InlineEditor type="number" value={i.cost} onSave={v => updateItem(i, { cost: v })} /></div>
                         </div>
                         <div className="col-span-1 flex justify-end">
-                            <button onClick={async () => { if(window.confirm('Delete?')) { await apiCall(`/inventory/${i.id}`, 'DELETE'); refresh(); } }} className="text-slate-200 hover:text-red-400"><Trash2 size={14}/></button>
+                            <button onClick={async () => { if(window.confirm('Delete?')) { await apiCall(`/inventory/${i.id}`, 'DELETE');  } }} className="text-slate-200 hover:text-red-400"><Trash2 size={14}/></button>
                         </div>
                     </div>
                 ))}
