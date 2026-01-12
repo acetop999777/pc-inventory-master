@@ -1,19 +1,17 @@
-node_modules/
-dist/
-build/
-.DS_Store
 .env
-# --- local/env ---
-client/.env*.local
-client/.env.local
-
-# --- backups / generated ---
-backups/
-*.sql
-backup.log
-
-# --- temporary / debug artifacts ---
-*.bak
-full_project_code.txt
-refactor_phase1.patch
-n
+.env.*
+node_modules/
+client/node_modules/
+server/node_modules/
+client/build/
+build/
+dist/
+*.log
+.DS_Store
+db-data/
+pgdata/
+postgres-data/
+uploads/
+tmp/
+.cache/
+coverage/
