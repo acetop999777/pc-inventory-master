@@ -26,3 +26,6 @@ n
 *.rej
 server/.env
 client/.env
+
+# local backups
+/backups/
