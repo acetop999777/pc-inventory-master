@@ -171,7 +171,7 @@ export class SaveQueue {
       st.updatedAt = now;
     }
 
-    st.lastError = null;
+    // Phase7.3: keep lastError sticky while user continues editing; Retry will attempt flush.
 
     const waiter = defer<void>();
     st.waiters.add(waiter);
@@ -183,6 +183,11 @@ export class SaveQueue {
   }
 
   private schedule(key: SaveKey, st: KeyState<any>) {
+    // Phase7.3: hold patches while error (no auto-flush; user must Retry).
+    if (st.lastError != null) {
+      this.emit();
+      return;
+    }
     if (st.timer) clearTimeout(st.timer);
     st.timer = setTimeout(() => {
       st.timer = null;
