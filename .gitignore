@@ -22,3 +22,5 @@ full_project_code.txt
 refactor_phase1.patch
 n
 ~/
+*.orig
+*.rej
