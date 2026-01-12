@@ -1,3 +1,135 @@
+set -euo pipefail
+cd ~/pc-inventory-master
+
+# 1) 新增 clients query
+mkdir -p client/src/app/queries
+cat > client/src/app/queries/clients.ts <<'EOF'
+import { useQuery } from '@tanstack/react-query';
+import { apiCallOrThrow } from '../../utils';
+import { ClientEntity } from '../../domain/client/client.types';
+
+export const clientsQueryKey = ['clients'] as const;
+
+async function fetchClients(): Promise<ClientEntity[]> {
+  const data = await apiCallOrThrow<ClientEntity[]>('/clients');
+  return Array.isArray(data) ? data : [];
+}
+
+export function useClientsQuery() {
+  return useQuery({
+    queryKey: clientsQueryKey,
+    queryFn: fetchClients,
+  });
+}
+EOF
+
+# 2) 新增 client write-behind（SaveQueue）
+mkdir -p client/src/app/writeBehind
+cat > client/src/app/writeBehind/clientWriteBehind.ts <<'EOF'
+import { useQueryClient } from '@tanstack/react-query';
+import { apiCallOrThrow } from '../../utils';
+import { ClientEntity } from '../../domain/client/client.types';
+import { calculateFinancials } from '../../domain/client/client.logic';
+import { clientsQueryKey } from '../queries/clients';
+import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
+
+type ClientWrite =
+  | { op: 'upsert'; fields: Partial<ClientEntity>; base?: ClientEntity }
+  | { op: 'delete' };
+
+function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
+  if (a.op === 'delete' || b.op === 'delete') return { op: 'delete' };
+  return {
+    op: 'upsert',
+    fields: { ...a.fields, ...b.fields },
+    base: b.base ?? a.base,
+  };
+}
+
+function coerce(fields: Partial<ClientEntity>): Partial<ClientEntity> {
+  const f: any = { ...fields };
+  if (Object.prototype.hasOwnProperty.call(f, 'totalPrice')) f.totalPrice = Number(f.totalPrice ?? 0);
+  if (Object.prototype.hasOwnProperty.call(f, 'paidAmount')) f.paidAmount = Number(f.paidAmount ?? 0);
+  if (Object.prototype.hasOwnProperty.call(f, 'rating')) f.rating = Number(f.rating ?? 0);
+  if (Object.prototype.hasOwnProperty.call(f, 'isShipping')) f.isShipping = Boolean(f.isShipping);
+  return f;
+}
+
+function upsertInList(old: ClientEntity[], id: string, next: ClientEntity): ClientEntity[] {
+  const has = old.some((c) => c.id === id);
+  if (!has) return [next, ...old];
+  return old.map((c) => (c.id === id ? { ...c, ...next } : c));
+}
+
+export function useClientWriteBehind() {
+  const qc = useQueryClient();
+  const { queue } = useSaveQueue();
+
+  const applyOptimisticIfExists = (id: string, fields: Partial<ClientEntity>) => {
+    const nextFields = coerce(fields);
+    qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => {
+      if (!old.some((c) => c.id === id)) return old;
+      return old.map((c) => (c.id === id ? { ...c, ...nextFields } : c));
+    });
+  };
+
+  const removeOptimisticIfExists = (id: string) => {
+    qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => old.filter((c) => c.id !== id));
+  };
+
+  const update = (id: string, fields: Partial<ClientEntity>, base?: ClientEntity) => {
+    applyOptimisticIfExists(id, fields);
+
+    void queue.enqueue<ClientWrite>({
+      key: `client:${id}`,
+      label: 'Clients',
+      patch: { op: 'upsert', fields: coerce(fields), base },
+      merge: mergeClientWrite,
+      write: async (w) => {
+        if (w.op === 'delete') {
+          await apiCallOrThrow(`/clients/${id}`, 'DELETE');
+          return;
+        }
+
+        const list = qc.getQueryData<ClientEntity[]>(clientsQueryKey) ?? [];
+        const current = list.find((c) => c.id === id) ?? w.base;
+        if (!current) throw new Error(`Client not found in cache; base required for id=${id}`);
+
+        const merged: ClientEntity = { ...current, ...w.fields };
+        const fin = calculateFinancials(merged);
+
+        await apiCallOrThrow('/clients', 'POST', {
+          ...merged,
+          actualCost: fin.totalCost,
+          profit: fin.profit,
+        });
+
+        qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsertInList(old, id, merged));
+      },
+      debounceMs: 700,
+    });
+  };
+
+  const remove = (id: string) => {
+    removeOptimisticIfExists(id);
+    void queue.enqueue<ClientWrite>({
+      key: `client:${id}`,
+      label: 'Clients',
+      patch: { op: 'delete' },
+      merge: mergeClientWrite,
+      write: async () => {
+        await apiCallOrThrow(`/clients/${id}`, 'DELETE');
+      },
+      debounceMs: 0,
+    });
+  };
+
+  return { update, remove };
+}
+EOF
+
+# 3) 覆写 AppLegacy：clients 全面用 query + write-behind
+cat > client/src/AppLegacy.tsx <<'EOF'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronLeft, Loader2, AlertTriangle } from 'lucide-react';
 
@@ -267,3 +399,11 @@ export default function AppLegacy() {
     </MainLayout>
   );
 }
+EOF
+
+# 4) 提交 + tag + smoke
+git add -A
+git commit -m "clients: react-query source of truth + savequeue write-behind (draft supported)"
+git tag -a "phase4_1_clients_rq_writebehind" -m "Clients migrated to React Query + SaveQueue write-behind"
+
+./scripts/smoke.sh
