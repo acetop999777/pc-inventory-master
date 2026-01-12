@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, Users, Package, LogOut, PackagePlus } from 'lucide-react';
+import { SyncStatusPill } from '../../app/saveQueue/SyncStatusPill';
 
 interface Props {
     currentView: string;
@@ -52,7 +53,8 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
             </div>
 
             <div className="flex-1 overflow-auto relative">
-                {children}
+                <SyncStatusPill />
+{children}
             </div>
         </div>
     );
