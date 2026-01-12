@@ -189,14 +189,15 @@ export function ClientDetailRoute() {
   }, [guard, guardFn]);
 
   const onBack = useCallback(() => {
-    void guard.run(() => {
-      // 若 draft 没成功落库，返回列表即丢弃（不产生幽灵记录）
-      if (clientId && draft && !clients.some((c) => c.id === clientId)) clearDraft(clientId);
-      nav('/clients');
-    });
+    void guard.run(
+      () => nav('/clients'),
+      () => {
+        // 若 draft 没成功落库，允许离开时才丢弃（不产生幽灵记录）
+        if (clientId && draft && !clients.some((c) => c.id === clientId)) clearDraft(clientId);
+      }
+    );
   }, [guard, nav, clientId, draft, clients, clearDraft]);
-
-  if (!activeClient) return <div className="p-10">Loading...</div>;
+if (!activeClient) return <div className="p-10">Loading...</div>;
 
   const financials = calculateFinancials(activeClient);
 

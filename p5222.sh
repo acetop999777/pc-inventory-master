@@ -1,3 +1,7 @@
+set -euo pipefail
+cd ~/pc-inventory-master
+
+cat > client/src/app/navigation/NavigationGuard.tsx <<'EOF'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 
 type GuardFn = () => Promise<boolean>;
@@ -113,3 +117,12 @@ export function useNavigationGuard() {
   if (!ctx) throw new Error('useNavigationGuard must be used within NavigationGuardProvider');
   return ctx;
 }
+EOF
+
+# 确认不再引用 unstable_useBlocker
+grep -RIn "unstable_useBlocker" client/src/app/navigation/NavigationGuard.tsx && exit 1 || true
+
+# 重建 + smoke
+if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+$DC up -d --build
+./scripts/smoke.sh
