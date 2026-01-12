@@ -1,8 +1,11 @@
 import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
+import { useQueryClient } from '@tanstack/react-query';
 
 export function SyncStatusPill() {
+  const queryClient = useQueryClient();
+  // Phase7.5: Retry invalidates queries after successful flush (keeps UI consistent).
   const { queue } = useSaveQueue();
 
   const snap = useSyncExternalStore(
