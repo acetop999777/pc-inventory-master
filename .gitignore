@@ -24,3 +24,9 @@ n
 ~/
 *.orig
 *.rej
+
+# local scratch / recovery
+*.bak
+*.broken_*
+*_before_fix_*
+full_project_code.txt
