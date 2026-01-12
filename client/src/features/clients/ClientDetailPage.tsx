@@ -2,7 +2,6 @@ import React, { useRef } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
 
 import { ClientEntity } from '../../domain/client/client.types';
-import { ClientFinancials } from '../../domain/client/client.types';
 import { InventoryItem } from '../../types';
 
 import { IdentityCard } from '../../presentation/modules/ClientEditor/components/IdentityCard';
@@ -14,7 +13,7 @@ import { SpecsTable } from '../../presentation/modules/ClientEditor/components/S
 type Props = {
   activeClient: ClientEntity;
   inventory: InventoryItem[];
-  financials: ClientFinancials;
+  financials: any;
 
   statusSteps: string[];
 

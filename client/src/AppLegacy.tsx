@@ -1,30 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronLeft, Loader2, AlertTriangle } from 'lucide-react';
 
 import { ClientEntity } from './domain/client/client.types';
 import { calculateFinancials, createEmptyClient } from './domain/client/client.logic';
 import { generateId } from './utils';
 
-import { ClientsListPage } from './features/clients/ClientsListPage';
-import { ClientDetailPage } from './features/clients/ClientDetailPage';
 import { MainLayout } from './presentation/layouts/MainLayout';
 import Dashboard from './presentation/modules/Dashboard/Dashboard';
-import ClientHub from './presentation/modules/ClientHub/ClientHub';
 import InventoryHub from './presentation/modules/Inventory/InventoryHub';
 import InboundHub from './presentation/modules/Inbound/InboundHub';
-
-import { IdentityCard } from './presentation/modules/ClientEditor/components/IdentityCard';
-import { LogisticsCard } from './presentation/modules/ClientEditor/components/LogisticsCard';
-import { FinancialsCard } from './presentation/modules/ClientEditor/components/FinancialsCard';
-import { NotesCard } from './presentation/modules/ClientEditor/components/NotesCard';
-import { SpecsTable } from './presentation/modules/ClientEditor/components/SpecsTable';
 
 import { useClientsQuery } from './app/queries/clients';
 import { useInventoryQuery } from './app/queries/inventory';
 import { useClientWriteBehind } from './app/writeBehind/clientWriteBehind';
 import { useSaveQueue } from './app/saveQueue/SaveQueueProvider';
 
-const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'];
+import { ClientsListPage } from './features/clients/ClientsListPage';
+import { ClientDetailPage } from './features/clients/ClientDetailPage';
+
+const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'] as const;
 
 export default function AppLegacy() {
   const [mainView, setMainView] = useState('clients');
@@ -32,10 +25,8 @@ export default function AppLegacy() {
 
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
 
-  // draft：只用于“新建但尚未首次落库”的 client（属于纯 client state）
+  // draft：只用于“新建但尚未首次落库”的 client（纯 client state）
   const [draftClient, setDraftClient] = useState<ClientEntity | null>(null);
-
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: clientsData } = useClientsQuery();
   const clients = clientsData ?? [];
@@ -46,7 +37,7 @@ export default function AppLegacy() {
   const { update: updateClient, remove: removeClient } = useClientWriteBehind();
   const { queue, snapshot } = useSaveQueue();
 
-  // draft 一旦进入 clients cache（意味着至少保存成功一次），就自动清掉 draft
+  // draft 一旦进入 clients cache（意味着至少保存成功一次），就清掉 draft
   useEffect(() => {
     if (!draftClient) return;
     if (clients.some((c) => c.id === draftClient.id)) setDraftClient(null);
@@ -62,12 +53,12 @@ export default function AppLegacy() {
   const keyStatus = useMemo(() => {
     if (!activeKey) return null;
     return snapshot.keys.find((k) => k.key === activeKey) ?? null;
-  }, [snapshot, activeKey]);
+  }, [snapshot.keys, activeKey]);
 
   const busy = Boolean(keyStatus?.pending || keyStatus?.inFlight);
   const hasError = Boolean(keyStatus?.hasError);
 
-  // busy -> idle：短暂闪一下 Saved（idle 时不常驻）
+  // busy -> idle：短暂闪 Saved（idle 不常驻）
   const [flashSaved, setFlashSaved] = useState(false);
   const prevBusyRef = useRef(false);
   const tRef = useRef<any>(null);
@@ -106,7 +97,6 @@ export default function AppLegacy() {
     async (id: string, name: string) => {
       if (!window.confirm(`Delete ${name}?`)) return;
 
-      // 若正在看 detail：先回列表，避免 detail 继续引用
       if (activeClientId === id) {
         setSubView('list');
         setActiveClientId(null);
@@ -122,7 +112,7 @@ export default function AppLegacy() {
     (field: keyof ClientEntity, val: any) => {
       if (!activeClientId) return;
 
-      // draft：先更新本地 draft，然后把 base 交给 write-behind，确保首次写回有完整对象
+      // draft：先更新本地 draft，再把 base 交给 write-behind，确保首次写回有完整对象
       if (draftClient && draftClient.id === activeClientId) {
         const next: ClientEntity = { ...draftClient, [field]: val };
         setDraftClient(next);
@@ -130,7 +120,6 @@ export default function AppLegacy() {
         return;
       }
 
-      // existing：直接写 Query cache + write-behind
       updateClient(activeClientId, { [field]: val } as Partial<ClientEntity>);
     },
     [activeClientId, draftClient, updateClient]
@@ -159,10 +148,10 @@ export default function AppLegacy() {
     [activeKey, mainView, queue, subView]
   );
 
-  const financials = useMemo(
-    () => (activeClient ? calculateFinancials(activeClient) : { totalCost: 0, profit: 0, balanceDue: 0, isPaidOff: false }),
-    [activeClient]
-  );
+  const financials = useMemo(() => {
+    if (!activeClient) return { totalCost: 0, profit: 0, balanceDue: 0, isPaidOff: false };
+    return calculateFinancials(activeClient);
+  }, [activeClient]);
 
   const renderContent = () => {
     if (mainView === 'dashboard') return <Dashboard />;
@@ -181,7 +170,6 @@ export default function AppLegacy() {
         );
       }
 
-
       if (subView === 'detail') {
         if (!activeClient) return <div className="p-10">Loading...</div>;
 
@@ -190,7 +178,7 @@ export default function AppLegacy() {
             activeClient={activeClient}
             inventory={inventory}
             financials={financials}
-            statusSteps={STATUS_STEPS}
+            statusSteps={[...STATUS_STEPS]}
             busy={busy}
             hasError={hasError}
             flashSaved={flashSaved}
@@ -206,7 +194,7 @@ export default function AppLegacy() {
           />
         );
       }
-
+    }
 
     return <div className="p-10">Loading...</div>;
   };
