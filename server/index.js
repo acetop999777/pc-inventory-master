@@ -84,7 +84,15 @@ const initDB = async () => {
 };
 initDB();
 
-const fmtDate = (d) => d ? new Date(d).toISOString() : '';
+// Contract: date-only YYYY-MM-DD
+const fmtDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
+
+// DB write helper: accept 'YYYY-MM-DD' or ISO string; returns null/DATE
+const toDateOnly = (v) => {
+  if (!v) return null;
+  if (typeof v === 'string') return v.slice(0, 10);
+  try { return new Date(v).toISOString().slice(0, 10); } catch { return null; }
+};
 
 const mapClient = r => ({
     id: r.id,
@@ -222,7 +230,7 @@ app.post('/api/clients', async (req, res) => {
                 specs=EXCLUDED.specs, photos=EXCLUDED.photos, rating=EXCLUDED.rating, notes=EXCLUDED.notes`,
             [
                 c.id, c.wechatName, c.wechatId, c.realName, c.xhsName, c.xhsId,
-                c.orderDate || null, c.orderDate || null, c.deliveryDate || null, c.pcppLink, c.isShipping, c.trackingNumber,
+                toDateOnly(c.orderDate), toDateOnly(c.orderDate), toDateOnly(c.deliveryDate), c.pcppLink, c.isShipping, c.trackingNumber,
                 c.address, c.city, c.state, c.zip, c.status,
                 c.totalPrice, c.actualCost, c.profit, c.paidAmount, 
                 JSON.stringify(c.specs), JSON.stringify(c.photos || []), c.rating, c.notes
