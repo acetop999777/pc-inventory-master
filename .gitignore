@@ -15,3 +15,10 @@ uploads/
 tmp/
 .cache/
 coverage/
+backups/
+*.bak
+full_project_code.txt
+*.patch
+refactor_phase1.patch
+n
+~/
