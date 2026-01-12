@@ -49,8 +49,7 @@ const cleanUpDuplicates = async () => {
 
 const initDB = async () => {
     try {
-        await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) DEFAULT 0;`);
-        await pool.query(`
+                await pool.query(`
             CREATE TABLE IF NOT EXISTS clients (
                 id TEXT PRIMARY KEY, wechat_name TEXT, wechat_id TEXT, real_name TEXT,
                 xhs_name TEXT, xhs_id TEXT, order_date DATE, deposit_date DATE, delivery_date DATE,
@@ -63,7 +62,15 @@ const initDB = async () => {
                 specs JSONB, photos JSONB, rating INTEGER DEFAULT 0, notes TEXT
             );
         `);
-        await pool.query(`CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, category TEXT, name TEXT, keyword TEXT, sku TEXT, quantity INTEGER DEFAULT 0, cost NUMERIC(10,2) DEFAULT 0, price NUMERIC(10,2) DEFAULT 0, location TEXT, status TEXT, notes TEXT, last_updated BIGINT);`);
+        await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) DEFAULT 0;`);
+
+        await pool.query(`CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, category TEXT, name TEXT, keyword TEXT, sku TEXT, quantity INTEGER DEFAULT 0, cost NUMERIC(10,2) DEFAULT 0, price NUMERIC(10,2) DEFAULT 0, location TEXT, status TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+        await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`);
+        await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS location TEXT;`);
+        await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS status TEXT;`);
+        await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS notes TEXT;`);
+        await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`);
+
         await pool.query(`CREATE TABLE IF NOT EXISTS product_cache (barcode VARCHAR(50) PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
         await pool.query(`CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, sku TEXT, name TEXT, type TEXT, qty_change INTEGER, unit_cost NUMERIC, total_value NUMERIC, ref_id TEXT, operator TEXT, date TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
         await pool.query(`CREATE TABLE IF NOT EXISTS logs (id TEXT PRIMARY KEY, timestamp BIGINT, type TEXT, title TEXT, msg TEXT, meta JSONB);`);
@@ -141,10 +148,10 @@ app.post('/api/inventory/batch', async (req, res) => {
         for (const item of items) {
             const { rows } = await client.query('SELECT * FROM inventory WHERE id = $1', [item.id]);
             if (rows.length > 0) {
-                await client.query(`UPDATE inventory SET quantity=$1, cost=$2, name=$3, keyword=$4, sku=$5, category=$6, price=$7, location=$8, status=$9, notes=$10, last_updated=NOW() WHERE id=$11`, 
+                await client.query(`UPDATE inventory SET quantity=$1, cost=$2, name=$3, keyword=$4, sku=$5, category=$6, price=$7, location=$8, status=$9, notes=$10, updated_at=NOW() WHERE id=$11`, 
                     [item.quantity, item.cost, item.name, item.keyword, item.sku, item.category, item.price||0, item.location||'', item.status||'In Stock', item.notes||'', item.id]);
             } else {
-                await client.query(`INSERT INTO inventory (id, category, name, keyword, sku, quantity, cost, price, location, status, notes, last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())`, 
+                await client.query(`INSERT INTO inventory (id, category, name, keyword, sku, quantity, cost, price, location, status, notes, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())`, 
                     [item.id, item.category, item.name, item.keyword, item.sku, item.quantity, item.cost, item.price||0, item.location||'', item.status||'In Stock', item.notes||'']);
             }
         }
@@ -173,38 +180,21 @@ app.put('/api/inventory/:id', async (req, res) => {
 
     // If nothing to update, still bump timestamp
     if (sets.length === 0) {
-        // try last_updated first, fallback to updated_at
-        try {
-            await pool.query(`UPDATE inventory SET last_updated = NOW() WHERE id = $1`, [id]);
-            const { rows } = await pool.query('SELECT * FROM inventory WHERE id = $1', [id]);
-            return res.json(rows[0] || { success: true });
-        } catch (e) {
-            try {
-                await pool.query(`UPDATE inventory SET updated_at = NOW() WHERE id = $1`, [id]);
-                const { rows } = await pool.query('SELECT * FROM inventory WHERE id = $1', [id]);
-                return res.json(rows[0] || { success: true });
-            } catch (e2) {
-                return res.status(500).send(e2);
-            }
-        }
+        await pool.query(`UPDATE inventory SET updated_at = NOW() WHERE id = $1`, [id]);
+        const { rows } = await pool.query('SELECT * FROM inventory WHERE id = $1', [id]);
+        return res.json(rows[0] || { success: true });
     }
 
     values.push(id);
 
-    // Try schema with last_updated, fallback to updated_at (for older DB)
-    const q1 = `UPDATE inventory SET ${sets.join(', ')}, last_updated = NOW() WHERE id = $${idx} RETURNING *`;
-    const q2 = `UPDATE inventory SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
+    // Update timestamp for any inventory update
+    const q = `UPDATE inventory SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
 
     try {
-        const r = await pool.query(q1, values);
+        const r = await pool.query(q, values);
         return res.json(r.rows[0] || { success: true });
     } catch (e) {
-        try {
-            const r2 = await pool.query(q2, values);
-            return res.json(r2.rows[0] || { success: true });
-        } catch (e2) {
-            return res.status(500).send(e2);
-        }
+        return res.status(500).send(e);
     }
 });
 
