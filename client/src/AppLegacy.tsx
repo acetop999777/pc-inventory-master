@@ -5,6 +5,8 @@ import { ClientEntity } from './domain/client/client.types';
 import { calculateFinancials, createEmptyClient } from './domain/client/client.logic';
 import { generateId } from './utils';
 
+import { ClientsListPage } from './features/clients/ClientsListPage';
+import { ClientDetailPage } from './features/clients/ClientDetailPage';
 import { MainLayout } from './presentation/layouts/MainLayout';
 import Dashboard from './presentation/modules/Dashboard/Dashboard';
 import ClientHub from './presentation/modules/ClientHub/ClientHub';
@@ -170,7 +172,7 @@ export default function AppLegacy() {
     if (mainView === 'clients') {
       if (subView === 'list') {
         return (
-          <ClientHub
+          <ClientsListPage
             clients={clients}
             onSelectClient={handleSelectClient}
             onNewClient={handleNewClient}
@@ -179,81 +181,32 @@ export default function AppLegacy() {
         );
       }
 
+
       if (subView === 'detail') {
         if (!activeClient) return <div className="p-10">Loading...</div>;
 
         return (
-          <div className="min-h-screen pb-40 animate-in slide-in-from-right duration-300">
-            <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center sticky top-0 z-40">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() =>
-                    void flushAndGo(() => {
-                      setSubView('list');
-                      setActiveClientId(null);
-                      // draft 若没成功落库，返回列表即丢弃（不会“幽灵占位”）
-                      setDraftClient(null);
-                    })
-                  }
-                  className="text-slate-500 hover:text-slate-800 transition-colors"
-                  title={busy ? 'Syncing before leaving…' : hasError ? 'Sync failed' : 'Back'}
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <div className="h-6 w-px bg-slate-200"></div>
-                <span className="font-black text-lg text-slate-800">{activeClient.wechatName || 'New Client'}</span>
-              </div>
-
-              {(busy || hasError || flashSaved) && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  {hasError ? (
-                    <>
-                      <AlertTriangle size={12} className="text-amber-600" />
-                      <span className="text-amber-700">Needs Sync</span>
-                      <button
-                        onClick={retryActive}
-                        className="ml-2 px-2 py-1 rounded-full bg-white border border-amber-200 hover:bg-amber-50 text-amber-700"
-                        title="Retry"
-                      >
-                        Retry
-                      </button>
-                    </>
-                  ) : busy ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin text-blue-500" />
-                      <span>Syncing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 size={12} className="text-emerald-500" />
-                      <span className="text-emerald-700">Saved</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="max-w-[1600px] mx-auto p-6 grid grid-cols-12 gap-6">
-              <div className="col-span-12 xl:col-span-4 space-y-6">
-                <IdentityCard
-                  data={activeClient}
-                  update={handleUpdateField}
-                  onPhotoUpload={() => fileRef.current?.click()}
-                  onPhotoRemove={() => {}}
-                />
-                <LogisticsCard data={activeClient} update={handleUpdateField} statusOptions={STATUS_STEPS} />
-                <NotesCard data={activeClient} update={handleUpdateField} />
-                <input type="file" multiple hidden ref={fileRef} accept="image/*" onChange={() => {}} />
-              </div>
-              <div className="col-span-12 xl:col-span-8 space-y-6">
-                <FinancialsCard data={activeClient} financials={financials} update={handleUpdateField} />
-                <SpecsTable data={activeClient} inventory={inventory} update={handleUpdateField} onCalculate={() => {}} />
-              </div>
-            </div>
-          </div>
+          <ClientDetailPage
+            activeClient={activeClient}
+            inventory={inventory}
+            financials={financials}
+            statusSteps={STATUS_STEPS}
+            busy={busy}
+            hasError={hasError}
+            flashSaved={flashSaved}
+            onRetry={() => void retryActive()}
+            onUpdateField={handleUpdateField}
+            onBack={() =>
+              void flushAndGo(() => {
+                setSubView('list');
+                setActiveClientId(null);
+                setDraftClient(null);
+              })
+            }
+          />
         );
       }
-    }
+
 
     return <div className="p-10">Loading...</div>;
   };
