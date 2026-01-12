@@ -1,0 +1,15 @@
+diff --git a/client/src/features/clients/editor/index.ts b/client/src/features/clients/editor/index.ts
+index 6d1bf3e9..1f9d988d 100644
+--- a/client/src/features/clients/editor/index.ts
++++ b/client/src/features/clients/editor/index.ts
+@@ -1,5 +1,5 @@
+-export { IdentityCard } from '../../../presentation/modules/ClientEditor/components/IdentityCard';
+-export { LogisticsCard } from '../../../presentation/modules/ClientEditor/components/LogisticsCard';
+-export { FinancialsCard } from '../../../presentation/modules/ClientEditor/components/FinancialsCard';
+-export { NotesCard } from '../../../presentation/modules/ClientEditor/components/NotesCard';
+-export { SpecsTable } from '../../../presentation/modules/ClientEditor/components/SpecsTable';
++export { IdentityCard } from './components/IdentityCard';
++export { LogisticsCard } from './components/LogisticsCard';
++export { FinancialsCard } from './components/FinancialsCard';
++export { NotesCard } from './components/NotesCard';
++export { SpecsTable } from './components/SpecsTable';
