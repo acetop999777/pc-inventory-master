@@ -14,6 +14,27 @@ export function SyncStatusPill() {
   const busy = (snap.pendingCount + snap.inFlightCount) > 0;
   const hasError = snap.errorCount > 0;
 
+
+  const errorKeys = snap.keys.filter((k) => k.hasError);
+  const topErr: any = errorKeys[0]?.lastError as any;
+  const topErrMsg =
+    topErr?.userMessage ??
+    topErr?.message ??
+    (typeof topErr === 'string' ? topErr : '') ??
+    '';
+  const topErrKind = topErr?.kind;
+  const topErrStatus = topErr?.status;
+
+  const errorTitle = (() => {
+    if (!hasError) return '';
+    const head = [topErrKind ? String(topErrKind) : 'ERROR', topErrStatus ? String(topErrStatus) : null]
+      .filter(Boolean)
+      .join(' ');
+    const body = topErrMsg ? `: ${topErrMsg}` : '';
+    return (head + body).slice(0, 240);
+  })();
+
+  const anyRetriable = errorKeys.some((k) => (k.lastError as any)?.retriable !== false);
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
   const tRef = React.useRef<any>(null);
@@ -56,18 +77,25 @@ export function SyncStatusPill() {
               ? "bg-slate-50 border-slate-200 text-slate-600"
               : "bg-emerald-50 border-emerald-200 text-emerald-700"
         ].join(" ")}
-      >
+      
+        title={hasError ? errorTitle : undefined}>
         {hasError ? (
           <>
             <AlertTriangle size={14} />
             <span>Needs Sync</span>
-            <button
-              onClick={retryAll}
-              className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
-              title="Retry pending saves"
-            >
-              Retry
-            </button>
+            {anyRetriable ? (
+              <button
+                onClick={retryAll}
+                className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
+                title="Retry pending saves"
+              >
+                Retry
+              </button>
+            ) : (
+              <span className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200">
+                Fix & retry
+              </span>
+            )}
           </>
         ) : busy ? (
           <>

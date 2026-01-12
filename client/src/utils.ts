@@ -2,7 +2,8 @@ import { InventoryItem } from './types';
 
 export const API_BASE = '/api';
 export const generateId = (): string => Math.random().toString(36).substr(2, 9);
-export const formatMoney = (n: number | undefined): string => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+export const formatMoney = (n: number | undefined): string =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 
 // 1. 只有这一套标准，全系统通用
 export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];
@@ -11,69 +12,139 @@ export const STATUS_STEPS = ['Deposit Paid', 'Parts Ordered', 'Building', 'Ready
 
 // 2. 及其单纯的判断逻辑：进来的名字 -> 直接定死标准类目
 export const guessCategory = (name: string): string => {
-    if(!name) return 'OTHER';
-    const n = name.toLowerCase();
-    
-    if(n.includes('cpu')||n.includes('ryzen')||n.includes('intel')||n.includes('processor')) return 'CPU';
-    if(n.includes('motherboard')||n.includes('b650')||n.includes('z790')||n.includes('x670')) return 'MB';
-    if(n.includes('memory')||n.includes('ram')||n.includes('ddr5')) return 'RAM';
-    if(n.includes('video card')||n.includes('geforce')||n.includes('rtx')||n.includes('graphics card')) return 'GPU';
-    if(n.includes('ssd')||n.includes('nvme')||n.includes('m.2')) return 'SSD';
-    if(n.includes('cooler')||n.includes('liquid')||n.includes('aio')||n.includes('heatsink')) return 'COOLER';
-    if(n.includes('supply')||n.includes('psu')||n.includes('modular')) return 'PSU';
-    if(n.includes('case')||n.includes('tower')||n.includes('chassis')||n.includes('o11')) return 'CASE';
-    if(n.includes('fan')||n.includes('uni fan')) return 'FAN';
-    if(n.includes('monitor')||n.includes('display')) return 'MONITOR';
-    
-    return 'OTHER';
+  if (!name) return 'OTHER';
+  const n = name.toLowerCase();
+
+  if (n.includes('cpu') || n.includes('ryzen') || n.includes('intel') || n.includes('processor')) return 'CPU';
+  if (n.includes('motherboard') || n.includes('b650') || n.includes('z790') || n.includes('x670')) return 'MB';
+  if (n.includes('memory') || n.includes('ram') || n.includes('ddr5')) return 'RAM';
+  if (n.includes('video card') || n.includes('geforce') || n.includes('rtx') || n.includes('graphics card')) return 'GPU';
+  if (n.includes('ssd') || n.includes('nvme') || n.includes('m.2')) return 'SSD';
+  if (n.includes('cooler') || n.includes('liquid') || n.includes('aio') || n.includes('heatsink')) return 'COOLER';
+  if (n.includes('supply') || n.includes('psu') || n.includes('modular')) return 'PSU';
+  if (n.includes('case') || n.includes('tower') || n.includes('chassis') || n.includes('o11')) return 'CASE';
+  if (n.includes('fan') || n.includes('uni fan')) return 'FAN';
+  if (n.includes('monitor') || n.includes('display')) return 'MONITOR';
+
+  return 'OTHER';
 };
 
 export const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (e) => {
-            const img = new Image();
-            img.src = e.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const maxDim = 800; 
-                let w = img.width, h = img.height;
-                if(w>h && w>maxDim) { h*=maxDim/w; w=maxDim; }
-                else if(h>maxDim) { w*=maxDim/h; h=maxDim; }
-                canvas.width=w; canvas.height=h;
-                ctx?.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/jpeg', 0.8));
-            };
-        };
-    });
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const maxDim = 800;
+        let w = img.width,
+          h = img.height;
+        if (w > h && w > maxDim) {
+          h *= maxDim / w;
+          w = maxDim;
+        } else if (h > maxDim) {
+          w *= maxDim / h;
+          h = maxDim;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        ctx?.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+    };
+  });
 };
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+export type ApiErrorKind = 'NETWORK' | 'TIMEOUT' | 'HTTP' | 'PARSE' | 'UNKNOWN';
+
 export class ApiCallError extends Error {
+  url: string;
+  method: HttpMethod;
+  kind: ApiErrorKind;
+  status?: number;
+  responseBody?: unknown;
+  retriable: boolean;
+  userMessage: string;
+
+  // Back-compat signature (旧代码可能还在用 new ApiCallError(msg, url, status, body))
+  constructor(message: string, url: string, status?: number, responseBody?: unknown);
+  // New structured signature
+  constructor(init: {
+    message: string;
     url: string;
+    method: HttpMethod;
+    kind: ApiErrorKind;
     status?: number;
     responseBody?: unknown;
+    retriable: boolean;
+    userMessage: string;
+  });
+  constructor(a: any, b?: any, c?: any, d?: any) {
+    const legacy = typeof a === 'string';
+    const init = legacy
+      ? ({
+          message: a as string,
+          url: b as string,
+          method: 'GET' as HttpMethod,
+          kind: 'HTTP' as ApiErrorKind,
+          status: c as number | undefined,
+          responseBody: d as unknown,
+          retriable: true,
+          userMessage:
+            typeof d === 'string' && d
+              ? d.slice(0, 240)
+              : c
+                ? `Request failed (${c})`
+                : 'Request failed',
+        })
+      : (a as any);
 
-    constructor(message: string, url: string, status?: number, responseBody?: unknown) {
-        super(message);
-        this.name = 'ApiCallError';
-        this.url = url;
-        this.status = status;
-        this.responseBody = responseBody;
-    }
+    super(init.message);
+    this.name = 'ApiCallError';
+    this.url = init.url;
+    this.method = init.method;
+    this.kind = init.kind;
+    this.status = init.status;
+    this.responseBody = init.responseBody;
+    this.retriable = init.retriable;
+    this.userMessage = init.userMessage;
+  }
 }
 
 async function parseResponseBody(res: Response): Promise<unknown> {
-    const ct = res.headers.get('content-type') || '';
-    try {
-        if (ct.includes('application/json')) return await res.json();
-        return await res.text();
-    } catch {
-        return null;
-    }
+  const ct = res.headers.get('content-type') || '';
+  try {
+    if (res.status === 204) return null;
+    if (ct.includes('application/json')) return await res.json();
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+function guessRetriableFromStatus(status?: number): boolean {
+  if (!status) return true;
+  if (status === 408 || status === 429) return true;
+  if (status >= 500) return true;
+  if (status === 409) return true;
+  return false;
+}
+
+function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body: unknown): string {
+  const anyBody: any = body as any;
+  const m = anyBody?.error?.message ?? anyBody?.message ?? (typeof anyBody === 'string' ? anyBody : null);
+
+  if (m && typeof m === 'string') return m.slice(0, 240);
+
+  if (kind === 'TIMEOUT') return 'Request timed out';
+  if (kind === 'NETWORK') return 'Network error (server unreachable)';
+  if (kind === 'HTTP') return status ? `Request failed (${status})` : 'Request failed';
+  return 'Request failed';
 }
 
 /**
@@ -81,70 +152,164 @@ async function parseResponseBody(res: Response): Promise<unknown> {
  * Use this for React Query / mutations so errors are properly tracked.
  */
 export async function apiCallOrThrow<T>(
-    url: string,
-    method: HttpMethod = 'GET',
-    body: any = null,
-    opts: { signal?: AbortSignal } = {}
+  url: string,
+  method: HttpMethod = 'GET',
+  body: any = null,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {}
 ): Promise<T> {
-    const init: RequestInit = {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        signal: opts.signal,
-    };
-    if (body !== null && body !== undefined) init.body = JSON.stringify(body);
+  const init: RequestInit = { method, headers: { Accept: 'application/json' } };
 
+  if (body !== null && body !== undefined) {
+    (init.headers as any)['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+
+  const timeoutMs = opts.timeoutMs ?? 12000;
+
+  let timer: any = null;
+  let localAbort: AbortController | null = null;
+
+  if (opts.signal) {
+    init.signal = opts.signal;
+  } else {
+    localAbort = new AbortController();
+    init.signal = localAbort.signal;
+    timer = setTimeout(() => localAbort?.abort(), timeoutMs);
+  }
+
+  try {
     const res = await fetch(`${API_BASE}${url}`, init);
     const data = await parseResponseBody(res);
 
     if (!res.ok) {
-        throw new ApiCallError(`API ${method} ${url} failed`, url, res.status, data);
+      const status = res.status;
+      throw new ApiCallError({
+        message: `API ${method} ${url} failed`,
+        url,
+        method,
+        kind: 'HTTP',
+        status,
+        responseBody: data,
+        retriable: guessRetriableFromStatus(status),
+        userMessage: extractUserMessage('HTTP', status, data),
+      });
     }
+
     return data as T;
+  } catch (e: any) {
+    if (e instanceof ApiCallError) throw e;
+
+    const kind: ApiErrorKind = e?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK';
+    throw new ApiCallError({
+      message: `API ${method} ${url} failed`,
+      url,
+      method,
+      kind,
+      status: undefined,
+      responseBody: null,
+      retriable: true,
+      userMessage: extractUserMessage(kind, undefined, null),
+    });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**
- * Compat API: returns null on error (so existing modules keep compiling).
+ * Compat API: returns null on error (so existing legacy modules keep working).
  * Prefer apiCallOrThrow in new code.
  */
 export async function apiCall<T>(
-    url: string,
-    method: HttpMethod = 'GET',
-    body: any = null,
-    opts: { signal?: AbortSignal } = {}
+  url: string,
+  method: HttpMethod = 'GET',
+  body: any = null,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {}
 ): Promise<T | null> {
-    try {
-        return await apiCallOrThrow<T>(url, method, body, opts);
-    } catch (e) {
-        console.error('apiCall failed:', method, url, e);
-        return null;
-    }
-}
-
-export async function lookupBarcode(code: string): Promise<{name: string, category: string} | null> {
-    const data: any = await apiCall(`/lookup/${code}`);
-    if (data && data.items && data.items.length > 0) {
-        const item = data.items[0];
-        return { 
-            name: item.title, 
-            category: item.category ? guessCategory(item.category+' '+item.title) : guessCategory(item.title) 
-        };
-    }
+  try {
+    return await apiCallOrThrow<T>(url, method, body, opts);
+  } catch (e) {
+    // 保持 legacy 行为：不抛出，只记录
+    // eslint-disable-next-line no-console
+    console.error('apiCall failed:', method, url, e);
     return null;
+  }
 }
 
+/**
+ * Barcode lookup (legacy modules depend on it).
+ * Expects server endpoint: GET /api/lookup/:code
+ * Returns {name, category} or null.
+ */
+export async function lookupBarcode(code: string): Promise<{ name: string; category: string } | null> {
+  const data: any = await apiCall(`/lookup/${encodeURIComponent(code)}`);
+  if (data && Array.isArray(data.items) && data.items.length > 0) {
+    const item = data.items[0];
+    const title = String(item.title ?? '').trim();
+    const cat = item.category ? String(item.category) : '';
+    return {
+      name: title,
+      category: guessCategory(cat ? `${cat} ${title}` : title),
+    };
+  }
+  return null;
+}
+
+function normalizeForMatch(s: string): string {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Very lightweight fuzzy match used by inbound logic.
+ * - Prefer keyword match (if inventory item.keyword is contained in target)
+ * - Then substring name match
+ * - Then token hits
+ */
 export function findBestMatch(targetName: string, inventory: InventoryItem[]): InventoryItem | null {
-    if(!targetName) return null;
-    const cleanTarget = targetName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    let best: InventoryItem | null = null; 
-    let bestScore = 0;
-    inventory.forEach(item => {
-        let score = 0;
-        const cleanName = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const cleanKey = (item.keyword || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if(cleanKey && cleanTarget.includes(cleanKey)) score += 100; 
-        if(cleanTarget.includes(cleanName) && cleanName.length > 5) score += 80;
-        targetName.split(' ').forEach(t => { if(t.length > 3 && item.name.toLowerCase().includes(t.toLowerCase())) score += 5; });
-        if(score > bestScore) { bestScore = score; best = item; }
-    });
-    return bestScore > 20 ? best : null;
+  if (!targetName) return null;
+
+  const cleanTarget = normalizeForMatch(targetName);
+  if (!cleanTarget) return null;
+
+  let best: InventoryItem | null = null;
+  let bestScore = 0;
+
+  const tokens = targetName
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+
+  for (const item of inventory) {
+    const cleanName = normalizeForMatch(item.name);
+    const cleanKey = normalizeForMatch(item.keyword || '');
+
+    let score = 0;
+
+    // Keyword is a strong signal
+    if (cleanKey && cleanTarget.includes(cleanKey)) score += 100;
+
+    // Exact / near-exact name containment
+    if (cleanName && cleanTarget.includes(cleanName) && cleanName.length > 5) score += 80;
+
+    // Token hits
+    for (const t of tokens) {
+      if (t.length <= 3) continue;
+      if (item.name.toLowerCase().includes(t)) score += 5;
+      if ((item.keyword || '').toLowerCase().includes(t)) score += 8;
+    }
+
+    // Small bonus: if target contains SKU-like text
+    const sku = (item as any).sku ? String((item as any).sku) : '';
+    if (sku) {
+      const cleanSku = normalizeForMatch(sku);
+      if (cleanSku && cleanTarget.includes(cleanSku)) score += 60;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = item;
+    }
+  }
+
+  return bestScore > 20 ? best : null;
 }

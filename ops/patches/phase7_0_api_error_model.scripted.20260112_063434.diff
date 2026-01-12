@@ -1,0 +1,233 @@
+diff --git a/client/src/app/saveQueue/SyncStatusPill.tsx b/client/src/app/saveQueue/SyncStatusPill.tsx
+index 8af1615a..82fb2362 100644
+--- a/client/src/app/saveQueue/SyncStatusPill.tsx
++++ b/client/src/app/saveQueue/SyncStatusPill.tsx
+@@ -14,6 +14,27 @@ export function SyncStatusPill() {
+   const busy = (snap.pendingCount + snap.inFlightCount) > 0;
+   const hasError = snap.errorCount > 0;
+ 
++
++  const errorKeys = snap.keys.filter((k) => k.hasError);
++  const topErr: any = errorKeys[0]?.lastError as any;
++  const topErrMsg =
++    topErr?.userMessage ??
++    topErr?.message ??
++    (typeof topErr === 'string' ? topErr : '') ??
++    '';
++  const topErrKind = topErr?.kind;
++  const topErrStatus = topErr?.status;
++
++  const errorTitle = (() => {
++    if (!hasError) return '';
++    const head = [topErrKind ? String(topErrKind) : 'ERROR', topErrStatus ? String(topErrStatus) : null]
++      .filter(Boolean)
++      .join(' ');
++    const body = topErrMsg ? `: ${topErrMsg}` : '';
++    return (head + body).slice(0, 240);
++  })();
++
++  const anyRetriable = errorKeys.some((k) => (k.lastError as any)?.retriable !== false);
+   const [showSaved, setShowSaved] = React.useState(false);
+   const prevBusyRef = React.useRef(false);
+   const tRef = React.useRef<any>(null);
+@@ -56,18 +77,25 @@ export function SyncStatusPill() {
+               ? "bg-slate-50 border-slate-200 text-slate-600"
+               : "bg-emerald-50 border-emerald-200 text-emerald-700"
+         ].join(" ")}
+-      >
++      
++        title={hasError ? errorTitle : undefined}>
+         {hasError ? (
+           <>
+             <AlertTriangle size={14} />
+             <span>Needs Sync</span>
+-            <button
+-              onClick={retryAll}
+-              className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
+-              title="Retry pending saves"
+-            >
+-              Retry
+-            </button>
++            {anyRetriable ? (
++              <button
++                onClick={retryAll}
++                className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
++                title="Retry pending saves"
++              >
++                Retry
++              </button>
++            ) : (
++              <span className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200">
++                Fix & retry
++              </span>
++            )}
+           </>
+         ) : busy ? (
+           <>
+diff --git a/client/src/utils.ts b/client/src/utils.ts
+index 4f8509ef..fd2e57b4 100644
+--- a/client/src/utils.ts
++++ b/client/src/utils.ts
+@@ -52,20 +52,59 @@ export const compressImage = (file: File): Promise<string> => {
+ 
+ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+ 
++
++export type ApiErrorKind = \'NETWORK\' | \'TIMEOUT\' | \'HTTP\' | \'PARSE\' | \'UNKNOWN\';
++
+ export class ApiCallError extends Error {
+     url: string;
++    method: HttpMethod;
++    kind: ApiErrorKind;
+     status?: number;
+     responseBody?: unknown;
++    retriable: boolean;
++    userMessage: string;
++
++    // Back-compat signature
++    constructor(message: string, url: string, status?: number, responseBody?: unknown);
++    // New signature
++    constructor(init: {
++        message: string;
++        url: string;
++        method: HttpMethod;
++        kind: ApiErrorKind;
++        status?: number;
++        responseBody?: unknown;
++        retriable: boolean;
++        userMessage: string;
++    });
++    constructor(a: any, b?: any, c?: any, d?: any) {
++        const isLegacy = typeof a === 'string';
++        const init = isLegacy
++            ? {
++                message: a as string,
++                url: b as string,
++                method: 'GET' as HttpMethod,
++                kind: 'HTTP' as ApiErrorKind,
++                status: c as number | undefined,
++                responseBody: d as unknown,
++                retriable: true,
++                userMessage: typeof d === 'string' ? d.slice(0, 240) : (c ? `Request failed (${c})` : 'Request failed'),
++            }
++            : (a as any);
+ 
+-    constructor(message: string, url: string, status?: number, responseBody?: unknown) {
+-        super(message);
++        super(init.message);
+         this.name = 'ApiCallError';
+-        this.url = url;
+-        this.status = status;
+-        this.responseBody = responseBody;
++        this.url = init.url;
++        this.method = init.method;
++        this.kind = init.kind;
++        this.status = init.status;
++        this.responseBody = init.responseBody;
++        this.retriable = init.retriable;
++        this.userMessage = init.userMessage;
+     }
+ }
+ 
++
+ async function parseResponseBody(res: Response): Promise<unknown> {
+     const ct = res.headers.get('content-type') || '';
+     try {
+@@ -76,6 +115,30 @@ async function parseResponseBody(res: Response): Promise<unknown> {
+     }
+ }
+ 
++function guessRetriableFromStatus(status?: number): boolean {
++    if (!status) return true;
++    if (status === 408 || status === 429) return true;
++    if (status >= 500) return true;
++    if (status === 409) return true;
++    return false;
++}
++
++function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body: unknown): string {
++    const anyBody: any = body as any;
++    const m =
++        anyBody?.error?.message ??
++        anyBody?.message ??
++        (typeof anyBody === 'string' ? anyBody : null);
++
++    if (m && typeof m === 'string') return m.slice(0, 240);
++
++    if (kind === 'TIMEOUT') return 'Request timed out';
++    if (kind === 'NETWORK') return 'Network error (server unreachable)';
++    if (kind === 'HTTP') return status ? `Request failed (${status})` : 'Request failed';
++    return 'Request failed';
++}
++
++
+ /**
+  * Strict API: throws on network error or non-2xx response.
+  * Use this for React Query / mutations so errors are properly tracked.
+@@ -84,7 +147,65 @@ export async function apiCallOrThrow<T>(
+     url: string,
+     method: HttpMethod = 'GET',
+     body: any = null,
+-    opts: { signal?: AbortSignal } = {}
++    opts: { signal?: AbortSignal; timeoutMs?: number } = {}
++): Promise<T> {
++    const init: RequestInit = { method, headers: { 'Accept': 'application/json' } };
++    if (body !== null && body !== undefined) {
++        (init.headers as any)['Content-Type'] = 'application/json';
++        init.body = JSON.stringify(body);
++    }
++
++    const timeoutMs = opts.timeoutMs ?? 12000;
++    let timer: any = null;
++    let localAbort: AbortController | null = null;
++
++    if (opts.signal) {
++        init.signal = opts.signal;
++    } else {
++        localAbort = new AbortController();
++        init.signal = localAbort.signal;
++        timer = setTimeout(() => localAbort?.abort(), timeoutMs);
++    }
++
++    try {
++        const res = await fetch(`${API_BASE}${url}`, init);
++        const data = await parseResponseBody(res);
++
++        if (!res.ok) {
++            const status = res.status;
++            throw new ApiCallError({
++                message: `API ${method} ${url} failed`,
++                url,
++                method,
++                kind: 'HTTP',
++                status,
++                responseBody: data,
++                retriable: guessRetriableFromStatus(status),
++                userMessage: extractUserMessage('HTTP', status, data),
++            });
++        }
++
++        return data as T;
++    } catch (e: any) {
++        if (e instanceof ApiCallError) throw e;
++
++        const kind: ApiErrorKind = e?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK';
++
++        throw new ApiCallError({
++            message: `API ${method} ${url} failed`,
++            url,
++            method,
++            kind,
++            status: undefined,
++            responseBody: null,
++            retriable: true,
++            userMessage: extractUserMessage(kind, undefined, null),
++        });
++    } finally {
++        if (timer) clearTimeout(timer);
++    }
++}
++ = {}
+ ): Promise<T> {
+     const init: RequestInit = {
+         method,
