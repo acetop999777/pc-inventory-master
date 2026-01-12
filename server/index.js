@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const { runMigrations } = require('./db/migrate');
+const requestId = require('./middleware/requestId');
 const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 
+app.use(requestId);
 const pool = new Pool({
   user: process.env.POSTGRES_USER || 'admin',
   host: process.env.POSTGRES_HOST || 'db',
@@ -82,8 +85,6 @@ const initDB = async () => {
         
     } catch (err) { console.error('DB init error:', err); }
 };
-initDB();
-
 // Contract: date-only YYYY-MM-DD
 const fmtDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
 
@@ -255,5 +256,27 @@ app.get('/api/lookup/:code', async (req, res) => {
 }); 
 app.get('/api/logs', async (req, res) => { try { const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200'); res.json(rows); } catch (e) { res.status(500).send(e); } });
 app.post('/api/logs', async (req, res) => { const { id, timestamp, type, title, msg, meta } = req.body; try { await pool.query('INSERT INTO logs (id, timestamp, type, title, msg, meta) VALUES ($1,$2,$3,$4,$5,$6)', [id, timestamp, type, title, msg, meta]); res.json({success:true}); } catch (e) { res.status(500).send(e); } });
+async function waitForDb({ attempts = 30, delayMs = 1000 } = {}) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await pool.query('SELECT 1');
+      return;
+    } catch (e) {
+      console.log(`[db] not ready (${i}/${attempts})`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw new Error('DB not ready after retries');
+}
 
-app.listen(5000, () => console.log('Server on 5000'));
+async function bootstrap() {
+  await waitForDb();
+  await initDB();
+  await runMigrations(pool);
+  app.listen(5000, () => console.log('Server on 5000'));
+}
+
+bootstrap().catch((err) => {
+  console.error('[bootstrap] failed', err);
+  process.exit(1);
+});
