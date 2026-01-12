@@ -234,7 +234,14 @@ export class SaveQueue {
       .finally(async () => {
         st.inFlight = null;
         if (st.patch !== undefined) {
-          await this.flushKey(key);
+          // If new patch arrived while we were in-flight:
+          // - If the last attempt succeeded, flush again immediately.
+          // - If the last attempt failed, DO NOT auto-retry (avoid retry storms).
+          if (st.lastError == null) {
+            await this.flushKey(key);
+            return;
+          }
+          this.emit();
           return;
         }
         this.resolveIfIdle(st);
