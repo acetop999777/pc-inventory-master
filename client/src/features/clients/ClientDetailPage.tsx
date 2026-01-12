@@ -4,11 +4,7 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react'
 import { ClientEntity } from '../../domain/client/client.types';
 import { InventoryItem } from '../../types';
 
-import { IdentityCard } from '../../presentation/modules/ClientEditor/components/IdentityCard';
-import { LogisticsCard } from '../../presentation/modules/ClientEditor/components/LogisticsCard';
-import { FinancialsCard } from '../../presentation/modules/ClientEditor/components/FinancialsCard';
-import { NotesCard } from '../../presentation/modules/ClientEditor/components/NotesCard';
-import { SpecsTable } from '../../presentation/modules/ClientEditor/components/SpecsTable';
+import { IdentityCard, LogisticsCard, FinancialsCard, NotesCard, SpecsTable } from './editor';
 
 type Props = {
   activeClient: ClientEntity;
