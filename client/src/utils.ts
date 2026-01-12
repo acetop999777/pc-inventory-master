@@ -1,6 +1,6 @@
 import { InventoryItem } from './types';
 
-export const API_BASE = `http://${window.location.hostname}:5001/api`;
+export const API_BASE = '/api';
 export const generateId = (): string => Math.random().toString(36).substr(2, 9);
 export const formatMoney = (n: number | undefined): string => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 
