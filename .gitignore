@@ -24,3 +24,5 @@ n
 ~/
 *.orig
 *.rej
+server/.env
+client/.env

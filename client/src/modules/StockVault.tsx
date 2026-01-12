@@ -1,8 +1,10 @@
+import { http } from '../api/http';
 import React, { useState, useMemo } from 'react';
 import { Plus, Minus, X, Trash2, History, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-react';
 import { InlineEdit } from '../components/Shared';
 import { ALL_CATS, formatMoney, apiCall } from '../utils';
 import { AppData, InventoryItem, AuditLog } from '../types';
+import { apiFetch } from './lib/api';
 
 interface Props {
     data: AppData;
@@ -78,7 +80,7 @@ export default function StockVault({ data, refresh, notify, log }: Props) {
         try {
             const target = item.sku || 'NO-SKU';
             // 技巧：加一个随机参数 ?_=${Date.now()} 强制浏览器不读缓存
-            const res = await fetch(`/api/audit/${target}?_=${Date.now()}`);
+            const res = await apiFetch(`/api/audit/${target}?_=${Date.now()}`);
             
             if (!res.ok) {
                 const txt = await res.text();

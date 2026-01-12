@@ -1,4 +1,5 @@
 import { InventoryItem } from './types';
+import { apiFetch } from './lib/api';
 
 export const API_BASE = '/api';
 export const generateId = (): string => Math.random().toString(36).substr(2, 9);
@@ -61,6 +62,40 @@ export const compressImage = (file: File): Promise<string> => {
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export type ApiErrorKind = 'NETWORK' | 'TIMEOUT' | 'HTTP' | 'PARSE' | 'UNKNOWN';
+export type ErrorContract = {
+  error: {
+    code: string;
+    message: string;
+    details?: any;
+    retryable?: boolean;
+    retryAfterMs?: number;
+    requestId?: string;
+  };
+};
+
+function extractErrorContract(body: unknown, headerRequestId?: string | null): ErrorContract['error'] | null {
+  const anyBody: any = body as any;
+  const e = anyBody?.error;
+  if (!e || typeof e !== 'object') return null;
+
+  const code = typeof e.code === 'string' && e.code ? e.code : 'HTTP_ERROR';
+  const message =
+    typeof e.message === 'string' && e.message ? e.message :
+    typeof anyBody?.message === 'string' ? anyBody.message :
+    'Request failed';
+
+  const requestId =
+    (typeof e.requestId === 'string' && e.requestId) ? e.requestId :
+    (typeof headerRequestId === 'string' && headerRequestId) ? headerRequestId :
+    undefined;
+
+  const details = e.details;
+  const retryable = typeof e.retryable === 'boolean' ? e.retryable : undefined;
+  const retryAfterMs = typeof e.retryAfterMs === 'number' ? e.retryAfterMs : undefined;
+
+  return { code, message, details, retryable, retryAfterMs, requestId };
+}
+
 
 export class ApiCallError extends Error {
   url: string;
@@ -68,7 +103,18 @@ export class ApiCallError extends Error {
   kind: ApiErrorKind;
   status?: number;
   responseBody?: unknown;
+
+  // Contract-aligned fields (from server {error:{...}})
+  code?: string;
+  requestId?: string;
+  details?: unknown;
+  retryAfterMs?: number;
+
+  // Back-compat: existing code uses `.retriable`
   retriable: boolean;
+  // Preferred name (alias)
+  retryable: boolean;
+
   userMessage: string;
 
   // Back-compat signature (旧代码可能还在用 new ApiCallError(msg, url, status, body))
@@ -81,7 +127,17 @@ export class ApiCallError extends Error {
     kind: ApiErrorKind;
     status?: number;
     responseBody?: unknown;
-    retriable: boolean;
+
+    // contract
+    code?: string;
+    requestId?: string;
+    details?: unknown;
+    retryable?: boolean;
+    retryAfterMs?: number;
+
+    // back-compat
+    retriable?: boolean;
+
     userMessage: string;
   });
   constructor(a: any, b?: any, c?: any, d?: any) {
@@ -94,6 +150,13 @@ export class ApiCallError extends Error {
           kind: 'HTTP' as ApiErrorKind,
           status: c as number | undefined,
           responseBody: d as unknown,
+
+          code: undefined,
+          requestId: undefined,
+          details: undefined,
+          retryable: true,
+          retryAfterMs: undefined,
+
           retriable: true,
           userMessage:
             typeof d === 'string' && d
@@ -104,6 +167,11 @@ export class ApiCallError extends Error {
         })
       : (a as any);
 
+    const retryable =
+      typeof init.retryable === 'boolean'
+        ? init.retryable
+        : (typeof init.retriable === 'boolean' ? init.retriable : true);
+
     super(init.message);
     this.name = 'ApiCallError';
     this.url = init.url;
@@ -111,7 +179,15 @@ export class ApiCallError extends Error {
     this.kind = init.kind;
     this.status = init.status;
     this.responseBody = init.responseBody;
-    this.retriable = init.retriable;
+
+    this.code = init.code;
+    this.requestId = init.requestId;
+    this.details = init.details;
+    this.retryAfterMs = init.retryAfterMs;
+
+    this.retriable = retryable;
+    this.retryable = retryable;
+
     this.userMessage = init.userMessage;
   }
 }
@@ -137,7 +213,24 @@ function guessRetriableFromStatus(status?: number): boolean {
 
 function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body: unknown): string {
   const anyBody: any = body as any;
-  const m = anyBody?.error?.message ?? anyBody?.message ?? (typeof anyBody === 'string' ? anyBody : null);
+
+  // New contract: { error: { code, message, details } }
+  const err = anyBody?.error;
+  const code = typeof err?.code === 'string' ? err.code : undefined;
+
+  // Prefer first field message for validation failures (better UX even before inline errors land)
+  if (code === 'VALIDATION_FAILED') {
+    const fields = err?.details?.fields;
+    if (Array.isArray(fields) && fields.length > 0) {
+      const msg = fields[0]?.message;
+      if (typeof msg === 'string' && msg) return msg.slice(0, 240);
+    }
+  }
+
+  const m =
+    (typeof err?.message === 'string' && err.message) ? err.message :
+    (typeof anyBody?.message === 'string' && anyBody.message) ? anyBody.message :
+    (typeof anyBody === 'string' ? anyBody : null);
 
   if (m && typeof m === 'string') return m.slice(0, 240);
 
@@ -178,11 +271,17 @@ export async function apiCallOrThrow<T>(
   }
 
   try {
-    const res = await fetch(`${API_BASE}${url}`, init);
+    
+    const res = await apiFetch(`${API_BASE}${url}`, init);
     const data = await parseResponseBody(res);
+    const headerRid = res.headers.get('x-request-id');
 
     if (!res.ok) {
       const status = res.status;
+
+      const contract = extractErrorContract(data, headerRid);
+      const retryable = contract?.retryable ?? guessRetriableFromStatus(status);
+
       throw new ApiCallError({
         message: `API ${method} ${url} failed`,
         url,
@@ -190,12 +289,20 @@ export async function apiCallOrThrow<T>(
         kind: 'HTTP',
         status,
         responseBody: data,
-        retriable: guessRetriableFromStatus(status),
+
+        code: contract?.code,
+        requestId: contract?.requestId,
+        details: contract?.details,
+        retryable,
+        retryAfterMs: contract?.retryAfterMs,
+
+        // keep back-compat
+        retriable: retryable,
+
         userMessage: extractUserMessage('HTTP', status, data),
       });
     }
-
-    return data as T;
+return data as T;
   } catch (e: any) {
     if (e instanceof ApiCallError) throw e;
 
