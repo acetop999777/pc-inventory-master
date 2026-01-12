@@ -29,7 +29,8 @@ export default function AppLegacy() {
   const [subView, setSubView] = useState<'list' | 'detail'>('list');
 
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
-  // draft 仅用于“新建但尚未首次落库”的 client（属于 client state）
+
+  // draft：只用于“新建但尚未首次落库”的 client（属于纯 client state）
   const [draftClient, setDraftClient] = useState<ClientEntity | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -43,7 +44,7 @@ export default function AppLegacy() {
   const { update: updateClient, remove: removeClient } = useClientWriteBehind();
   const { queue, snapshot } = useSaveQueue();
 
-  // draft 一旦首次保存成功（进入 clients query cache），就切回“server state 唯一真相”
+  // draft 一旦进入 clients cache（意味着至少保存成功一次），就自动清掉 draft
   useEffect(() => {
     if (!draftClient) return;
     if (clients.some((c) => c.id === draftClient.id)) setDraftClient(null);
@@ -61,31 +62,27 @@ export default function AppLegacy() {
     return snapshot.keys.find((k) => k.key === activeKey) ?? null;
   }, [snapshot, activeKey]);
 
-  const pending = Boolean(keyStatus?.pending);
-  const inFlight = Boolean(keyStatus?.inFlight);
+  const busy = Boolean(keyStatus?.pending || keyStatus?.inFlight);
   const hasError = Boolean(keyStatus?.hasError);
-  const busy = pending || inFlight;
 
-  // “Saved” 只在刚同步完成时短暂闪一下；idle 时不常驻
+  // busy -> idle：短暂闪一下 Saved（idle 时不常驻）
   const [flashSaved, setFlashSaved] = useState(false);
-  const savedTimerRef = useRef<any>(null);
-  const prevBusyRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    // key 切换：重置
-    prevBusyRef.current = false;
-    setFlashSaved(false);
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-  }, [activeKey]);
+  const prevBusyRef = useRef(false);
+  const tRef = useRef<any>(null);
 
   useEffect(() => {
     const prev = prevBusyRef.current;
+    prevBusyRef.current = busy;
+
     if (activeKey && prev && !busy && !hasError) {
       setFlashSaved(true);
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => setFlashSaved(false), 900);
+      if (tRef.current) clearTimeout(tRef.current);
+      tRef.current = setTimeout(() => setFlashSaved(false), 900);
+      return;
     }
-    prevBusyRef.current = busy;
+
+    if (hasError) setFlashSaved(false);
+    if (!busy && !hasError) setFlashSaved(false);
   }, [busy, hasError, activeKey]);
 
   const handleNewClient = useCallback(() => {
@@ -107,7 +104,7 @@ export default function AppLegacy() {
     async (id: string, name: string) => {
       if (!window.confirm(`Delete ${name}?`)) return;
 
-      // 如果正在编辑该 client：先返回列表（避免 detail 里引用失效）
+      // 若正在看 detail：先回列表，避免 detail 继续引用
       if (activeClientId === id) {
         setSubView('list');
         setActiveClientId(null);
@@ -123,7 +120,7 @@ export default function AppLegacy() {
     (field: keyof ClientEntity, val: any) => {
       if (!activeClientId) return;
 
-      // draft：先更新本地 draft（client state），并把 draft 作为 base 交给 write-behind
+      // draft：先更新本地 draft，然后把 base 交给 write-behind，确保首次写回有完整对象
       if (draftClient && draftClient.id === activeClientId) {
         const next: ClientEntity = { ...draftClient, [field]: val };
         setDraftClient(next);
@@ -147,7 +144,6 @@ export default function AppLegacy() {
       if (mainView === 'clients' && subView === 'detail' && activeKey) {
         await queue.flushKey(activeKey);
 
-        // flush 后检查状态（注意：SaveQueue 在 error 时不会 throw）
         const post = queue.getSnapshot().keys.find((k) => k.key === activeKey);
         const blocked = post ? post.hasError || post.pending || post.inFlight : false;
 
@@ -159,6 +155,11 @@ export default function AppLegacy() {
       next();
     },
     [activeKey, mainView, queue, subView]
+  );
+
+  const financials = useMemo(
+    () => (activeClient ? calculateFinancials(activeClient) : { totalCost: 0, profit: 0, balanceDue: 0, isPaidOff: false }),
+    [activeClient]
   );
 
   const renderContent = () => {
@@ -178,54 +179,58 @@ export default function AppLegacy() {
         );
       }
 
-      // detail
-      if (!activeClient) return <div className="p-10">Loading...</div>;
-      const financials = calculateFinancials(activeClient);
+      if (subView === 'detail') {
+        if (!activeClient) return <div className="p-10">Loading...</div>;
 
-      return (
-        <div className="min-h-screen bg-slate-50">
-          <div className="p-6 pb-0">
-            <div className="flex items-center justify-between max-w-[1600px] mx-auto">
-              <div className="flex items-center gap-3">
+        return (
+          <div className="min-h-screen pb-40 animate-in slide-in-from-right duration-300">
+            <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center sticky top-0 z-40">
+              <div className="flex items-center gap-4">
                 <button
-                  onClick={() => void flushAndGo(() => setSubView('list'))}
+                  onClick={() =>
+                    void flushAndGo(() => {
+                      setSubView('list');
+                      setActiveClientId(null);
+                      // draft 若没成功落库，返回列表即丢弃（不会“幽灵占位”）
+                      setDraftClient(null);
+                    })
+                  }
                   className="text-slate-500 hover:text-slate-800 transition-colors"
                   title={busy ? 'Syncing before leaving…' : hasError ? 'Sync failed' : 'Back'}
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <div className="h-6 w-px bg-slate-200"></div>
-                <span className="font-black text-lg text-slate-800">
-                  {activeClient.wechatName || 'New Client'}
-                </span>
+                <span className="font-black text-lg text-slate-800">{activeClient.wechatName || 'New Client'}</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                {hasError && (
-                  <>
-                    <button
-                      onClick={retryActive}
-                      className="text-xs font-black px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 active:scale-95 transition-transform"
-                      title="Retry sync"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <AlertTriangle size={16} /> Retry
-                      </span>
-                    </button>
-                  </>
-                )}
-
-                {(busy || flashSaved || hasError) && (
-                  <div className="flex items-center gap-2 text-xs font-black text-slate-700">
-                    {busy && <Loader2 className="animate-spin" size={16} />}
-                    {!busy && !hasError && flashSaved && <CheckCircle2 size={16} className="text-emerald-600" />}
-                    {!busy && hasError && <AlertTriangle size={16} className="text-amber-600" />}
-                    <span>
-                      {busy ? 'Syncing...' : hasError ? 'Sync failed' : 'Saved'}
-                    </span>
-                  </div>
-                )}
-              </div>
+              {(busy || hasError || flashSaved) && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {hasError ? (
+                    <>
+                      <AlertTriangle size={12} className="text-amber-600" />
+                      <span className="text-amber-700">Needs Sync</span>
+                      <button
+                        onClick={retryActive}
+                        className="ml-2 px-2 py-1 rounded-full bg-white border border-amber-200 hover:bg-amber-50 text-amber-700"
+                        title="Retry"
+                      >
+                        Retry
+                      </button>
+                    </>
+                  ) : busy ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin text-blue-500" />
+                      <span>Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={12} className="text-emerald-500" />
+                      <span className="text-emerald-700">Saved</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="max-w-[1600px] mx-auto p-6 grid grid-cols-12 gap-6">
@@ -246,8 +251,8 @@ export default function AppLegacy() {
               </div>
             </div>
           </div>
-        </div>
-      );
+        );
+      }
     }
 
     return <div className="p-10">Loading...</div>;
@@ -260,6 +265,8 @@ export default function AppLegacy() {
         void flushAndGo(() => {
           setMainView(view);
           setSubView('list');
+          setActiveClientId(null);
+          setDraftClient(null);
         });
       }}
     >

@@ -6,19 +6,15 @@ import { clientsQueryKey } from '../queries/clients';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 
 type ClientWrite =
-  | { op: 'upsert'; fields: Partial<ClientEntity>; base?: ClientEntity }
+  | { op: 'patch'; fields: Partial<ClientEntity> }
   | { op: 'delete' };
 
 function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
   if (a.op === 'delete' || b.op === 'delete') return { op: 'delete' };
-  return {
-    op: 'upsert',
-    fields: { ...a.fields, ...b.fields },
-    base: b.base ?? a.base,
-  };
+  return { op: 'patch', fields: { ...a.fields, ...b.fields } };
 }
 
-function coerce(fields: Partial<ClientEntity>): Partial<ClientEntity> {
+function coerceFields(fields: Partial<ClientEntity>): Partial<ClientEntity> {
   const f: any = { ...fields };
   if (Object.prototype.hasOwnProperty.call(f, 'totalPrice')) f.totalPrice = Number(f.totalPrice ?? 0);
   if (Object.prototype.hasOwnProperty.call(f, 'paidAmount')) f.paidAmount = Number(f.paidAmount ?? 0);
@@ -27,35 +23,39 @@ function coerce(fields: Partial<ClientEntity>): Partial<ClientEntity> {
   return f;
 }
 
-function upsertInList(old: ClientEntity[], id: string, next: ClientEntity): ClientEntity[] {
-  const has = old.some((c) => c.id === id);
-  if (!has) return [next, ...old];
-  return old.map((c) => (c.id === id ? { ...c, ...next } : c));
+function upsert(list: ClientEntity[], next: ClientEntity): ClientEntity[] {
+  const i = list.findIndex((c) => c.id === next.id);
+  if (i === -1) return [next, ...list];
+  const copy = list.slice();
+  copy[i] = { ...copy[i], ...next };
+  return copy;
 }
 
 export function useClientWriteBehind() {
   const qc = useQueryClient();
   const { queue } = useSaveQueue();
 
-  const applyOptimisticIfExists = (id: string, fields: Partial<ClientEntity>) => {
-    const nextFields = coerce(fields);
+  const applyOptimistic = (id: string, fields: Partial<ClientEntity>, base?: ClientEntity) => {
+    const nextFields = coerceFields(fields);
     qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => {
-      if (!old.some((c) => c.id === id)) return old;
-      return old.map((c) => (c.id === id ? { ...c, ...nextFields } : c));
+      const cur = old.find((c) => c.id === id) ?? base;
+      if (!cur) return old;
+      const merged: ClientEntity = { ...cur, ...nextFields };
+      return upsert(old, merged);
     });
   };
 
-  const removeOptimisticIfExists = (id: string) => {
+  const removeOptimistic = (id: string) => {
     qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => old.filter((c) => c.id !== id));
   };
 
   const update = (id: string, fields: Partial<ClientEntity>, base?: ClientEntity) => {
-    applyOptimisticIfExists(id, fields);
+    applyOptimistic(id, fields, base);
 
     void queue.enqueue<ClientWrite>({
       key: `client:${id}`,
       label: 'Clients',
-      patch: { op: 'upsert', fields: coerce(fields), base },
+      patch: { op: 'patch', fields: coerceFields(fields) },
       merge: mergeClientWrite,
       write: async (w) => {
         if (w.op === 'delete') {
@@ -64,10 +64,10 @@ export function useClientWriteBehind() {
         }
 
         const list = qc.getQueryData<ClientEntity[]>(clientsQueryKey) ?? [];
-        const current = list.find((c) => c.id === id) ?? w.base;
-        if (!current) throw new Error(`Client not found in cache; base required for id=${id}`);
+        const cur = list.find((c) => c.id === id) ?? base;
+        if (!cur) throw new Error(`Client not found in cache; base required for id=${id}`);
 
-        const merged: ClientEntity = { ...current, ...w.fields };
+        const merged: ClientEntity = { ...cur, ...w.fields };
         const fin = calculateFinancials(merged);
 
         await apiCallOrThrow('/clients', 'POST', {
@@ -76,14 +76,14 @@ export function useClientWriteBehind() {
           profit: fin.profit,
         });
 
-        qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsertInList(old, id, merged));
+        qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsert(old, merged));
       },
       debounceMs: 700,
     });
   };
 
   const remove = (id: string) => {
-    removeOptimisticIfExists(id);
+    removeOptimistic(id);
     void queue.enqueue<ClientWrite>({
       key: `client:${id}`,
       label: 'Clients',
