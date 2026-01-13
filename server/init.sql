@@ -1,5 +1,4 @@
 -- server/init.sql
--- 初始化/迁移用的基础 schema（不包含 deposit_date）
 
 CREATE TABLE IF NOT EXISTS clients (
   id VARCHAR(255) PRIMARY KEY,

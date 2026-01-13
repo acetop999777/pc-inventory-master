@@ -86,7 +86,6 @@ const mapClient = (r) => ({
   realName: r.real_name || '',
   xhsName: r.xhs_name || '',
   xhsId: r.xhs_id || '',
-  orderDate: fmtDate(r.order_date), // ✅ deposit_date removed
   deliveryDate: fmtDate(r.delivery_date),
   isShipping: r.is_shipping,
   trackingNumber: r.tracking_number || '',
@@ -140,7 +139,6 @@ const cleanUpDuplicates = async () => {
 
 const initDB = async () => {
   try {
-    // ✅ clients: deposit_date removed
     await pool.query(`
       CREATE TABLE IF NOT EXISTS clients (
         id VARCHAR(255) PRIMARY KEY,
@@ -424,7 +422,6 @@ app.post('/api/clients', async (req, res, next) => {
   }
 
   try {
-    // ✅ deposit_date removed everywhere
     await pool.query(
       `INSERT INTO clients (
         id, wechat_name, wechat_id, real_name, xhs_name, xhs_id,
