@@ -27,17 +27,28 @@ export function SyncStatusPill() {
     '';
   const topErrKind = topErr?.kind;
   const topErrStatus = topErr?.status;
+  const topErrCode = topErr?.code;
+  const topErrRequestId = topErr?.requestId;
 
   const errorTitle = (() => {
     if (!hasError) return '';
-    const head = [topErrKind ? String(topErrKind) : 'ERROR', topErrStatus ? String(topErrStatus) : null]
+    const head = [
+      topErrKind ? String(topErrKind) : 'ERROR',
+      topErrStatus ? String(topErrStatus) : null,
+      topErrCode ? String(topErrCode) : null,
+      topErrRequestId ? `rid:${String(topErrRequestId)}` : null,
+    ]
       .filter(Boolean)
       .join(' ');
     const body = topErrMsg ? `: ${topErrMsg}` : '';
     return (head + body).slice(0, 240);
   })();
 
-  const anyRetriable = errorKeys.some((k) => (k.lastError as any)?.retriable !== false);
+  const anyRetriable = errorKeys.some((k) => {
+    const e: any = (k.lastError as any);
+    const v = (typeof e?.retryable === 'boolean') ? e.retryable : e?.retriable;
+    return v !== false;
+  });
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
   const tRef = React.useRef<any>(null);

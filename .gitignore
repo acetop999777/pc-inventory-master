@@ -24,9 +24,17 @@ n
 ~/
 *.orig
 *.rej
+server/.env
+client/.env
 
-# local scratch / recovery
-*.bak
-*.broken_*
-*_before_fix_*
-full_project_code.txt
+# local backups
+/backups/
+
+# local backups
+backups/
+
+# local env
+.env
+
+# backups (keep out of git)
+backups/

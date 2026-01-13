@@ -1,4 +1,5 @@
 import { InventoryItem } from './types';
+import { apiFetch } from './lib/api';
 
 export const API_BASE = '/api';
 export const generateId = (): string => Math.random().toString(36).substr(2, 9);
@@ -93,7 +94,7 @@ export async function apiCallOrThrow<T>(
     };
     if (body !== null && body !== undefined) init.body = JSON.stringify(body);
 
-    const res = await fetch(`${API_BASE}${url}`, init);
+    const res = await apiFetch(`${API_BASE}${url}`, init);
     const data = await parseResponseBody(res);
 
     if (!res.ok) {
