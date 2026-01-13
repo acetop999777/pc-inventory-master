@@ -29,3 +29,6 @@ client/.env
 
 # local backups
 /backups/
+
+# local backups
+backups/
