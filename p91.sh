@@ -1,3 +1,6 @@
+cd ~/pc-inventory-master
+
+cat > client/src/app/saveQueue/SyncStatusPill.tsx <<'EOF'
 import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle, X, Copy } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
@@ -232,3 +235,4 @@ export function SyncStatusPill() {
 }
 
 export default SyncStatusPill;
+EOF
