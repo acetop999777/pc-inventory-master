@@ -1,49 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
-set -a
-[ -f ./.env ] && . ./.env
-set +a
+SERVER_PORT="${SERVER_PORT:-5001}"
+CLIENT_PORT="${CLIENT_PORT:-8090}"
 
-SERVER_URL="${SERVER_URL:-http://127.0.0.1:${SERVER_PORT:-5001}}"
-CLIENT_URL="${CLIENT_URL:-http://127.0.0.1:${CLIENT_PORT:-8090}}"
-SMOKE_BACKUP="${SMOKE_BACKUP:-true}"
+HEALTH_URL="http://127.0.0.1:${SERVER_PORT}/api/health"
+CLIENT_URL="http://127.0.0.1:${CLIENT_PORT}/"
 
-health="${SERVER_URL}/api/health"
+echo "[smoke] waiting server health: ${HEALTH_URL} (max 60s)"
 
-echo "[smoke] waiting server health: ${health} (max 60s)"
-deadline=$((SECONDS+60))
-while true; do
-  if out="$(curl -sS "${health}" 2>/dev/null)"; then
-    if echo "$out" | grep -q '"ok":true'; then
-      echo "[smoke] server ready ✅ $out"
-      break
-    fi
-  fi
-  if (( SECONDS >= deadline )); then
-    echo "[smoke] ❌ server not healthy within 60s"
-    exit 1
+ok=0
+for i in $(seq 1 60); do
+  if curl -fsS "$HEALTH_URL" >/tmp/health.json 2>/dev/null; then
+    ok=1
+    break
   fi
   sleep 1
 done
 
-echo "[smoke] GET ${SERVER_URL}/api/clients (head)"
-curl -sS "${SERVER_URL}/api/clients" | head -c 200 || true
+if [[ "$ok" -ne 1 ]]; then
+  echo "[smoke] ❌ server not healthy within 60s"
+  exit 1
+fi
+
+echo -n "[smoke] server ready ✅ "
+cat /tmp/health.json
 echo
 
-echo "[smoke] GET ${SERVER_URL}/api/inventory (head)"
-curl -sS "${SERVER_URL}/api/inventory" | head -c 200 || true
+echo "[smoke] GET http://127.0.0.1:${SERVER_PORT}/api/clients (head)"
+curl -fsS "http://127.0.0.1:${SERVER_PORT}/api/clients" | head -c 180 || true
 echo
 
-echo "[smoke] GET ${CLIENT_URL}/ (head)"
-curl -sS "${CLIENT_URL}/" | head -c 200 || true
+echo "[smoke] GET http://127.0.0.1:${SERVER_PORT}/api/inventory (head)"
+curl -fsS "http://127.0.0.1:${SERVER_PORT}/api/inventory" | head -c 180 || true
+echo
+
+echo "[smoke] GET ${CLIENT_URL} (head)"
+curl -fsS "$CLIENT_URL" | head -c 180 || true
 echo
 
 echo "[smoke] ✅ passed"
 
-if [[ "${SMOKE_BACKUP}" == "true" ]]; then
-  ./scripts/db_backup.sh
-  ./scripts/backup_rotate.sh
-fi
+# backup + rotate
+./scripts/db_backup.sh
+./scripts/backup_rotate.sh

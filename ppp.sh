@@ -1,3 +1,5 @@
+cd ~/pc-inventory-master
+cat > Makefile <<'EOF'
 SHELL := /bin/bash
 
 .PHONY: help up down restart logs ps build fresh smoke backup restore rotate
@@ -51,3 +53,4 @@ restore:
 
 rotate:
 	./scripts/backup_rotate.sh
+EOF

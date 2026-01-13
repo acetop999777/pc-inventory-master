@@ -1,29 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
-# load .env if present
-set -a
-[ -f ./.env ] && . ./.env
-set +a
-
-mkdir -p backups
+DB_NAME="${POSTGRES_DB:-inventory_db}"
+DB_USER="${POSTGRES_USER:-admin}"
 
 TS="$(date +%Y%m%d_%H%M%S)"
-DB="${POSTGRES_DB:-inventory_db}"
-USER="${POSTGRES_USER:-admin}"
-PASS="${POSTGRES_PASSWORD:-securepassword}"
+OUT_DUMP="backups/${DB_NAME}_${TS}.dump"
+OUT_SQL="backups/${DB_NAME}_${TS}.sql"
 
-echo "[backup] dumping DB=${DB} USER=${USER} -> backups/"
+echo "[backup] dumping DB=${DB_NAME} USER=${DB_USER} -> backups/"
 
-docker compose exec -T -e PGPASSWORD="$PASS" db \
-  pg_dump -U "$USER" -d "$DB" --format=custom --no-owner --no-acl \
-  > "backups/inventory_db_${TS}.dump"
+docker compose exec -T db pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > "$OUT_DUMP"
+docker compose exec -T db pg_dump -U "$DB_USER" -d "$DB_NAME" --no-owner --no-privileges > "$OUT_SQL"
 
-docker compose exec -T -e PGPASSWORD="$PASS" db \
-  pg_dump -U "$USER" -d "$DB" --format=plain --no-owner --no-acl \
-  > "backups/inventory_db_${TS}.sql"
-
-ls -lh "backups/inventory_db_${TS}.dump" "backups/inventory_db_${TS}.sql"
+ls -lh "$OUT_DUMP" "$OUT_SQL"
 echo "[backup] ✅ done"
