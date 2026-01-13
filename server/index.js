@@ -48,12 +48,10 @@ function notFound(req, res) {
 
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
-  // pg errors often have: err.code, err.detail, err.constraint
   const status = err && err.status ? err.status : 500;
   const code = err && err.codeName ? err.codeName : 'INTERNAL_ERROR';
   const message = err && err.message ? err.message : 'Internal server error';
 
-  // 生产环境尽量别把堆栈吐给前端；这里留一点诊断信息即可
   const details =
     status >= 500
       ? { hint: 'Check server logs', pg: err && err.code ? err.code : undefined }
@@ -86,56 +84,83 @@ const mapClient = (r) => ({
   realName: r.real_name || '',
   xhsName: r.xhs_name || '',
   xhsId: r.xhs_id || '',
+
+  orderDate: fmtDate(r.order_date),
   deliveryDate: fmtDate(r.delivery_date),
+
   isShipping: r.is_shipping,
   trackingNumber: r.tracking_number || '',
   pcppLink: r.pcpp_link || '',
+
   address: r.address_line || '',
   city: r.city || '',
   state: r.state || '',
   zip: r.zip_code || '',
+
   status: r.status,
   rating: r.rating || 0,
   notes: r.notes || '',
+
   totalPrice: parseFloat(r.total_price || 0),
   actualCost: parseFloat(r.actual_cost || 0),
   profit: parseFloat(r.profit || 0),
   paidAmount: parseFloat(r.paid_amount || 0),
+
   specs: r.specs || {},
   photos: r.photos || [],
 });
 
-// --- Data Migration / Cleanup ---
-const cleanUpDuplicates = async () => {
+// --- One-time data migrations (idempotent, non-concurrent) ---
+async function runOnce(name, fn) {
+  // 防止多实例并发执行同一个一次性任务
+  await pool.query('SELECT pg_advisory_lock(hashtext($1))', [name]);
   try {
-    console.log('Running data cleanup...');
-    const { rows } = await pool.query('SELECT id, specs FROM clients');
-    for (const client of rows) {
-      let specs = client.specs || {};
-      let changed = false;
+    // 独立小表：只记录一次性数据修复是否执行过
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
 
-      // 1. Fix: Merge 'Video Card' into 'GPU'
-      if (specs['Video Card']) {
-        console.log(`Fixing Video Card for client ${client.id}`);
-        if (!specs['GPU'] || !specs['GPU'].name) {
-          specs['GPU'] = specs['Video Card'];
-        }
-        delete specs['Video Card'];
-        changed = true;
-      }
-
-      if (changed) {
-        await pool.query('UPDATE clients SET specs = $1 WHERE id = $2', [
-          JSON.stringify(specs),
-          client.id,
-        ]);
-      }
+    const already = await pool.query(
+      'SELECT 1 FROM app_migrations WHERE name = $1 LIMIT 1',
+      [name]
+    );
+    if (already.rowCount > 0) {
+      console.log(`[migrate] skip ${name} (already applied)`);
+      return;
     }
-    console.log('Data cleanup complete.');
-  } catch (e) {
-    console.error('Cleanup failed:', e);
+
+    console.log(`[migrate] run ${name}...`);
+    await fn();
+    await pool.query('INSERT INTO app_migrations(name) VALUES ($1)', [name]);
+    console.log(`[migrate] done ${name}`);
+  } finally {
+    await pool.query('SELECT pg_advisory_unlock(hashtext($1))', [name]);
   }
-};
+}
+
+// One-time cleanup: merge legacy specs["Video Card"] -> specs["GPU"], then delete "Video Card"
+async function cleanupVideoCardToGpu() {
+  const { rowCount } = await pool.query(`
+    UPDATE clients
+    SET specs =
+      CASE
+        WHEN (specs ? 'Video Card') THEN
+          CASE
+            WHEN (specs->'GPU' IS NULL OR COALESCE(specs->'GPU'->>'name','') = '') THEN
+              (specs - 'Video Card') || jsonb_build_object('GPU', specs->'Video Card')
+            ELSE
+              (specs - 'Video Card')
+          END
+        ELSE specs
+      END
+    WHERE specs ? 'Video Card';
+  `);
+
+  console.log(`[cleanup] Video Card -> GPU: updated ${rowCount} client(s)`);
+}
 
 const initDB = async () => {
   try {
@@ -234,8 +259,6 @@ const initDB = async () => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_ref ON audit_logs(ref_id);`);
 
     console.log('Database initialized.');
-
-    await cleanUpDuplicates();
   } catch (err) {
     console.error('DB init error:', err);
     throw err;
@@ -266,8 +289,8 @@ app.get('/api/dashboard/stats', async (req, res, next) => {
 
 app.post('/api/dashboard/profit', async (req, res, next) => {
   const { start, end, group } = req.body || {};
-  let trunc = 'day',
-    fmt = 'YYYY-MM-DD';
+  let trunc = 'day';
+  let fmt = 'YYYY-MM-DD';
   if (group === 'week') trunc = 'week';
   if (group === 'month') {
     trunc = 'month';
@@ -576,6 +599,10 @@ async function bootstrap() {
   await waitForDb();
   await initDB();
   await runMigrations(pool);
+
+  // ✅ 只跑一次：启动不会再全表扫；多实例也不会并发跑
+  await runOnce('2026-01-12_cleanup_video_card_to_gpu', cleanupVideoCardToGpu);
+
   app.listen(5000, () => console.log('Server on 5000'));
 }
 
