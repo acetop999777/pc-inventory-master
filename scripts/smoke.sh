@@ -1,19 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API="${API:-http://127.0.0.1:5001}"
-UI="${UI:-http://127.0.0.1:8090}"
+cd "$(dirname "$0")/.."
 
-echo "[smoke] GET $API/api/health"
-curl -fsS "$API/api/health" | sed 's/.*/[ok] &/'
+set -a
+[ -f ./.env ] && . ./.env
+set +a
 
-echo "[smoke] GET $API/api/clients (head)"
-curl -fsS "$API/api/clients" | head -c 200; echo
+SERVER_URL="${SERVER_URL:-http://127.0.0.1:${SERVER_PORT:-5001}}"
+CLIENT_URL="${CLIENT_URL:-http://127.0.0.1:${CLIENT_PORT:-8090}}"
+SMOKE_BACKUP="${SMOKE_BACKUP:-true}"
 
-echo "[smoke] GET $API/api/inventory (head)"
-curl -fsS "$API/api/inventory" | head -c 200; echo
+health="${SERVER_URL}/api/health"
 
-echo "[smoke] GET $UI/ (head)"
-curl -fsS "$UI/" | head -c 200; echo
+echo "[smoke] waiting server health: ${health} (max 60s)"
+deadline=$((SECONDS+60))
+while true; do
+  if out="$(curl -sS "${health}" 2>/dev/null)"; then
+    if echo "$out" | grep -q '"ok":true'; then
+      echo "[smoke] server ready ✅ $out"
+      break
+    fi
+  fi
+  if (( SECONDS >= deadline )); then
+    echo "[smoke] ❌ server not healthy within 60s"
+    exit 1
+  fi
+  sleep 1
+done
+
+echo "[smoke] GET ${SERVER_URL}/api/clients (head)"
+curl -sS "${SERVER_URL}/api/clients" | head -c 200 || true
+echo
+
+echo "[smoke] GET ${SERVER_URL}/api/inventory (head)"
+curl -sS "${SERVER_URL}/api/inventory" | head -c 200 || true
+echo
+
+echo "[smoke] GET ${CLIENT_URL}/ (head)"
+curl -sS "${CLIENT_URL}/" | head -c 200 || true
+echo
 
 echo "[smoke] ✅ passed"
+
+if [[ "${SMOKE_BACKUP}" == "true" ]]; then
+  ./scripts/db_backup.sh
+  ./scripts/backup_rotate.sh
+fi

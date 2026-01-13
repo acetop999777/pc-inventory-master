@@ -49,7 +49,12 @@ function notFound(req, res) {
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
   const status = err && err.status ? err.status : 500;
-  const code = err && err.codeName ? err.codeName : 'INTERNAL_ERROR';
+  const code =
+    err && err.codeName
+      ? err.codeName
+      : err && err.code
+        ? `PG_${err.code}`
+        : 'INTERNAL_ERROR';
   const message = err && err.message ? err.message : 'Internal server error';
 
   const details =
@@ -64,7 +69,16 @@ function errorHandler(err, req, res, next) {
 
 // -------- date helpers --------
 // Contract: date-only YYYY-MM-DD
-const fmtDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+const fmtDate = (d) => {
+  if (!d) return '';
+  // pg DATE often returns 'YYYY-MM-DD' string; keep stable
+  if (typeof d === 'string') return d.slice(0, 10);
+  try {
+    return new Date(d).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+};
 
 // DB write helper: accept 'YYYY-MM-DD' or ISO string; returns null/DATE
 const toDateOnly = (v) => {
@@ -84,84 +98,29 @@ const mapClient = (r) => ({
   realName: r.real_name || '',
   xhsName: r.xhs_name || '',
   xhsId: r.xhs_id || '',
-
   orderDate: fmtDate(r.order_date),
   deliveryDate: fmtDate(r.delivery_date),
-
   isShipping: r.is_shipping,
   trackingNumber: r.tracking_number || '',
   pcppLink: r.pcpp_link || '',
-
   address: r.address_line || '',
   city: r.city || '',
   state: r.state || '',
   zip: r.zip_code || '',
-
   status: r.status,
   rating: r.rating || 0,
   notes: r.notes || '',
-
   totalPrice: parseFloat(r.total_price || 0),
   actualCost: parseFloat(r.actual_cost || 0),
   profit: parseFloat(r.profit || 0),
   paidAmount: parseFloat(r.paid_amount || 0),
-
+  phone: r.phone || '',
+  metadata: r.metadata || {},
   specs: r.specs || {},
   photos: r.photos || [],
 });
 
-// --- One-time data migrations (idempotent, non-concurrent) ---
-async function runOnce(name, fn) {
-  // 防止多实例并发执行同一个一次性任务
-  await pool.query('SELECT pg_advisory_lock(hashtext($1))', [name]);
-  try {
-    // 独立小表：只记录一次性数据修复是否执行过
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS app_migrations (
-        name TEXT PRIMARY KEY,
-        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-    `);
-
-    const already = await pool.query(
-      'SELECT 1 FROM app_migrations WHERE name = $1 LIMIT 1',
-      [name]
-    );
-    if (already.rowCount > 0) {
-      console.log(`[migrate] skip ${name} (already applied)`);
-      return;
-    }
-
-    console.log(`[migrate] run ${name}...`);
-    await fn();
-    await pool.query('INSERT INTO app_migrations(name) VALUES ($1)', [name]);
-    console.log(`[migrate] done ${name}`);
-  } finally {
-    await pool.query('SELECT pg_advisory_unlock(hashtext($1))', [name]);
-  }
-}
-
-// One-time cleanup: merge legacy specs["Video Card"] -> specs["GPU"], then delete "Video Card"
-async function cleanupVideoCardToGpu() {
-  const { rowCount } = await pool.query(`
-    UPDATE clients
-    SET specs =
-      CASE
-        WHEN (specs ? 'Video Card') THEN
-          CASE
-            WHEN (specs->'GPU' IS NULL OR COALESCE(specs->'GPU'->>'name','') = '') THEN
-              (specs - 'Video Card') || jsonb_build_object('GPU', specs->'Video Card')
-            ELSE
-              (specs - 'Video Card')
-          END
-        ELSE specs
-      END
-    WHERE specs ? 'Video Card';
-  `);
-
-  console.log(`[cleanup] Video Card -> GPU: updated ${rowCount} client(s)`);
-}
-
+// -------- DB init (baseline schema) --------
 const initDB = async () => {
   try {
     await pool.query(`
@@ -172,6 +131,10 @@ const initDB = async () => {
         real_name VARCHAR(255),
         xhs_name VARCHAR(255),
         xhs_id VARCHAR(255),
+
+        photos JSONB DEFAULT '[]'::jsonb,
+        rating INTEGER DEFAULT 0,
+        notes TEXT,
 
         order_date DATE NOT NULL,
         delivery_date DATE,
@@ -192,10 +155,10 @@ const initDB = async () => {
         paid_amount NUMERIC(10, 2) DEFAULT 0,
 
         specs JSONB DEFAULT '{}'::jsonb,
-        photos JSONB DEFAULT '[]'::jsonb,
 
-        rating INTEGER DEFAULT 2,
-        notes TEXT
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        phone VARCHAR(50),
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb
       );
     `);
 
@@ -212,6 +175,7 @@ const initDB = async () => {
         location TEXT,
         status TEXT,
         notes TEXT,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -253,7 +217,14 @@ const initDB = async () => {
     // indexes (fresh db 也自动有)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_clients_order_date ON clients(order_date DESC);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_category_name ON inventory(category, name);`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_sku ON inventory(sku);`);
+
+    // ✅ 只保留这一条 SKU 规则：非空白时 lower(trim) 唯一
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_inventory_sku_norm_nonempty
+      ON inventory (lower(btrim(sku)))
+      WHERE sku IS NOT NULL AND btrim(sku) <> '';
+    `);
+
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_sku ON audit_logs(sku);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_date ON audit_logs(date DESC);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_ref ON audit_logs(ref_id);`);
@@ -265,7 +236,65 @@ const initDB = async () => {
   }
 };
 
+// -------- optional seed (ONLY when SEED=true) --------
+async function seedIfEnabled() {
+  const on = String(process.env.SEED || '').toLowerCase() === 'true';
+  if (!on) {
+    console.log('[seed] disabled (set SEED=true to enable)');
+    return;
+  }
+
+  console.log('[seed] enabled -> inserting demo rows (idempotent)');
+
+  // clients
+  await pool.query(
+    `
+    INSERT INTO clients (
+      id, wechat_name, wechat_id, real_name, xhs_name, xhs_id,
+      order_date, delivery_date,
+      pcpp_link, is_shipping, tracking_number,
+      address_line, city, state, zip_code, status,
+      total_price, actual_cost, profit, paid_amount,
+      specs, photos, rating, notes, phone, metadata
+    ) VALUES
+      (
+        'seed_client_002','王','W20260113001','Demo Client','demo_xhs','xhs_001',
+        '2026-01-13','2026-01-20',
+        '','false','',
+        '1 Demo St','San Mateo','CA','94401','In Progress',
+        2999.00, 2499.00, 500.00, 1000.00,
+        '{}'::jsonb,'[]'::jsonb, 3, 'seed row', '','{}'::jsonb
+      )
+    ON CONFLICT (id) DO NOTHING;
+    `
+  );
+
+  // inventory
+  await pool.query(
+    `
+    INSERT INTO inventory (
+      id, category, name, keyword, sku, quantity, cost, price, location, status, notes, metadata, updated_at
+    ) VALUES
+      (
+        'seed_inv_004','CASE','Lian Li O11 Dynamic EVO','o11 evo',NULL,1,149.00,199.00,'Shelf D4','In Stock','seed row','{}'::jsonb,NOW()
+      )
+    ON CONFLICT (id) DO NOTHING;
+    `
+  );
+
+  console.log('[seed] ✅ done');
+}
+
 // -------- routes --------
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, db: true, requestId: getReqId(req) });
+  } catch {
+    res.status(500).json({ ok: false, db: false, requestId: getReqId(req) });
+  }
+});
+
 app.get('/api/dashboard/stats', async (req, res, next) => {
   try {
     const invRes = await pool.query(
@@ -289,8 +318,8 @@ app.get('/api/dashboard/stats', async (req, res, next) => {
 
 app.post('/api/dashboard/profit', async (req, res, next) => {
   const { start, end, group } = req.body || {};
-  let trunc = 'day';
-  let fmt = 'YYYY-MM-DD';
+  let trunc = 'day',
+    fmt = 'YYYY-MM-DD';
   if (group === 'week') trunc = 'week';
   if (group === 'month') {
     trunc = 'month';
@@ -377,7 +406,6 @@ app.post('/api/inventory/batch', async (req, res, next) => {
   }
 });
 
-// Partial update for a single inventory item
 app.put('/api/inventory/:id', async (req, res, next) => {
   const id = req.params.id;
   const body = req.body || {};
@@ -431,7 +459,6 @@ app.get('/api/clients', async (req, res, next) => {
 app.post('/api/clients', async (req, res, next) => {
   const c = req.body || {};
 
-  // 保持 smoke test 的 “invalid POST -> VALIDATION_FAILED”
   if (!c.id || !c.wechatName || !c.orderDate) {
     return sendError(
       res,
@@ -451,13 +478,13 @@ app.post('/api/clients', async (req, res, next) => {
         order_date, delivery_date,
         pcpp_link, is_shipping, tracking_number,
         address_line, city, state, zip_code, status,
-        total_price, actual_cost, profit, paid_amount, specs, photos, rating, notes
+        total_price, actual_cost, profit, paid_amount, specs, photos, rating, notes, phone, metadata
       ) VALUES (
         $1,$2,$3,$4,$5,$6,
         $7,$8,
         $9,$10,$11,
         $12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26
       )
       ON CONFLICT (id) DO UPDATE SET
         wechat_name=EXCLUDED.wechat_name,
@@ -482,7 +509,9 @@ app.post('/api/clients', async (req, res, next) => {
         specs=EXCLUDED.specs,
         photos=EXCLUDED.photos,
         rating=EXCLUDED.rating,
-        notes=EXCLUDED.notes`,
+        notes=EXCLUDED.notes,
+        phone=EXCLUDED.phone,
+        metadata=EXCLUDED.metadata`,
       [
         c.id,
         c.wechatName,
@@ -513,6 +542,8 @@ app.post('/api/clients', async (req, res, next) => {
         JSON.stringify(c.photos || []),
         c.rating,
         c.notes,
+        c.phone || '',
+        JSON.stringify(c.metadata || {}),
       ]
     );
 
@@ -599,14 +630,29 @@ async function bootstrap() {
   await waitForDb();
   await initDB();
   await runMigrations(pool);
+  await seedIfEnabled();
 
-  // ✅ 只跑一次：启动不会再全表扫；多实例也不会并发跑
-  await runOnce('2026-01-12_cleanup_video_card_to_gpu', cleanupVideoCardToGpu);
-
-  app.listen(5000, () => console.log('Server on 5000'));
+  const PORT = Number(process.env.PORT || 5000);
+  app.listen(PORT, () => console.log(`Server on ${PORT}`));
 }
 
 bootstrap().catch((err) => {
   console.error('[bootstrap] failed', err);
   process.exit(1);
+});
+
+// graceful shutdown
+process.on('SIGTERM', async () => {
+  try {
+    await pool.end();
+  } finally {
+    process.exit(0);
+  }
+});
+process.on('SIGINT', async () => {
+  try {
+    await pool.end();
+  } finally {
+    process.exit(0);
+  }
 });

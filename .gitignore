@@ -32,3 +32,9 @@ client/.env
 
 # local backups
 backups/
+
+# local env
+.env
+
+# backups (keep out of git)
+backups/

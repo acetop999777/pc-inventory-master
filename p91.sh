@@ -1,3 +1,12 @@
+cd ~/pc-inventory-master
+
+# 0) 备份旧 compose
+if [ -f docker-compose.yml ]; then
+  cp -av docker-compose.yml "docker-compose.yml.bak_$(date +%Y%m%d_%H%M%S)"
+fi
+
+# 1) 覆盖写入 docker-compose.yml
+cat > docker-compose.yml <<'YAML'
 # docker-compose.yml
 # pc-inventory-master (server + db + client)
 # Ports:
@@ -74,3 +83,22 @@ services:
 volumes:
   pgdata:
     name: pc-inventory-master_pgdata
+YAML
+
+# 2) 确保 .env 里是正确的密码（你刚刚把 DB 用户密码改成了 change_me）
+touch .env
+if grep -q '^POSTGRES_PASSWORD=' .env; then
+  sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=change_me/' .env
+else
+  echo 'POSTGRES_PASSWORD=change_me' >> .env
+fi
+if ! grep -q '^POSTGRES_USER=' .env; then echo 'POSTGRES_USER=admin' >> .env; fi
+if ! grep -q '^POSTGRES_DB=' .env; then echo 'POSTGRES_DB=inventory_db' >> .env; fi
+if ! grep -q '^POSTGRES_HOST=' .env; then echo 'POSTGRES_HOST=db' >> .env; fi
+
+# 3) 重新启动（重建镜像）
+docker compose up -d --build
+
+# 4) 看状态 + 跑 smoke
+docker compose ps
+./scripts/smoke.sh

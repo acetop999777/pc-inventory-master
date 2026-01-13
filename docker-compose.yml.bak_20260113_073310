@@ -48,7 +48,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      # node:alpine typically has wget but not curl
+      # server image (node:alpine) usually has wget but not curl
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5000/api/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
