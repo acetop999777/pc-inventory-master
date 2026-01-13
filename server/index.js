@@ -5,6 +5,9 @@ const { Pool } = require('pg');
 
 const { runMigrations } = require('./db/migrate');
 const requestId = require('./middleware/requestId');
+const notFound = require('./middleware/notFound');
+const errorHandler = require('./middleware/errorHandler');
+const AppError = require('./errors/AppError');
 
 const app = express();
 
@@ -21,51 +24,17 @@ const pool = new Pool({
   port: 5432,
 });
 
-// -------- helpers: error contract --------
-function getReqId(req) {
-  return (
-    req.requestId ||
-    req.id ||
-    req.headers['x-request-id'] ||
-    req.headers['X-Request-Id'] ||
-    ''
-  );
+// -------- helpers --------
+function asNonEmptyString(v) {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-function sendError(res, req, status, code, message, retryable = false, details = undefined) {
-  const payload = {
-    code,
-    message,
-    retryable,
-    requestId: getReqId(req),
-  };
-  if (details !== undefined) payload.details = details;
-  return res.status(status).json(payload);
-}
-
-function notFound(req, res) {
-  return sendError(res, req, 404, 'NOT_FOUND', 'Route not found', false);
-}
-
-// eslint-disable-next-line no-unused-vars
-function errorHandler(err, req, res, next) {
-  const status = err && err.status ? err.status : 500;
-  const code =
-    err && err.codeName
-      ? err.codeName
-      : err && err.code
-        ? `PG_${err.code}`
-        : 'INTERNAL_ERROR';
-  const message = err && err.message ? err.message : 'Internal server error';
-
-  const details =
-    status >= 500
-      ? { hint: 'Check server logs', pg: err && err.code ? err.code : undefined }
-      : err && err.details
-        ? err.details
-        : undefined;
-
-  return sendError(res, req, status, code, message, status >= 500, details);
+function normalizeDateOnly(v) {
+  if (!v) return null;
+  if (typeof v !== 'string') return null;
+  const s = v.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return s;
 }
 
 // -------- date helpers --------
@@ -83,14 +52,43 @@ const fmtDate = (d) => {
 
 // DB write helper: accept 'YYYY-MM-DD' or ISO string; returns null/DATE
 const toDateOnly = (v) => {
-  if (!v) return null;
-  if (typeof v === 'string') return v.slice(0, 10);
-  try {
-    return new Date(v).toISOString().slice(0, 10);
-  } catch {
-    return null;
-  }
+  return normalizeDateOnly(v);
 };
+
+function assertClientInput(c) {
+  const fields = [];
+
+  const id = asNonEmptyString(c.id);
+  if (!id) fields.push({ field: 'id', message: 'id is required' });
+
+  const wechatName = asNonEmptyString(c.wechatName);
+  if (!wechatName) fields.push({ field: 'wechatName', message: 'wechatName is required' });
+
+  const orderDate = normalizeDateOnly(c.orderDate);
+  if (!orderDate) fields.push({ field: 'orderDate', message: 'orderDate is required and must be YYYY-MM-DD' });
+
+  const deliveryDate = c.deliveryDate ? normalizeDateOnly(c.deliveryDate) : null;
+  if (c.deliveryDate && !deliveryDate) fields.push({ field: 'deliveryDate', message: 'deliveryDate must be YYYY-MM-DD' });
+
+  const numeric = ['totalPrice', 'actualCost', 'profit', 'paidAmount', 'rating'];
+  for (const k of numeric) {
+    if (c[k] === undefined || c[k] === null || c[k] === '') continue;
+    const n = Number(c[k]);
+    if (!Number.isFinite(n)) fields.push({ field: k, message: `${k} must be a number` });
+  }
+
+  if (fields.length > 0) {
+    throw new AppError({
+      code: 'VALIDATION_FAILED',
+      httpStatus: 400,
+      retryable: false,
+      message: 'Validation failed',
+      details: { fields },
+    });
+  }
+
+  return { id, wechatName, orderDate, deliveryDate };
+}
 
 const mapClient = (r) => ({
   id: r.id,
@@ -320,9 +318,9 @@ async function seedIfEnabled() {
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, db: true, requestId: getReqId(req) });
+    res.json({ ok: true, db: true, requestId: req.requestId || null });
   } catch {
-    res.status(500).json({ ok: false, db: false, requestId: getReqId(req) });
+    res.status(500).json({ ok: false, db: false, requestId: req.requestId || null });
   }
 });
 
@@ -487,23 +485,34 @@ app.get('/api/clients', async (req, res, next) => {
   }
 });
 
-app.post('/api/clients', async (req, res, next) => {
-  const c = req.body || {};
-
-  if (!c.id || !c.wechatName || !c.orderDate) {
-    return sendError(
-      res,
-      req,
-      400,
-      'VALIDATION_FAILED',
-      'Missing required fields: id, wechatName, orderDate',
-      false,
-      { required: ['id', 'wechatName', 'orderDate'] }
-    );
-  }
-
+app.get('/api/clients/:id', async (req, res, next) => {
   try {
-    await pool.query(
+    const id = req.params.id;
+    const { rows } = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    if (rows.length === 0) {
+      throw new AppError({
+        code: 'NOT_FOUND',
+        httpStatus: 404,
+        retryable: false,
+        message: 'Client not found',
+        details: { id },
+      });
+    }
+    res.json(mapClient(rows[0]));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/clients', (req, res, next) => {
+  // ✅ Express4 最稳写法：不依赖 async handler 的 promise 捕获
+  try {
+    const c = (req.body && typeof req.body === 'object') ? req.body : {};
+
+    // Phase 8.3: 收口散装错误到明确 code
+    const validated = assertClientInput(c);
+
+    pool.query(
       `INSERT INTO clients (
         id, wechat_name, wechat_id, real_name, xhs_name, xhs_id,
         order_date, delivery_date,
@@ -544,15 +553,15 @@ app.post('/api/clients', async (req, res, next) => {
         phone=EXCLUDED.phone,
         metadata=EXCLUDED.metadata`,
       [
-        c.id,
-        c.wechatName,
+        validated.id,
+        validated.wechatName,
         c.wechatId,
         c.realName,
         c.xhsName,
         c.xhsId,
 
-        toDateOnly(c.orderDate),
-        toDateOnly(c.deliveryDate),
+        validated.orderDate,
+        validated.deliveryDate,
 
         c.pcppLink,
         c.isShipping,
@@ -576,9 +585,10 @@ app.post('/api/clients', async (req, res, next) => {
         c.phone || '',
         JSON.stringify(c.metadata || {}),
       ]
-    );
+    )
+    .then(() => res.json({ success: true }))
+    .catch(next);
 
-    res.json({ success: true });
   } catch (e) {
     next(e);
   }
@@ -586,7 +596,17 @@ app.post('/api/clients', async (req, res, next) => {
 
 app.delete('/api/clients/:id', async (req, res, next) => {
   try {
-    await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
+    const id = req.params.id;
+    const r = await pool.query('DELETE FROM clients WHERE id = $1', [id]);
+    if ((r.rowCount || 0) === 0) {
+      throw new AppError({
+        code: 'NOT_FOUND',
+        httpStatus: 404,
+        retryable: false,
+        message: 'Client not found',
+        details: { id },
+      });
+    }
     res.json({ success: true });
   } catch (e) {
     next(e);

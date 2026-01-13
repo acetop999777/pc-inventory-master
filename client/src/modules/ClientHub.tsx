@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Plus, Calendar, Truck, Star, Trash2, Wallet } from 'lucide-react';
-import { generateId, CORE_CATS, STATUS_STEPS, formatMoney, apiCall } from '../utils';
+import { generateId, CORE_CATS, STATUS_STEPS, formatMoney, apiCallOrThrow, ApiCallError } from '../utils';
 import { AppData, Client } from '../types';
 import ClientEditor from './ClientEditor';
 
@@ -39,10 +39,14 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
 
     const handleSave = async (finalClient: Client, cost: number, profit: number) => {
         try {
-            await apiCall('/clients', 'POST', { ...finalClient, actualCost: cost, profit: profit });
+            await apiCallOrThrow('/clients', 'POST', { ...finalClient, actualCost: cost, profit: profit });
             refresh(); 
         } catch (e) {
-            notify('Save failed', 'error');
+            if (e instanceof ApiCallError) {
+                const rid = e.requestId ? ` (id: ${e.requestId})` : '';
+                notify(`${e.userMessage}${rid}`, 'error');
+            }
+            else notify('Save failed', 'error');
         }
     };
 
@@ -50,11 +54,15 @@ export default function ClientHub({ data, refresh, notify, log }: Props) {
         e.stopPropagation();
         if (!window.confirm(`Are you sure you want to DELETE client: ${name}?`)) return;
         try {
-            await apiCall(`/clients/${id}`, 'DELETE');
+            await apiCallOrThrow(`/clients/${id}`, 'DELETE');
             notify('Client deleted');
             refresh();
         } catch (error) {
-            notify('Delete failed', 'error');
+            if (error instanceof ApiCallError) {
+                const rid = error.requestId ? ` (id: ${error.requestId})` : '';
+                notify(`${error.userMessage}${rid}`, 'error');
+            }
+            else notify('Delete failed', 'error');
         }
     };
 
