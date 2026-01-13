@@ -1,90 +1,57 @@
 SHELL := /bin/bash
 
-# ---- configurable ----
-SERVER_URL ?= http://127.0.0.1:5001
-CLIENT_URL ?= http://127.0.0.1:8090
-BACKUP_DIR ?= backups
+.PHONY: help up down rebuild ps logs smoke backup restore rotate dbshell servershell fresh
 
-# ---- helpers ----
-.PHONY: help
 help:
-	@echo "PC Inventory Master - Ops"
-	@echo ""
 	@echo "Targets:"
-	@echo "  make up            - docker compose up -d --build"
-	@echo "  make down          - docker compose down"
-	@echo "  make restart       - restart server"
-	@echo "  make logs          - tail server logs"
-	@echo "  make ps            - show containers"
-	@echo "  make smoke         - run smoke (health + api + ui) + backup + rotate"
-	@echo "  make smoke-noback  - run smoke only (no backup)"
-	@echo "  make backup        - run db backup + rotate"
-	@echo "  make rotate        - rotate backups only"
-	@echo "  make restore DUMP=backups/xxx.dump  - restore from dump"
-	@echo "  make psql          - open psql inside db container"
-	@echo "  make health        - curl /api/health"
-	@echo ""
+	@echo "  up        - docker compose up -d --build"
+	@echo "  down      - docker compose down"
+	@echo "  rebuild   - rebuild server+client (no cache)"
+	@echo "  ps        - docker compose ps"
+	@echo "  logs      - tail server logs"
+	@echo "  smoke     - run smoke + backup + rotate"
+	@echo "  backup    - db backup"
+	@echo "  restore   - restore from FILE=backups/xxx.dump"
+	@echo "  rotate    - rotate backups"
+	@echo "  dbshell   - open psql shell"
+	@echo "  servershell - open server shell"
+	@echo "  fresh     - down -v then up (DANGEROUS: wipes db volume)"
 
-.PHONY: up
 up:
 	docker compose up -d --build
 
-.PHONY: down
 down:
 	docker compose down
 
-.PHONY: restart
-restart:
-	docker compose restart server
+rebuild:
+	docker compose build --no-cache server client
 
-.PHONY: logs
-logs:
-	docker compose logs -f --tail=120 server
-
-.PHONY: ps
 ps:
 	docker compose ps
 
-.PHONY: health
-health:
-	curl -sS $(SERVER_URL)/api/health ; echo
+logs:
+	docker compose logs -f --tail=120 server
 
-.PHONY: smoke
 smoke:
-	@chmod +x scripts/smoke.sh scripts/db_backup.sh scripts/backup_rotate.sh || true
-	@SERVER_URL=$(SERVER_URL) CLIENT_URL=$(CLIENT_URL) SMOKE_BACKUP=true ./scripts/smoke.sh
+	./scripts/smoke.sh
 
-.PHONY: smoke-noback
-smoke-noback:
-	@chmod +x scripts/smoke.sh || true
-	@SERVER_URL=$(SERVER_URL) CLIENT_URL=$(CLIENT_URL) SMOKE_BACKUP=false ./scripts/smoke.sh
-
-.PHONY: backup
 backup:
-	@chmod +x scripts/db_backup.sh scripts/backup_rotate.sh || true
-	@./scripts/db_backup.sh
-	@./scripts/backup_rotate.sh
-	@ls -lt $(BACKUP_DIR) | head || true
+	./scripts/db_backup.sh
 
-.PHONY: rotate
 rotate:
-	@chmod +x scripts/backup_rotate.sh || true
-	@./scripts/backup_rotate.sh
-	@ls -lt $(BACKUP_DIR) | head || true
+	./scripts/backup_rotate.sh
 
-# Usage: make restore DUMP=backups/inventory_db_xxx.dump
-.PHONY: restore
 restore:
-	@if [ -z "$(DUMP)" ]; then \
-	  echo "ERROR: missing DUMP=..."; \
-	  echo "Example: make restore DUMP=backups/inventory_db_20260113_064158.dump"; \
-	  exit 1; \
-	fi
-	@chmod +x scripts/db_restore.sh || true
-	@./scripts/db_restore.sh "$(DUMP)"
-	@echo "[make] restore done; running smoke..."
-	@$(MAKE) smoke-noback
+	@if [ -z "$(FILE)" ]; then echo "Usage: make restore FILE=backups/xxx.dump"; exit 1; fi
+	./scripts/db_restore.sh "$(FILE)"
 
-.PHONY: psql
-psql:
-	docker compose exec db psql -U admin -d inventory_db
+dbshell:
+	docker compose exec db psql -U $${POSTGRES_USER:-admin} -d $${POSTGRES_DB:-inventory_db}
+
+servershell:
+	docker compose exec server sh
+
+fresh:
+	@echo "DANGER: wiping db volume..."
+	docker compose down -v
+	docker compose up -d --build

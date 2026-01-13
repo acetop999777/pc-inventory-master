@@ -1,3 +1,6 @@
+mkdir -p server/db/migrations
+
+cat > server/db/migrations/003_cleanup_video_card_to_gpu.sql <<'SQL'
 -- 003: cleanup specs: move "Video Card" -> "GPU"
 -- Rule:
 --   - If specs has "Video Card":
@@ -18,3 +21,4 @@ SET specs =
   END
 WHERE specs IS NOT NULL
   AND (specs ? 'Video Card');
+SQL

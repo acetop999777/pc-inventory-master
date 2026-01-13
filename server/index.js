@@ -16,7 +16,8 @@ const pool = new Pool({
   user: process.env.POSTGRES_USER || 'admin',
   host: process.env.POSTGRES_HOST || 'db',
   database: process.env.POSTGRES_DB || 'inventory_db',
-  password: process.env.POSTGRES_PASSWORD || 'securepassword',
+  // ✅ 默认对齐你现在的 compose/.env，避免 securepassword 导致 28P01
+  password: process.env.POSTGRES_PASSWORD || 'change_me',
   port: 5432,
 });
 
@@ -121,6 +122,7 @@ const mapClient = (r) => ({
 });
 
 // -------- DB init (baseline schema) --------
+// NOTE: 现在仍保留 baseline init（后续我们会逐步收敛到 migrations）
 const initDB = async () => {
   try {
     await pool.query(`
@@ -235,6 +237,35 @@ const initDB = async () => {
     throw err;
   }
 };
+
+// -------- optional startup cleanup (ONLY when STARTUP_CLEANUP=true) --------
+// 推荐：用 migration 003 一次性做；这里留个紧急开关（默认 false）
+async function startupCleanupIfEnabled() {
+  const on = String(process.env.STARTUP_CLEANUP || '').toLowerCase() === 'true';
+  if (!on) return;
+
+  console.log('[cleanup] STARTUP_CLEANUP=true -> running cleanup (idempotent)');
+
+  // Video Card -> GPU (only if GPU missing OR GPU.name blank)
+  const r = await pool.query(`
+    UPDATE clients
+    SET specs =
+      CASE
+        WHEN specs IS NULL THEN NULL
+        WHEN NOT (specs ? 'Video Card') THEN specs
+        WHEN (NOT (specs ? 'GPU'))
+             OR (specs->'GPU'->>'name' IS NULL)
+             OR (btrim(specs->'GPU'->>'name') = '')
+          THEN jsonb_set(specs - 'Video Card', '{GPU}', specs->'Video Card', true)
+        ELSE (specs - 'Video Card')
+      END
+    WHERE specs IS NOT NULL
+      AND (specs ? 'Video Card')
+    RETURNING id;
+  `);
+
+  console.log(`[cleanup] Video Card -> GPU: updated=${r.rowCount || 0}`);
+}
 
 // -------- optional seed (ONLY when SEED=true) --------
 async function seedIfEnabled() {
@@ -630,6 +661,7 @@ async function bootstrap() {
   await waitForDb();
   await initDB();
   await runMigrations(pool);
+  await startupCleanupIfEnabled(); // ✅ 默认不跑（STARTUP_CLEANUP=true 才跑）
   await seedIfEnabled();
 
   const PORT = Number(process.env.PORT || 5000);
