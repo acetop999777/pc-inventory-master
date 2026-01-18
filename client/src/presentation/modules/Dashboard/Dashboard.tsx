@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { DollarSign, Package, Users, Wallet, TrendingUp } from 'lucide-react';
+import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { apiCall, formatMoney } from '../../../utils';
 import { FinancialCard } from '../../components/ui/FinancialCard';
 

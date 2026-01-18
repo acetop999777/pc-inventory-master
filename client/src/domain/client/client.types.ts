@@ -15,6 +15,7 @@ export interface ClientEntity {
     realName: string;
     xhsName: string;
     xhsId: string;
+    phone: string;
     rating: number; // 1, 0, -1
     notes: string;
     photos: string[];

@@ -1,100 +1,66 @@
 cd ~/pc-inventory-master
 
-cat > Makefile <<'EOF'
-SHELL := /bin/bash
+cat > client/src/presentation/modules/ClientHub/components/ClientRow.tsx <<'EOF'
+import React from 'react';
+import type { ClientRowProps } from '../../../../features/clients/types';
 
-# ---- configurable ----
-SERVER_URL ?= http://127.0.0.1:5001
-CLIENT_URL ?= http://127.0.0.1:8090
-BACKUP_DIR ?= backups
+function money(n: any): string {
+  const v = Number(n ?? 0);
+  if (!Number.isFinite(v)) return '$0';
+  return v.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
 
-# ---- helpers ----
-.PHONY: help
-help:
-	@echo "PC Inventory Master - Ops"
-	@echo ""
-	@echo "Targets:"
-	@echo "  make up            - docker compose up -d --build"
-	@echo "  make down          - docker compose down"
-	@echo "  make restart       - restart server"
-	@echo "  make logs          - tail server logs"
-	@echo "  make ps            - show containers"
-	@echo "  make smoke         - run smoke (health + api + ui) + backup + rotate"
-	@echo "  make smoke-noback  - run smoke only (no backup)"
-	@echo "  make backup        - run db backup + rotate"
-	@echo "  make rotate        - rotate backups only"
-	@echo "  make restore DUMP=backups/xxx.dump  - restore from dump"
-	@echo "  make psql          - open psql inside db container"
-	@echo "  make health        - curl /api/health"
-	@echo ""
+export const ClientRow: React.FC<ClientRowProps> = ({
+  client,
+  financials,
+  isActive,
+  active,
+  onSelect,
+  onDelete,
+}) => {
+  const activeFlag = Boolean(isActive ?? active);
 
-.PHONY: up
-up:
-	docker compose up -d --build
+  const due = Number((financials as any)?.balanceDue ?? 0);
+  const profit = Number((financials as any)?.profit ?? 0);
 
-.PHONY: down
-down:
-	docker compose down
+  return (
+    <div
+      className={[
+        'flex items-center justify-between px-3 py-2 rounded-md border cursor-pointer',
+        activeFlag ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50',
+      ].join(' ')}
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="min-w-0">
+        <div className="font-medium truncate">
+          {(client as any).wechatName || (client as any).realName || (client as any).wechatId || client.id}
+        </div>
+        <div className="text-xs text-gray-500 truncate">
+          {(client as any).realName ? `Real: ${(client as any).realName}` : ''}
+          {(client as any).wechatId ? `  WeChat: ${(client as any).wechatId}` : ''}
+          {(client as any).status ? `  Status: ${(client as any).status}` : ''}
+        </div>
+      </div>
 
-.PHONY: restart
-restart:
-	docker compose restart server
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="text-right">
+          <div className="text-sm">{money(due)}</div>
+          <div className="text-xs text-gray-500">profit {money(profit)}</div>
+        </div>
 
-.PHONY: logs
-logs:
-	docker compose logs -f --tail=120 server
-
-.PHONY: ps
-ps:
-	docker compose ps
-
-.PHONY: health
-health:
-	curl -sS $(SERVER_URL)/api/health ; echo
-
-.PHONY: smoke
-smoke:
-	@chmod +x scripts/smoke.sh scripts/db_backup.sh scripts/backup_rotate.sh || true
-	@SERVER_URL=$(SERVER_URL) CLIENT_URL=$(CLIENT_URL) SMOKE_BACKUP=true ./scripts/smoke.sh
-
-.PHONY: smoke-noback
-smoke-noback:
-	@chmod +x scripts/smoke.sh || true
-	@SERVER_URL=$(SERVER_URL) CLIENT_URL=$(CLIENT_URL) SMOKE_BACKUP=false ./scripts/smoke.sh
-
-.PHONY: backup
-backup:
-	@chmod +x scripts/db_backup.sh scripts/backup_rotate.sh || true
-	@./scripts/db_backup.sh
-	@./scripts/backup_rotate.sh
-	@ls -lt $(BACKUP_DIR) | head || true
-
-.PHONY: rotate
-rotate:
-	@chmod +x scripts/backup_rotate.sh || true
-	@./scripts/backup_rotate.sh
-	@ls -lt $(BACKUP_DIR) | head || true
-
-# Usage: make restore DUMP=backups/inventory_db_xxx.dump
-.PHONY: restore
-restore:
-	@if [ -z "$(DUMP)" ]; then \
-	  echo "ERROR: missing DUMP=..."; \
-	  echo "Example: make restore DUMP=backups/inventory_db_20260113_064158.dump"; \
-	  exit 1; \
-	fi
-	@chmod +x scripts/db_restore.sh || true
-	@./scripts/db_restore.sh "$(DUMP)"
-	@echo "[make] restore done; running smoke..."
-	@$(MAKE) smoke-noback
-
-.PHONY: psql
-psql:
-	docker compose exec db psql -U admin -d inventory_db
+        {onDelete ? (
+          <button
+            className="px-2 py-1 rounded-md border hover:bg-red-50"
+            onClick={onDelete}
+            title="Delete"
+          >
+            Del
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+};
 EOF
-
-# 快速确认 Makefile 里确实有 help/smoke
-grep -nE '^(help:|smoke:|smoke-noback:|backup:|restore:)' Makefile
-
-make help
-make smoke

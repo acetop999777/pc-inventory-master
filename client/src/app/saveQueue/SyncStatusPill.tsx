@@ -66,12 +66,13 @@ export function SyncStatusPill() {
     const body = topErr.message ? `: ${topErr.message}` : '';
     return (head + body).slice(0, 240);
   })();
-
   const anyRetriable = errorKeys.some((k) => {
     const e: any = k.lastError as any;
     const v = typeof e?.retryable === 'boolean' ? e.retryable : e?.retriable;
     return v !== false; // default true
   });
+
+  const canRetry = hasError && !busy && anyRetriable;
 
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
@@ -151,17 +152,15 @@ export function SyncStatusPill() {
               <AlertTriangle size={14} />
               <span>Needs Sync</span>
 
-              {anyRetriable ? (
+              {canRetry ? (
                 <button
                   onClick={retryAll}
                   className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
-                  title="Retry pending saves"
-                >
-                  Retry
-                </button>
+                  title="Apply pending changes"
+                >Fix & retry</button>
               ) : (
                 <span className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200">
-                  Fix & retry
+                  Fix inputs
                 </span>
               )}
 

@@ -14,7 +14,6 @@ function mapPostgresError(err) {
   // https://www.postgresql.org/docs/current/errcodes-appendix.html
   // 23505 = unique_violation
   if (code === '23505') {
-    // Best-effort: extract which field is duplicated from "Key (x)=(y) already exists".
     const detail = typeof err.detail === 'string' ? err.detail : '';
     let field = undefined;
     let value = undefined;
@@ -24,7 +23,6 @@ function mapPostgresError(err) {
       value = m[2];
     }
 
-    // Special-case: our inventory SKU norm unique index (Phase 8.x)
     const constraint = typeof err.constraint === 'string' ? err.constraint : undefined;
     const isSku =
       constraint === 'ux_inventory_sku_norm_nonempty' ||
@@ -41,6 +39,28 @@ function mapPostgresError(err) {
         value,
         constraint,
         table: typeof err.table === 'string' ? err.table : undefined,
+      },
+    });
+  }
+
+  // 23514 = check_violation
+  if (code === '23514') {
+    const constraint = typeof err.constraint === 'string' ? err.constraint : undefined;
+    const table = typeof err.table === 'string' ? err.table : undefined;
+    const detail = typeof err.detail === 'string' ? err.detail : undefined;
+    const message = typeof err.message === 'string' ? err.message : 'Validation failed';
+
+    return new AppError({
+      code: 'VALIDATION_FAILED',
+      httpStatus: 400,
+      retryable: false,
+      message: 'Validation failed',
+      details: {
+        kind: 'check_violation',
+        constraint,
+        table,
+        detail,
+        dbMessage: message,
       },
     });
   }

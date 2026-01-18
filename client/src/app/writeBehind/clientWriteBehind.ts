@@ -16,8 +16,9 @@ function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
 
 function coerceFields(fields: Partial<ClientEntity>): Partial<ClientEntity> {
   const f: any = { ...fields };
-  if (Object.prototype.hasOwnProperty.call(f, 'totalPrice')) f.totalPrice = Number(f.totalPrice ?? 0);
-  if (Object.prototype.hasOwnProperty.call(f, 'paidAmount')) f.paidAmount = Number(f.paidAmount ?? 0);
+  const toMoney = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  if (Object.prototype.hasOwnProperty.call(f, 'totalPrice')) f.totalPrice = toMoney(f.totalPrice);
+  if (Object.prototype.hasOwnProperty.call(f, 'paidAmount')) f.paidAmount = toMoney(f.paidAmount);
   if (Object.prototype.hasOwnProperty.call(f, 'rating')) f.rating = Number(f.rating ?? 0);
   if (Object.prototype.hasOwnProperty.call(f, 'isShipping')) f.isShipping = Boolean(f.isShipping);
   return f;
@@ -73,7 +74,7 @@ export function useClientWriteBehind() {
         await apiCallOrThrow('/clients', 'POST', {
           ...merged,
           actualCost: fin.totalCost,
-          profit: fin.profit,
+          profit: merged.totalPrice > 0 ? fin.profit : null,
         });
 
         qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsert(old, merged));

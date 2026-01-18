@@ -1,0 +1,94 @@
+import React from 'react';
+import { Trash2 } from 'lucide-react';
+import type { ClientRowProps } from '../../../../features/clients/types';
+import { formatMoney } from '../../../../utils';
+
+function fmtDate(input: any): string {
+  if (!input) return '';
+  const d = new Date(String(input));
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function isDeliveredStatus(s: string | undefined | null): boolean {
+  return String(s || '').toLowerCase().includes('delivered');
+}
+
+export const ClientRow: React.FC<ClientRowProps> = ({ client, financials, isActive, onSelect, onDelete }) => {
+  const total = Number(client.totalPrice ?? 0);
+  const due = Number(financials.balanceDue ?? 0);
+  const profit = Number(financials.profit ?? 0);
+
+  const delivered = isDeliveredStatus(client.status);
+
+  return (
+    <div
+      onClick={onSelect}
+      className={[
+        "group w-full px-4 py-3 rounded-2xl border transition-all cursor-pointer",
+        isActive ? "bg-white border-slate-200 shadow-sm" : "bg-white/60 border-slate-100 hover:bg-white hover:border-slate-200"
+      ].join(' ')}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="truncate text-sm font-black text-slate-900">
+              {client.wechatName || 'Untitled'}
+            </div>
+            {client.realName ? (
+              <div className="truncate text-xs font-semibold text-slate-400">
+                {client.realName}
+              </div>
+            ) : null}
+            {delivered ? (
+              <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+                archived
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-1 flex items-center gap-2 text-[11px] font-semibold text-slate-400">
+            {client.orderDate ? <span>Order {fmtDate(client.orderDate)}</span> : <span className="opacity-60">No order date</span>}
+            {client.status ? <span className="text-slate-300">·</span> : null}
+            {client.status ? <span className="truncate">{client.status}</span> : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Total */}
+          <div className="px-2.5 py-1 rounded-full border border-slate-200 bg-white text-[11px] font-black text-slate-700">
+            {formatMoney(total)}
+          </div>
+
+          {/* Due (no background color requested) */}
+          <div className="px-2.5 py-1 rounded-full border border-slate-200 bg-white text-[11px] font-black text-slate-700">
+            Due {formatMoney(due)}
+          </div>
+
+          {/* Profit (background only here) */}
+          <div
+            className={[
+              "px-2.5 py-1 rounded-full text-[11px] font-black border",
+              profit >= 0
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : "bg-rose-50 border-rose-200 text-rose-700"
+            ].join(' ')}
+          >
+            {formatMoney(profit)}
+          </div>
+
+          <button
+            onClick={onDelete}
+            className="ml-1 w-9 h-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-700 flex items-center justify-center"
+            title="Delete"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

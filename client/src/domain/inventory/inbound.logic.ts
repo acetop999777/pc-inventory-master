@@ -158,7 +158,6 @@ export const parseNeweggText = (text: string, inventory: InventoryItem[]): { ite
 
         if (finalBatch.length === 0) return { items: [], msg: 'No items found', type: 'error' };
         
-        const matchCount = finalBatch.filter(i => i.isMatch).length;
         return { items: finalBatch, msg: 'Parsed ' + finalBatch.length + ' items' };
 
     } catch(e) {

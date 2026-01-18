@@ -24,7 +24,7 @@ export const calculateFinancials = (client: ClientEntity): ClientFinancials => {
 
 export const createEmptyClient = (): ClientEntity => ({
     id: '',
-    wechatName: '', wechatId: '', realName: '', xhsName: '', xhsId: '',
+    wechatName: '', wechatId: '', realName: '', xhsName: '', xhsId: '', phone: '',
     rating: 0, notes: '', photos: [],
     status: 'Pending',
     orderDate: new Date().toISOString().split('T')[0],

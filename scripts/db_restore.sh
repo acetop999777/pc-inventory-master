@@ -40,6 +40,5 @@ echo "[restore] ✅ restore finished"
 
 # restart server (if present)
 if docker compose ps -q server >/dev/null 2>&1; then
-  docker compose restart server >/dev/null 2>&1 || true
-  echo "[restore] ✅ server restarted (if present)"
+  docker compose restart server >/dev/null 2>&1  echo "[restore] ✅ server restarted (if present)"
 fi

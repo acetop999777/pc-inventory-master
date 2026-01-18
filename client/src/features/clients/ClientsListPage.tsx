@@ -1,22 +1,28 @@
 import React from 'react';
-import { ClientEntity } from '../../domain/client/client.types';
+import type { ClientsListPageProps, ClientsListPageExtraProps } from './types';
 import ClientHub from '../../presentation/modules/ClientHub/ClientHub';
 
-type Props = {
-  clients: ClientEntity[];
-  onSelectClient: (c: ClientEntity) => void;
-  onNewClient: () => void;
-  onDeleteClient: (id: string, name: string) => void;
-};
 
-export function ClientsListPage(props: Props) {
-  const { clients, onSelectClient, onNewClient, onDeleteClient } = props;
+type Props = ClientsListPageProps & ClientsListPageExtraProps;
+
+export function ClientsListPage({
+  clients,
+  activeClientId,
+  getFinancials,
+  onSelectClient,
+  onNewClient,
+  onDeleteClient,
+}: Props) {
   return (
-    <ClientHub
-      clients={clients}
-      onSelectClient={onSelectClient}
-      onNewClient={onNewClient}
-      onDeleteClient={onDeleteClient}
-    />
+    <div className="w-full">
+      <ClientHub
+        clients={clients}
+        activeClientId={activeClientId}
+        getFinancials={getFinancials}
+        onSelectClient={onSelectClient}
+        onNewClient={onNewClient}
+        onDeleteClient={onDeleteClient}
+      />
+    </div>
   );
 }

@@ -26,6 +26,7 @@ export function normalizeClientRow(row: any): ClientEntity {
     realName: String(row?.realName ?? ''),
     xhsName: String(row?.xhsName ?? ''),
     xhsId: String(row?.xhsId ?? ''),
+    phone: String(row?.phone ?? ''),
     rating: Number(row?.rating ?? 0) || 0,
     notes: String(row?.notes ?? ''),
     photos: Array.isArray(row?.photos) ? row.photos : [],

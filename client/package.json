@@ -21,7 +21,10 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:ci": "react-scripts test --watchAll=false --passWithNoTests",
+    "verify": "npm run typecheck && npm run test:ci && npm run build"
   },
   "eslintConfig": {
     "extends": [
