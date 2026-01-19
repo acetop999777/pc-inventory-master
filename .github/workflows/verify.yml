@@ -4,9 +4,10 @@ on:
   pull_request:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 concurrency:
-  group: verify-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -14,22 +15,26 @@ permissions:
 
 jobs:
   verify:
+    name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      SMOKE_MAX_SECONDS: "240"
+      SKIP_PUSH: "1"
+      SKIP_BACKUP: "1"
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: |
             client/package-lock.json
             server/package-lock.json
-
-      - name: Verify (single source of truth)
-        env:
-          CI: "true"
-          SMOKE_TIMEOUT_SEC: "180"
+      - name: Install OS deps (ripgrep)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+      - name: Verify
         run: bash scripts/verify.sh

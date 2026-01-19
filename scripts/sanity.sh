@@ -3,23 +3,25 @@ set -euo pipefail
 
 echo "[sanity] scanning for shell/paste pollution inside TS/TSX..."
 
-# 规则尽量保守：只扫明显危险的“curl|bash / wget|sh / bash -c curl / eval( / child_process.exec”
-PATTERN='(curl\s+[^|]+\|\s*(bash|sh)|wget\s+[^|]+\|\s*(bash|sh)|bash\s+-c\s+.*curl|eval\s*\(|child_process\.(exec|spawn))'
+files="$(git ls-files -- 'client/src/**/*.ts' 'client/src/**/*.tsx' 2>/dev/null || true)"
+if [ -z "${files}" ]; then
+  echo "[sanity] no TS/TSX files found; skip"
+  echo "✅ [sanity] ok"
+  exit 0
+fi
+
+pattern='(^admin@|^iceace@|^[^[:space:]]+@[^[:space:]]+[: ].*\$|^\$ |^remote: |^fatal: |^error: failed to push|^Enumerating objects:|^Counting objects:|^Delta compression|^Compressing objects:|^Writing objects:|^To https?://github\.com/|^git@github\.com:)'
 
 if command -v rg >/dev/null 2>&1; then
-  # 只扫 ts/tsx，跳过 node_modules、build 等
-  if rg -n -S --hidden \
-    --glob '*.ts' --glob '*.tsx' \
-    --glob '!**/node_modules/**' \
-    --glob '!**/build/**' \
-    --glob '!**/dist/**' \
-    "$PATTERN" .; then
-    echo "[sanity] ❌ found suspicious patterns above"
+  if rg -n -S -e "${pattern}" ${files}; then
+    echo "[sanity] ❌ suspicious terminal/shell paste detected in TS/TSX"
     exit 1
   fi
 else
-  # 没装 rg 就直接跳过，不报错、不污染 CI annotations
-  echo "[sanity] rg not found; skip scan (no failure)"
+  if grep -nE "${pattern}" ${files}; then
+    echo "[sanity] ❌ suspicious terminal/shell paste detected in TS/TSX"
+    exit 1
+  fi
 fi
 
 echo "✅ [sanity] ok"

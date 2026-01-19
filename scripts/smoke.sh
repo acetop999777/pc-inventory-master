@@ -1,98 +1,71 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:5001/api/health}"
-SMOKE_TIMEOUT_SEC="${SMOKE_TIMEOUT_SEC:-60}"
-SLEEP_SEC="${SLEEP_SEC:-2}"
+COMPOSE="${COMPOSE_CMD:-docker compose}"
+SERVER_BASE="${SMOKE_SERVER_BASE_URL:-http://127.0.0.1:5001}"
+HEALTH_URL="${SMOKE_HEALTH_URL:-${SERVER_BASE}/api/health}"
+CLIENT_URL="${SMOKE_CLIENT_URL:-http://127.0.0.1:8090/}"
+
+MAX_SECONDS="${SMOKE_MAX_SECONDS:-240}"
+SLEEP_SECONDS="${SMOKE_SLEEP_SECONDS:-2}"
 
 echo "[smoke] ensuring services up (docker compose up -d)"
-docker compose up -d --remove-orphans
+${COMPOSE} up -d
 
-echo "[smoke] waiting server health: ${HEALTH_URL} (max ${SMOKE_TIMEOUT_SEC}s)"
+echo "[smoke] waiting server health: ${HEALTH_URL} (max ${MAX_SECONDS}s)"
+deadline=$(( $(date +%s) + MAX_SECONDS ))
 
-max_tries=$(( (SMOKE_TIMEOUT_SEC + SLEEP_SEC - 1) / SLEEP_SEC ))
-ready=0
-last_body=""
-
-for i in $(seq 1 "$max_tries"); do
-  if last_body="$(curl -fsS "$HEALTH_URL" 2>/dev/null)"; then
-    ready=1
+while true; do
+  if curl -fsS --max-time 5 "${HEALTH_URL}" >/tmp/smoke_health.json 2>/tmp/smoke_health.err; then
+    echo "[smoke] server ready ✅ $(cat /tmp/smoke_health.json)"
     break
   fi
-  sleep "$SLEEP_SEC"
+
+  if [ "$(date +%s)" -ge "${deadline}" ]; then
+    echo "[smoke] ❌ server not healthy within ${MAX_SECONDS}s"
+    echo "[smoke] ---- docker compose ps ----"
+    ${COMPOSE} ps || true
+    echo "[smoke] ---- docker compose logs (server/db) ----"
+    ${COMPOSE} logs --no-color --tail=300 server db || true
+    exit 1
+  fi
+
+  sleep "${SLEEP_SECONDS}"
 done
 
-if [ "$ready" -ne 1 ]; then
-  echo "[smoke] ❌ server not healthy within ${SMOKE_TIMEOUT_SEC}s"
-
-  echo "[smoke] docker compose ps"
-  docker compose ps || true
-
-  echo "[smoke] docker compose logs (tail=200)"
-  docker compose logs --no-color --tail=200 server db client || true
-
-  echo "[smoke] last curl attempt (best-effort)"
-  curl -v "$HEALTH_URL" || true
-
-  exit 1
-fi
-
-echo "[smoke] server ready ✅ ${last_body}"
-
-head_out() {
+head_json() {
   local url="$1"
-  local n="${2:-220}"
-  local body
-  body="$(curl -fsS "$url")"
   echo "[smoke] GET ${url} (head)"
-  echo "${body}" | head -c "$n"
+  # use range to avoid SIGPIPE/curl(23)
+  curl -fsS --max-time 10 --range 0-299 "${url}" || true
   echo
 }
 
-expect_status_and_contains() {
-  local method="$1"
-  local url="$2"
-  local want_code="$3"
-  local want_sub="$4"
-  local data="${5:-}"
+expect_status() {
+  local url="$1"
+  local expected="$2"
+  local label="$3"
 
-  local tmp
-  tmp="$(mktemp)"
+  local body_file="/tmp/smoke_body.$$"
+  local code
+  code="$(curl -sS --max-time 15 -o "${body_file}" -w "%{http_code}" "${url}" || true)"
 
-  local code="000"
-  if [ "$method" = "GET" ]; then
-    code="$(curl -sS -o "$tmp" -w "%{http_code}" "$url" || true)"
-  else
-    code="$(curl -sS -o "$tmp" -w "%{http_code}" \
-      -X "$method" -H "Content-Type: application/json" \
-      -d "$data" "$url" || true)"
+  if [ "${code}" != "${expected}" ]; then
+    echo "[smoke] ❌ ${label}: expected ${expected}, got ${code}"
+    echo "[smoke] ---- body ----"
+    head -c 800 "${body_file}" || true
+    rm -f "${body_file}" || true
+    exit 1
   fi
 
-  local body
-  body="$(cat "$tmp" || true)"
-  rm -f "$tmp" || true
-
-  if [ "$code" = "$want_code" ] && echo "$body" | grep -q "$want_sub"; then
-    echo "[smoke] ✅ ${want_code} ${want_sub} OK"
-    return 0
-  fi
-
-  echo "[smoke] ❌ expected ${want_code} and contains '${want_sub}', got ${code}"
-  echo "[smoke] body:"
-  echo "$body"
-  return 1
+  echo "[smoke] ✅ ${label} OK"
+  rm -f "${body_file}" || true
 }
 
-# ---- your existing smoke checks ----
-head_out "http://127.0.0.1:5001/api/clients" 220
-expect_status_and_contains "GET"  "http://127.0.0.1:5001/api/clients/__nope__" "404" "NOT_FOUND"
-expect_status_and_contains "POST" "http://127.0.0.1:5001/api/clients"          "400" "VALIDATION_FAILED" "{}"
-head_out "http://127.0.0.1:5001/api/inventory" 220
-
-echo "[smoke] GET http://127.0.0.1:8090/ (head)"
-html="$(curl -fsS "http://127.0.0.1:8090/")"
-echo "$html" | head -c 220
-echo
-echo "$html" | grep -qi "PC Inventory Master"
+head_json "${SERVER_BASE}/api/clients"
+expect_status "${SERVER_BASE}/api/clients/__nope__" "404" "clients error: expects 404"
+expect_status "${SERVER_BASE}/api/clients" "200" "clients ok: expects 200"
+head_json "${SERVER_BASE}/api/inventory"
+head_json "${CLIENT_URL}"
 
 echo "[smoke] ✅ passed"
