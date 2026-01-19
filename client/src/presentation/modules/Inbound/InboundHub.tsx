@@ -83,7 +83,12 @@ export default function InboundHub() {
     <div className="p-8 max-w-[1600px] mx-auto h-[calc(100vh-2rem)]">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
         <InboundScanner onScan={handleScan} onParse={handleParse} loading={loading} />
-        <StagingArea batch={batch} inventory={inventory} setBatch={setBatch} onCommit={handleCommit} />
+        <StagingArea
+          batch={batch}
+          inventory={inventory}
+          setBatch={setBatch}
+          onCommit={handleCommit}
+        />
       </div>
     </div>
   );

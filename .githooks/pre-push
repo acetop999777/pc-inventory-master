@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "[pre-push] sanity..."
+bash scripts/sanity.sh
+echo "[pre-push] verify..."
+bash scripts/verify.sh

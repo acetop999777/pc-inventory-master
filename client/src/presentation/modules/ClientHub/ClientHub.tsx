@@ -1,48 +1,132 @@
-import React, { useState } from 'react';
-import { Search, Plus } from 'lucide-react';
+import React from 'react';
+import type { ClientEntity } from '../../../domain/client/client.types';
+import { calculateFinancials } from '../../../domain/client/client.logic';
+import type { ClientHubProps } from '../../../features/clients/types';
+
 import { ClientRow } from './components/ClientRow';
-import { ClientEntity } from '../../../domain/client/client.types';
 
-interface Props {
-    clients: ClientEntity[];
-    onSelectClient: (client: ClientEntity) => void;
-    onNewClient: () => void;
-    onDeleteClient: (id: string, name: string) => void;
+function isDeliveredStatus(status: any): boolean {
+  const s = String(status ?? '')
+    .trim()
+    .toLowerCase();
+  return s === 'delivered' || s === 'done' || s === 'completed';
 }
 
-export default function ClientHub({ clients, onSelectClient, onNewClient, onDeleteClient }: Props) {
-    const [search, setSearch] = useState('');
-    
-    const filtered = clients.filter(c => 
-        (c.wechatName || '').toLowerCase().includes(search.toLowerCase()) || 
-        (c.wechatId || '').toLowerCase().includes(search.toLowerCase())
-    );
+function clientSearchBlob(c: ClientEntity): string {
+  const anyC: any = c as any;
+  return [
+    c.id,
+    c.wechatName,
+    c.wechatId,
+    c.realName,
+    anyC.xhsName,
+    anyC.xhsId,
+    anyC.status,
+    anyC.orderDate,
+    anyC.deliveryDate,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
 
-    return (
-        <div className="p-4 md:p-8 max-w-[95rem] mx-auto pb-32">
-             <div className="flex gap-4 mb-6 items-center">
-                 <div className="flex-1 bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-2">
-                    <Search size={16} className="ml-2 text-slate-400"/>
-                    <input className="w-full text-xs font-bold outline-none" placeholder="Search Clients..." value={search} onChange={e=>setSearch(e.target.value)}/>
-                 </div>
-                 <button onClick={onNewClient} className="bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg active:scale-95 transition-transform"><Plus size={16}/></button>
-             </div>
-             
-             <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm overflow-hidden">
-                 <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
-                     <div className="col-span-3">Client (WeChat)</div>
-                     <div className="col-span-2">Status</div>
-                     <div className="col-span-2">Order Date</div>
-                     <div className="col-span-2">Delivery Date</div>
-                     <div className="col-span-3 text-right">Financials</div>
-                 </div>
+export const ClientHub: React.FC<ClientHubProps> = ({
+  clients,
+  activeClientId,
+  getFinancials,
+  onSelectClient,
+  onNewClient,
+  onDeleteClient,
+}) => {
+  const [q, setQ] = React.useState('');
 
-                 {filtered.map(c => (
-                     <ClientRow key={c.id} client={c} onSelect={() => onSelectClient(c)} onDelete={(e) => { e.stopPropagation(); onDeleteClient(c.id, c.wechatName); }}/>
-                 ))}
-                 
-                 {filtered.length === 0 && <div className="p-8 text-center text-slate-300 text-xs font-bold uppercase italic">No clients found</div>}
-             </div>
+  const filtered = React.useMemo(() => {
+    const query = q.trim().toLowerCase();
+    if (!query) return clients;
+    return clients.filter((c) => clientSearchBlob(c).includes(query));
+  }, [clients, q]);
+
+  const active = React.useMemo(
+    () => filtered.filter((c) => !isDeliveredStatus((c as any).status)),
+    [filtered],
+  );
+
+  const archived = React.useMemo(
+    () => filtered.filter((c) => isDeliveredStatus((c as any).status)),
+    [filtered],
+  );
+
+  const computeFinancials = React.useCallback(
+    (c: ClientEntity) => (getFinancials ? getFinancials(c) : calculateFinancials(c)),
+    [getFinancials],
+  );
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="text-xl font-semibold">Clients</div>
+        <div className="flex-1" />
+        {onNewClient ? (
+          <button className="px-3 py-1 rounded-md border hover:bg-gray-50" onClick={onNewClient}>
+            New
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          className="w-full px-3 py-2 border rounded-md"
+          placeholder="Search: wechat / name / status / dates..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <div className="font-medium">Active</div>
+        <div className="space-y-1">
+          {active.map((c) => (
+            <ClientRow
+              key={(c as any).id ?? c.id}
+              client={c}
+              financials={computeFinancials(c)}
+              isActive={(c as any).id === activeClientId}
+              onSelect={() => onSelectClient?.(c)}
+              onDelete={(e) => {
+                e.stopPropagation();
+                void onDeleteClient?.(String((c as any).id ?? c.id), (c as any).wechatName);
+              }}
+            />
+          ))}
+          {active.length === 0 ? (
+            <div className="text-sm text-gray-500">No active clients.</div>
+          ) : null}
         </div>
-    );
-}
+      </div>
+
+      <div className="space-y-2">
+        <div className="font-medium">Archived</div>
+        <div className="space-y-1">
+          {archived.map((c) => (
+            <ClientRow
+              key={(c as any).id ?? c.id}
+              client={c}
+              financials={computeFinancials(c)}
+              isActive={(c as any).id === activeClientId}
+              onSelect={() => onSelectClient?.(c)}
+              onDelete={(e) => {
+                e.stopPropagation();
+                void onDeleteClient?.(String((c as any).id ?? c.id), (c as any).wechatName);
+              }}
+            />
+          ))}
+          {archived.length === 0 ? (
+            <div className="text-sm text-gray-500">No archived clients.</div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ClientHub;

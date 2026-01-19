@@ -26,11 +26,7 @@ function normalizeErr(e: any) {
         ? e.retriable
         : undefined;
 
-  const message =
-    e?.userMessage ??
-    e?.message ??
-    (typeof e === 'string' ? e : '') ??
-    '';
+  const message = e?.userMessage ?? e?.message ?? (typeof e === 'string' ? e : '') ?? '';
 
   const details = e?.details ?? e?.error?.details ?? undefined;
 
@@ -43,10 +39,10 @@ export function SyncStatusPill() {
   const snap = useSyncExternalStore(
     queue.subscribe,
     () => queue.getSnapshot(),
-    () => queue.getSnapshot()
+    () => queue.getSnapshot(),
   );
 
-  const busy = (snap.pendingCount + snap.inFlightCount) > 0;
+  const busy = snap.pendingCount + snap.inFlightCount > 0;
   const hasError = snap.errorCount > 0;
 
   const errorKeys = snap.keys.filter((k) => k.hasError);
@@ -66,12 +62,13 @@ export function SyncStatusPill() {
     const body = topErr.message ? `: ${topErr.message}` : '';
     return (head + body).slice(0, 240);
   })();
-
   const anyRetriable = errorKeys.some((k) => {
     const e: any = k.lastError as any;
     const v = typeof e?.retryable === 'boolean' ? e.retryable : e?.retriable;
     return v !== false; // default true
   });
+
+  const canRetry = hasError && !busy && anyRetriable;
 
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
@@ -136,14 +133,14 @@ export function SyncStatusPill() {
       <div className="fixed top-4 right-4 z-[999]">
         <div
           className={[
-            "flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm",
-            "text-[10px] font-black uppercase tracking-wider",
+            'flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm',
+            'text-[10px] font-black uppercase tracking-wider',
             hasError
-              ? "bg-red-50 border-red-200 text-red-700"
+              ? 'bg-red-50 border-red-200 text-red-700'
               : busy
-                ? "bg-slate-50 border-slate-200 text-slate-600"
-                : "bg-emerald-50 border-emerald-200 text-emerald-700"
-          ].join(" ")}
+                ? 'bg-slate-50 border-slate-200 text-slate-600'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-700',
+          ].join(' ')}
           title={hasError ? errorTitle : undefined}
         >
           {hasError ? (
@@ -151,17 +148,17 @@ export function SyncStatusPill() {
               <AlertTriangle size={14} />
               <span>Needs Sync</span>
 
-              {anyRetriable ? (
+              {canRetry ? (
                 <button
                   onClick={retryAll}
                   className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
-                  title="Retry pending saves"
+                  title="Apply pending changes"
                 >
-                  Retry
+                  Fix & retry
                 </button>
               ) : (
                 <span className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200">
-                  Fix & retry
+                  Fix inputs
                 </span>
               )}
 
@@ -221,7 +218,7 @@ export function SyncStatusPill() {
 
             <div className="p-4">
               <pre className="text-[11px] leading-5 bg-slate-50 border border-slate-200 rounded-xl p-3 overflow-auto max-h-[70vh]">
-{detailsText}
+                {detailsText}
               </pre>
             </div>
           </div>

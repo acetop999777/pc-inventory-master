@@ -1,5 +1,11 @@
 {
   "dependencies": {
     "recharts": "^3.6.0"
+  },
+  "scripts": {
+    "verify": "bash scripts/verify.sh",
+    "typecheck": "(cd client && npm run typecheck) && (cd server && npm run typecheck)",
+    "test:ci": "(cd client && npm run test:ci) && (cd server && npm run test)",
+    "build": "(cd client && CI=true npm run build) && (cd server && npm run build)"
   }
 }

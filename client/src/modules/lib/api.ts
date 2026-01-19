@@ -19,7 +19,10 @@ function withQuery(url: string, query?: ApiFetchInit['query']): string {
   return out.startsWith('http') ? u.toString() : out;
 }
 
-export async function apiFetch(input: RequestInfo | URL, init: ApiFetchInit = {}): Promise<Response> {
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init: ApiFetchInit = {},
+): Promise<Response> {
   let url = typeof input === 'string' ? input : input.toString();
   url = withQuery(url, init.query);
 

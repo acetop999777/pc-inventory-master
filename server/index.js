@@ -162,7 +162,33 @@ const initDB = async () => {
       );
     `);
 
-    await pool.query(`
+    
+  // Ensure chk_clients_money_nonneg matches current semantics:
+  // - total_price / actual_cost / paid_amount must be non-negative
+  // - profit can be negative (or NULL)
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'chk_clients_money_nonneg'
+          AND conrelid = 'clients'::regclass
+      ) THEN
+        ALTER TABLE clients DROP CONSTRAINT chk_clients_money_nonneg;
+      END IF;
+    END $$;
+  `);
+
+  await pool.query(`
+    ALTER TABLE clients
+    ADD CONSTRAINT chk_clients_money_nonneg CHECK (
+      total_price >= 0
+      AND actual_cost >= 0
+      AND paid_amount >= 0
+    );
+  `);
+
+await pool.query(`
       CREATE TABLE IF NOT EXISTS inventory (
         id TEXT PRIMARY KEY,
         category TEXT,

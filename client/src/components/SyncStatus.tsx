@@ -18,25 +18,14 @@ export default function SyncStatus() {
 
   // 兼容不同字段命名：status / state / syncStatus
   const rawStatus: string =
-    (sq?.status as string) ||
-    (sq?.state as string) ||
-    (sq?.syncStatus as string) ||
-    'idle';
+    (sq?.status as string) || (sq?.state as string) || (sq?.syncStatus as string) || 'idle';
 
   // 兼容不同错误字段命名
-  const lastError =
-    sq?.lastError ||
-    sq?.error ||
-    sq?.syncError ||
-    null;
+  const lastError = sq?.lastError || sq?.error || sq?.syncError || null;
 
   // 兼容不同重试方法命名：flush / retry / flushNow / retryNow
-  const retryFn: (() => Promise<any> | any) =
-    sq?.retry ||
-    sq?.flush ||
-    sq?.flushNow ||
-    sq?.retryNow ||
-    (() => {});
+  const retryFn: () => Promise<any> | any =
+    sq?.retry || sq?.flush || sq?.flushNow || sq?.retryNow || (() => {});
 
   const isDirty: boolean =
     Boolean(sq?.isDirty) ||
@@ -131,23 +120,13 @@ export default function SyncStatus() {
     lineHeight: 1,
   };
 
-  const bg =
-    view === 'error'
-      ? '#b42318'
-      : view === 'saved'
-      ? '#027a48'
-      : '#1d2939';
+  const bg = view === 'error' ? '#b42318' : view === 'saved' ? '#027a48' : '#1d2939';
 
-  const label =
-    view === 'error'
-      ? 'Sync failed'
-      : view === 'saved'
-      ? 'Saved'
-      : 'Saving…';
+  const label = view === 'error' ? 'Sync failed' : view === 'saved' ? 'Saved' : 'Saving…';
 
   const detail =
     view === 'error'
-      ? (lastError?.message || lastError?.error?.message || lastError?.toString?.() || '')
+      ? lastError?.message || lastError?.error?.message || lastError?.toString?.() || ''
       : '';
 
   async function onRetry() {
@@ -169,9 +148,7 @@ export default function SyncStatus() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ fontWeight: 700 }}>{label}</div>
           {view === 'error' && detail ? (
-            <div style={{ opacity: 0.9, fontSize: 12, maxWidth: 360 }}>
-              {detail}
-            </div>
+            <div style={{ opacity: 0.9, fontSize: 12, maxWidth: 360 }}>{detail}</div>
           ) : null}
         </div>
 

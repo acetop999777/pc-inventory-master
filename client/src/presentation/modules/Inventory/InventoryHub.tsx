@@ -86,7 +86,7 @@ export default function InventoryHub() {
   };
 
   const filtered = inventory.filter((i) =>
-    `${i.name} ${i.category} ${i.sku ?? ''}`.toLowerCase().includes(search.toLowerCase())
+    `${i.name} ${i.category} ${i.sku ?? ''}`.toLowerCase().includes(search.toLowerCase()),
   );
 
   const updateItem = (item: InventoryItem, fields: Partial<InventoryItem>) => {
@@ -176,7 +176,6 @@ export default function InventoryHub() {
               </button>
             </div>
 
-            
             <div className="col-span-2 text-right font-mono text-slate-600 font-bold">
               <div className="flex justify-end items-center gap-1">
                 <span className="text-slate-400">$</span>

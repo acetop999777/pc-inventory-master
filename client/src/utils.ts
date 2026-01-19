@@ -16,14 +16,24 @@ export const guessCategory = (name: string): string => {
   if (!name) return 'OTHER';
   const n = name.toLowerCase();
 
-  if (n.includes('cpu') || n.includes('ryzen') || n.includes('intel') || n.includes('processor')) return 'CPU';
-  if (n.includes('motherboard') || n.includes('b650') || n.includes('z790') || n.includes('x670')) return 'MB';
+  if (n.includes('cpu') || n.includes('ryzen') || n.includes('intel') || n.includes('processor'))
+    return 'CPU';
+  if (n.includes('motherboard') || n.includes('b650') || n.includes('z790') || n.includes('x670'))
+    return 'MB';
   if (n.includes('memory') || n.includes('ram') || n.includes('ddr5')) return 'RAM';
-  if (n.includes('video card') || n.includes('geforce') || n.includes('rtx') || n.includes('graphics card')) return 'GPU';
+  if (
+    n.includes('video card') ||
+    n.includes('geforce') ||
+    n.includes('rtx') ||
+    n.includes('graphics card')
+  )
+    return 'GPU';
   if (n.includes('ssd') || n.includes('nvme') || n.includes('m.2')) return 'SSD';
-  if (n.includes('cooler') || n.includes('liquid') || n.includes('aio') || n.includes('heatsink')) return 'COOLER';
+  if (n.includes('cooler') || n.includes('liquid') || n.includes('aio') || n.includes('heatsink'))
+    return 'COOLER';
   if (n.includes('supply') || n.includes('psu') || n.includes('modular')) return 'PSU';
-  if (n.includes('case') || n.includes('tower') || n.includes('chassis') || n.includes('o11')) return 'CASE';
+  if (n.includes('case') || n.includes('tower') || n.includes('chassis') || n.includes('o11'))
+    return 'CASE';
   if (n.includes('fan') || n.includes('uni fan')) return 'FAN';
   if (n.includes('monitor') || n.includes('display')) return 'MONITOR';
 
@@ -73,21 +83,28 @@ export type ErrorContract = {
   };
 };
 
-function extractErrorContract(body: unknown, headerRequestId?: string | null): ErrorContract['error'] | null {
+function extractErrorContract(
+  body: unknown,
+  headerRequestId?: string | null,
+): ErrorContract['error'] | null {
   const anyBody: any = body as any;
   const e = anyBody?.error;
   if (!e || typeof e !== 'object') return null;
 
   const code = typeof e.code === 'string' && e.code ? e.code : 'HTTP_ERROR';
   const message =
-    typeof e.message === 'string' && e.message ? e.message :
-    typeof anyBody?.message === 'string' ? anyBody.message :
-    'Request failed';
+    typeof e.message === 'string' && e.message
+      ? e.message
+      : typeof anyBody?.message === 'string'
+        ? anyBody.message
+        : 'Request failed';
 
   const requestId =
-    (typeof e.requestId === 'string' && e.requestId) ? e.requestId :
-    (typeof headerRequestId === 'string' && headerRequestId) ? headerRequestId :
-    undefined;
+    typeof e.requestId === 'string' && e.requestId
+      ? e.requestId
+      : typeof headerRequestId === 'string' && headerRequestId
+        ? headerRequestId
+        : undefined;
 
   const details = e.details;
   const retryable = typeof e.retryable === 'boolean' ? e.retryable : undefined;
@@ -95,7 +112,6 @@ function extractErrorContract(body: unknown, headerRequestId?: string | null): E
 
   return { code, message, details, retryable, retryAfterMs, requestId };
 }
-
 
 export class ApiCallError extends Error {
   url: string;
@@ -143,7 +159,7 @@ export class ApiCallError extends Error {
   constructor(a: any, b?: any, c?: any, d?: any) {
     const legacy = typeof a === 'string';
     const init = legacy
-      ? ({
+      ? {
           message: a as string,
           url: b as string,
           method: 'GET' as HttpMethod,
@@ -164,13 +180,15 @@ export class ApiCallError extends Error {
               : c
                 ? `Request failed (${c})`
                 : 'Request failed',
-        })
+        }
       : (a as any);
 
     const retryable =
       typeof init.retryable === 'boolean'
         ? init.retryable
-        : (typeof init.retriable === 'boolean' ? init.retriable : true);
+        : typeof init.retriable === 'boolean'
+          ? init.retriable
+          : true;
 
     super(init.message);
     this.name = 'ApiCallError';
@@ -228,9 +246,13 @@ function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body
   }
 
   const m =
-    (typeof err?.message === 'string' && err.message) ? err.message :
-    (typeof anyBody?.message === 'string' && anyBody.message) ? anyBody.message :
-    (typeof anyBody === 'string' ? anyBody : null);
+    typeof err?.message === 'string' && err.message
+      ? err.message
+      : typeof anyBody?.message === 'string' && anyBody.message
+        ? anyBody.message
+        : typeof anyBody === 'string'
+          ? anyBody
+          : null;
 
   if (m && typeof m === 'string') return m.slice(0, 240);
 
@@ -248,7 +270,7 @@ export async function apiCallOrThrow<T>(
   url: string,
   method: HttpMethod = 'GET',
   body: any = null,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {}
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
   const init: RequestInit = { method, headers: { Accept: 'application/json' } };
 
@@ -271,7 +293,6 @@ export async function apiCallOrThrow<T>(
   }
 
   try {
-    
     const res = await apiFetch(`${API_BASE}${url}`, init);
     const data = await parseResponseBody(res);
     const headerRid = res.headers.get('x-request-id');
@@ -302,7 +323,7 @@ export async function apiCallOrThrow<T>(
         userMessage: extractUserMessage('HTTP', status, data),
       });
     }
-return data as T;
+    return data as T;
   } catch (e: any) {
     if (e instanceof ApiCallError) throw e;
 
@@ -330,7 +351,7 @@ export async function apiCall<T>(
   url: string,
   method: HttpMethod = 'GET',
   body: any = null,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {}
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T | null> {
   try {
     return await apiCallOrThrow<T>(url, method, body, opts);
@@ -347,7 +368,9 @@ export async function apiCall<T>(
  * Expects server endpoint: GET /api/lookup/:code
  * Returns {name, category} or null.
  */
-export async function lookupBarcode(code: string): Promise<{ name: string; category: string } | null> {
+export async function lookupBarcode(
+  code: string,
+): Promise<{ name: string; category: string } | null> {
   const data: any = await apiCall(`/lookup/${encodeURIComponent(code)}`);
   if (data && Array.isArray(data.items) && data.items.length > 0) {
     const item = data.items[0];
@@ -371,7 +394,10 @@ function normalizeForMatch(s: string): string {
  * - Then substring name match
  * - Then token hits
  */
-export function findBestMatch(targetName: string, inventory: InventoryItem[]): InventoryItem | null {
+export function findBestMatch(
+  targetName: string,
+  inventory: InventoryItem[],
+): InventoryItem | null {
   if (!targetName) return null;
 
   const cleanTarget = normalizeForMatch(targetName);
@@ -420,3 +446,35 @@ export function findBestMatch(targetName: string, inventory: InventoryItem[]): I
 
   return bestScore > 20 ? best : null;
 }
+// --- date helpers ---
+export function formatDate(input?: string | Date | null): string {
+  if (!input) return '';
+  if (input instanceof Date) {
+    if (Number.isNaN(input.getTime())) return '';
+    return input.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+  }
+
+  const raw = String(input).trim();
+  if (!raw) return '';
+
+  // Handle date-only safely in local time to avoid TZ shift (YYYY-MM-DD)
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let d: Date;
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const da = Number(m[3]);
+    d = new Date(y, mo - 1, da);
+  } else {
+    d = new Date(raw);
+  }
+
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+}
+
+/**
+ * formatDate: UI-friendly date label
+ * - Accepts ISO string / Date / null
+ * - Returns '' when empty
+ */

@@ -1,105 +1,127 @@
-import React, { useRef } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
-
-import { ClientEntity } from '../../domain/client/client.types';
-import { InventoryItem } from '../../types';
-
+import React from 'react';
+import type { ClientDetailPageProps } from './types';
 import { IdentityCard, LogisticsCard, FinancialsCard, NotesCard, SpecsTable } from './editor';
 
-type Props = {
-  activeClient: ClientEntity;
-  inventory: InventoryItem[];
-  financials: any;
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result ?? ''));
+    r.onerror = () => reject(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
 
-  statusSteps: string[];
+export function ClientDetailPage({
+  activeClient,
+  inventory,
+  financials,
+  statusSteps,
+  onUpdateField,
+  onBack,
+}: ClientDetailPageProps) {
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
 
-  busy: boolean;
-  hasError: boolean;
-  flashSaved: boolean;
+  const onPhotoUpload = React.useCallback(() => {
+    fileRef.current?.click();
+  }, []);
 
-  onBack: () => void;
-  onRetry: () => void;
-  onUpdateField: (field: keyof ClientEntity, val: any) => void;
-};
+  const onPhotoRemove = React.useCallback(
+    (idx: number) => {
+      const prev = Array.isArray((activeClient as any).photos) ? (activeClient as any).photos : [];
+      const next = prev.filter((_: any, i: number) => i !== idx);
+      onUpdateField('photos' as any, next);
+    },
+    [activeClient, onUpdateField],
+  );
 
-export function ClientDetailPage(props: Props) {
-  const {
-    activeClient,
-    inventory,
-    financials,
-    statusSteps,
-    busy,
-    hasError,
-    flashSaved,
-    onBack,
-    onRetry,
-    onUpdateField,
-  } = props;
+  const onFileChange = React.useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
 
-  const fileRef = useRef<HTMLInputElement>(null);
+      const prev = Array.isArray((activeClient as any).photos) ? (activeClient as any).photos : [];
+      const picked = Array.from(files);
+
+      const encoded: string[] = [];
+      for (const f of picked) {
+        try {
+          if (!String(f.type || '').startsWith('image/')) continue;
+          const url = await readFileAsDataUrl(f);
+          if (url) encoded.push(url);
+        } catch {
+          // ignore single file failure
+        }
+      }
+
+      if (encoded.length > 0) {
+        onUpdateField('photos' as any, [...prev, ...encoded]);
+      }
+
+      e.target.value = '';
+    },
+    [activeClient, onUpdateField],
+  );
+
+  const title = (activeClient as any).wechatName || 'Client';
 
   return (
-    <div className="min-h-screen pb-40 animate-in slide-in-from-right duration-300">
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center sticky top-0 z-40">
-        <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-slate-50">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={onFileChange}
+      />
+
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Header: keep clean; global SyncStatusPill already exists */}
+        <div className="flex items-center justify-between mb-6">
           <button
             onClick={onBack}
-            className="text-slate-500 hover:text-slate-800 transition-colors"
-            title={busy ? 'Syncing before leaving…' : hasError ? 'Sync failed' : 'Back'}
+            className="h-9 px-3 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-black uppercase tracking-wider"
           >
-            <ChevronLeft size={20} />
+            Back
           </button>
-          <div className="h-6 w-px bg-slate-200"></div>
-          <span className="font-black text-lg text-slate-800">
-            {activeClient.wechatName || 'New Client'}
-          </span>
-        </div>
 
-        {(busy || hasError || flashSaved) && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            {hasError ? (
-              <>
-                <AlertTriangle size={12} className="text-amber-600" />
-                <span className="text-amber-700">Needs Sync</span>
-                <button
-                  onClick={onRetry}
-                  className="ml-2 px-2 py-1 rounded-full bg-white border border-amber-200 hover:bg-amber-50 text-amber-700"
-                  title="Retry"
-                >
-                  Retry
-                </button>
-              </>
-            ) : busy ? (
-              <>
-                <Loader2 size={12} className="animate-spin text-blue-500" />
-                <span>Syncing...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 size={12} className="text-emerald-500" />
-                <span className="text-emerald-700">Saved</span>
-              </>
-            )}
+          <div className="text-sm font-black text-slate-800 truncate max-w-[65%]" title={title}>
+            {title}
           </div>
-        )}
-      </div>
 
-      <div className="max-w-[1600px] mx-auto p-6 grid grid-cols-12 gap-6">
-        <div className="col-span-12 xl:col-span-4 space-y-6">
-          <IdentityCard
-            data={activeClient}
-            update={onUpdateField}
-            onPhotoUpload={() => fileRef.current?.click()}
-            onPhotoRemove={() => {}}
-          />
-          <LogisticsCard data={activeClient} update={onUpdateField} statusOptions={statusSteps} />
-          <NotesCard data={activeClient} update={onUpdateField} />
-          <input type="file" multiple hidden ref={fileRef} accept="image/*" onChange={() => {}} />
+          <div className="w-[44px]" />
         </div>
 
-        <div className="col-span-12 xl:col-span-8 space-y-6">
-          <FinancialsCard data={activeClient} financials={financials} update={onUpdateField} />
-          <SpecsTable data={activeClient} inventory={inventory} update={onUpdateField} onCalculate={() => {}} />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left */}
+          <div className="lg:col-span-5 space-y-6">
+            <IdentityCard
+              data={activeClient as any}
+              update={onUpdateField as any}
+              onPhotoUpload={onPhotoUpload}
+              onPhotoRemove={onPhotoRemove}
+            />
+            <LogisticsCard
+              data={activeClient as any}
+              update={onUpdateField as any}
+              statusOptions={statusSteps}
+            />
+            <NotesCard data={activeClient as any} update={onUpdateField as any} />
+          </div>
+
+          {/* Right */}
+          <div className="lg:col-span-7 space-y-6">
+            <FinancialsCard
+              data={activeClient as any}
+              update={onUpdateField as any}
+              financials={financials as any}
+            />
+            <SpecsTable
+              data={activeClient as any}
+              update={onUpdateField as any}
+              inventory={inventory as any}
+            />
+          </div>
         </div>
       </div>
     </div>

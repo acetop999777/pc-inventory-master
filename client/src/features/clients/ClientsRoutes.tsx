@@ -1,4 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+/* eslint-disable react-hooks/exhaustive-deps */
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ClientEntity } from '../../domain/client/client.types';
@@ -28,9 +37,11 @@ function DraftProvider({ children }: { children: React.ReactNode }) {
   const [drafts, setDrafts] = useState<Record<string, ClientEntity>>({});
 
   const getDraft = useCallback((id: string) => drafts[id] ?? null, [drafts]);
+
   const setDraft = useCallback((id: string, c: ClientEntity) => {
     setDrafts((prev) => ({ ...prev, [id]: c }));
   }, []);
+
   const clearDraft = useCallback((id: string) => {
     setDrafts((prev) => {
       if (!prev[id]) return prev;
@@ -40,20 +51,38 @@ function DraftProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ getDraft, setDraft, clearDraft }), [getDraft, setDraft, clearDraft]);
+  const value = useMemo(
+    () => ({ getDraft, setDraft, clearDraft }),
+    [getDraft, setDraft, clearDraft],
+  );
   return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 
 function useDraftStore() {
   const ctx = useContext(DraftContext);
-  if (!ctx) throw new Error('useDraftStore must be used within DraftProvider');
+  if (!ctx) throw new Error('useDraftStore must be used within ClientsDraftProvider');
   return ctx;
+}
+
+function isBlank(v: any) {
+  return String(v ?? '').trim().length === 0;
+}
+
+/**
+ * ✅ AppRouter 依赖这个 export：ClientsDraftProvider
+ * 用于在 routes 外层提供 draft store（只在内存，刷新/退出自动作废）。
+ */
+export function ClientsDraftProvider({ children }: { children: React.ReactNode }) {
+  return <DraftProvider>{children}</DraftProvider>;
 }
 
 export function ClientsListRoute() {
   const nav = useNavigate();
   const { data } = useClientsQuery();
-  const clients = data ?? [];
+
+  // keep deps stable (avoid memo warnings / churn)
+  const clients = useMemo(() => data ?? [], [data]);
+
   const { remove } = useClientWriteBehind();
   const { setDraft } = useDraftStore();
 
@@ -68,15 +97,15 @@ export function ClientsListRoute() {
     (c: ClientEntity) => {
       nav(`/clients/${c.id}`);
     },
-    [nav]
+    [nav],
   );
 
   const onDeleteClient = useCallback(
-    async (id: string, name: string) => {
-      if (!window.confirm(`Delete ${name}?`)) return;
+    async (id: string, name?: string) => {
+      if (!window.confirm(`Delete ${name ?? 'this client'}?`)) return;
       remove(id);
     },
-    [remove]
+    [remove],
   );
 
   return (
@@ -93,13 +122,12 @@ export function ClientDetailRoute() {
   const nav = useNavigate();
   const { id } = useParams();
   const clientId = String(id ?? '');
-  const activeKey = clientId ? `client:${clientId}` : null;
 
   const { data: clientsData } = useClientsQuery();
-  const clients = clientsData ?? [];
+  const clients = useMemo(() => clientsData ?? [], [clientsData]);
 
   const { data: invData } = useInventoryQuery();
-  const inventory = invData ?? [];
+  const inventory = useMemo(() => invData ?? [], [invData]);
 
   const { update: updateClient } = useClientWriteBehind();
   const { queue, snapshot } = useSaveQueue();
@@ -113,14 +141,23 @@ export function ClientDetailRoute() {
     return clients.find((c) => c.id === clientId) ?? null;
   }, [clients, clientId]);
 
-  const activeClient: ClientEntity | null = draft ?? fromCache;
+  // ✅ draft-only：未落库（clients query 里没有）
+  const isDraftOnly = Boolean(draft) && !fromCache;
 
-  // draft 一旦成功落库（进入 query cache），就清掉 draft
+  const activeClient: ClientEntity | null = (isDraftOnly ? draft : fromCache) ?? null;
+
+  // ✅ 离开 detail（任何方式）就丢弃未落库 draft（刷新/退出/跳转都会作废）
   useEffect(() => {
-    if (!clientId || !draft) return;
-    if (clients.some((c) => c.id === clientId)) clearDraft(clientId);
-  }, [clientId, clients, clearDraft, draft]);
+    if (!isDraftOnly || !clientId) return;
+    return () => {
+      clearDraft(clientId);
+    };
+  }, [isDraftOnly, clientId, clearDraft]);
 
+  // 只有落库后的 client 才有 SaveQueue key
+  const activeKey = !isDraftOnly && clientId ? `client:${clientId}` : null;
+
+  // 从 snapshot 找该 key 的状态
   const keyStatus = useMemo(() => {
     if (!activeKey) return null;
     return snapshot.keys.find((k) => k.key === activeKey) ?? null;
@@ -129,16 +166,17 @@ export function ClientDetailRoute() {
   const busy = Boolean(keyStatus?.pending || keyStatus?.inFlight);
   const hasError = Boolean(keyStatus?.hasError);
 
-  // busy->idle Saved flash
+  // busy->idle Saved flash（只对落库对象）
   const [flashSaved, setFlashSaved] = useState(false);
   const prevBusyRef = useRef(false);
   const tRef = useRef<any>(null);
 
   useEffect(() => {
+    if (!activeKey) return;
     const prev = prevBusyRef.current;
     prevBusyRef.current = busy;
 
-    if (activeKey && prev && !busy && !hasError) {
+    if (prev && !busy && !hasError) {
       setFlashSaved(true);
       if (tRef.current) clearTimeout(tRef.current);
       tRef.current = setTimeout(() => setFlashSaved(false), 900);
@@ -149,20 +187,40 @@ export function ClientDetailRoute() {
     if (!busy && !hasError) setFlashSaved(false);
   }, [busy, hasError, activeKey]);
 
+  /**
+   * ✅ 核心交互：
+   * - wechatName 为空：所有输入只写入 draft（内存），不触发保存、不触发 PCPP 顺序限制、不产生幽灵记录
+   * - wechatName 从空 -> 非空：把 draft 当前所有字段一次性 POST 落库
+   * - 落库后：恢复“随时填随时存”
+   */
   const onUpdateField = useCallback(
     (field: keyof ClientEntity, val: any) => {
       if (!clientId) return;
 
-      if (draft && draft.id === clientId) {
+      if (isDraftOnly && draft && draft.id === clientId) {
+        const prevWechat = draft.wechatName ?? '';
         const next: ClientEntity = { ...draft, [field]: val };
+
         setDraft(clientId, next);
-        updateClient(clientId, { [field]: val } as Partial<ClientEntity>, next);
+
+        // 只有第一次把 wechatName 从空变成非空，才触发“落库”
+        if (field === 'wechatName') {
+          const willCommit = isBlank(prevWechat) && !isBlank(val);
+          if (willCommit) {
+            updateClient(
+              clientId,
+              { wechatName: String(val ?? '') } as Partial<ClientEntity>,
+              next,
+            );
+          }
+        }
         return;
       }
 
+      // 已落库：正常 write-behind
       updateClient(clientId, { [field]: val } as Partial<ClientEntity>);
     },
-    [clientId, draft, setDraft, updateClient]
+    [clientId, isDraftOnly, draft, setDraft, updateClient],
   );
 
   const retry = useCallback(async () => {
@@ -183,21 +241,27 @@ export function ClientDetailRoute() {
   }, [activeKey, queue]);
 
   useEffect(() => {
-    // 进入 detail 时注册 guard，离开时取消
+    // draft-only：不需要 guard（离开就丢弃 draft）
+    if (!activeKey) {
+      guard.setGuard(null);
+      return;
+    }
     guard.setGuard(guardFn);
     return () => guard.setGuard(null);
-  }, [guard, guardFn]);
+  }, [guard, guardFn, activeKey]);
 
   const onBack = useCallback(() => {
-    void guard.run(
-      () => nav('/clients'),
-      () => {
-        // 若 draft 没成功落库，允许离开时才丢弃（不产生幽灵记录）
-        if (clientId && draft && !clients.some((c) => c.id === clientId)) clearDraft(clientId);
-      }
-    );
-  }, [guard, nav, clientId, draft, clients, clearDraft]);
-if (!activeClient) return <div className="p-10">Loading...</div>;
+    // draft-only：直接丢弃并返回
+    if (isDraftOnly) {
+      if (clientId) clearDraft(clientId);
+      nav('/clients');
+      return;
+    }
+
+    void guard.run(() => nav('/clients'));
+  }, [isDraftOnly, clientId, clearDraft, nav, guard]);
+
+  if (!activeClient) return <div className="p-10">Loading...</div>;
 
   const financials = calculateFinancials(activeClient);
 
@@ -207,9 +271,9 @@ if (!activeClient) return <div className="p-10">Loading...</div>;
       inventory={inventory}
       financials={financials}
       statusSteps={[...STATUS_STEPS]}
-      busy={busy}
-      hasError={hasError}
-      flashSaved={flashSaved}
+      busy={isDraftOnly ? false : busy}
+      hasError={isDraftOnly ? false : hasError}
+      flashSaved={isDraftOnly ? false : flashSaved}
       onRetry={() => void retry()}
       onUpdateField={onUpdateField}
       onBack={onBack}
@@ -217,16 +281,16 @@ if (!activeClient) return <div className="p-10">Loading...</div>;
   );
 }
 
+/**
+ * AppLegacy routes controlled elsewhere; keep wrapper only.
+ */
 export function ClientsRoutes() {
   return (
-    <DraftProvider>
-      {/* list/detail 由 AppLegacy 的 Routes 控制 */}
+    <ClientsDraftProvider>
       <div />
-    </DraftProvider>
+    </ClientsDraftProvider>
   );
 }
 
-// 供 AppLegacy 复用同一个 DraftProvider
-export function ClientsDraftProvider({ children }: { children: React.ReactNode }) {
-  return <DraftProvider>{children}</DraftProvider>;
-}
+// test-only escape hatch
+export const __getDraftStoreForTests = () => useDraftStore;

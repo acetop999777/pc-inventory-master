@@ -41,21 +41,16 @@ export function StockAdjustModal(props: {
   const qty = clampInt(Number(qtyInput));
   const unitCost = Number(unitCostInput);
 
-  const previewQty =
-    mode === 'add'
-      ? currentQty + qty
-      : Math.max(0, currentQty - qty);
+  const previewQty = mode === 'add' ? currentQty + qty : Math.max(0, currentQty - qty);
 
   const previewAvg =
     mode === 'add'
-      ? (previewQty > 0
-          ? ((currentQty * currentAvg) + (qty * (Number.isFinite(unitCost) ? unitCost : 0))) / previewQty
-          : 0)
+      ? previewQty > 0
+        ? (currentQty * currentAvg + qty * (Number.isFinite(unitCost) ? unitCost : 0)) / previewQty
+        : 0
       : currentAvg; // remove doesn't change WAC
 
-  const canApply =
-    qty > 0 &&
-    (mode === 'remove' || (Number.isFinite(unitCost) && unitCost >= 0));
+  const canApply = qty > 0 && (mode === 'remove' || (Number.isFinite(unitCost) && unitCost >= 0));
 
   const apply = () => {
     if (!canApply) return;
@@ -66,10 +61,7 @@ export function StockAdjustModal(props: {
   return (
     <div className="fixed inset-0 z-[999]">
       {/* overlay */}
-      <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* dialog */}
       <div className="absolute inset-0 flex items-center justify-center p-4">
@@ -94,21 +86,33 @@ export function StockAdjustModal(props: {
             {/* left: form */}
             <div className="col-span-12 md:col-span-7 space-y-5">
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current</div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Current
+                </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div className="bg-white border border-slate-200 rounded-xl p-3">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quantity</div>
-                    <div className="mt-1 font-mono text-lg font-black text-slate-800">{currentQty}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Quantity
+                    </div>
+                    <div className="mt-1 font-mono text-lg font-black text-slate-800">
+                      {currentQty}
+                    </div>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-3">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">WAC Avg Cost</div>
-                    <div className="mt-1 font-mono text-lg font-black text-slate-800">${round2(currentAvg)}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      WAC Avg Cost
+                    </div>
+                    <div className="mt-1 font-mono text-lg font-black text-slate-800">
+                      ${round2(currentAvg)}
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Action</div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Action
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMode('add')}
@@ -144,9 +148,7 @@ export function StockAdjustModal(props: {
                     onChange={(e) => setQtyInput(e.target.value)}
                     inputMode="numeric"
                   />
-                  <div className="text-[11px] text-slate-400">
-                    Integer ≥ 1
-                  </div>
+                  <div className="text-[11px] text-slate-400">Integer ≥ 1</div>
                 </div>
 
                 <div className="space-y-2">
@@ -174,17 +176,27 @@ export function StockAdjustModal(props: {
             {/* right: preview */}
             <div className="col-span-12 md:col-span-5">
               <div className="bg-white border border-slate-200 rounded-2xl p-4 sticky top-6">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Preview</div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Preview
+                </div>
 
                 <div className="mt-3 space-y-3">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">New Quantity</div>
-                    <div className="mt-1 font-mono text-xl font-black text-slate-800">{previewQty}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      New Quantity
+                    </div>
+                    <div className="mt-1 font-mono text-xl font-black text-slate-800">
+                      {previewQty}
+                    </div>
                   </div>
 
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">New WAC Avg Cost</div>
-                    <div className="mt-1 font-mono text-xl font-black text-slate-800">${round2(previewAvg)}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      New WAC Avg Cost
+                    </div>
+                    <div className="mt-1 font-mono text-xl font-black text-slate-800">
+                      ${round2(previewAvg)}
+                    </div>
                     <div className="mt-2 text-[11px] text-slate-400">
                       {mode === 'remove'
                         ? 'Removing stock keeps WAC unchanged.'
