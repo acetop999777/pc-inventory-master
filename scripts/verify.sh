@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# detect CI
 IS_CI=0
 if [ "${GITHUB_ACTIONS:-}" = "true" ] || [ "${CI:-}" = "true" ]; then
   IS_CI=1
 fi
 
-# knobs
 SKIP_DOCKER="${SKIP_DOCKER:-0}"
 SKIP_SMOKE="${SKIP_SMOKE:-0}"
 SMOKE_MAX_SECONDS="${SMOKE_MAX_SECONDS:-240}"

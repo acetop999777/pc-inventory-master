@@ -36,7 +36,7 @@ done
 head_json() {
   local url="$1"
   echo "[smoke] GET ${url} (head)"
-  # use range to avoid SIGPIPE/curl(23)
+  # 用 range 避免 curl|head 触发 SIGPIPE -> curl(23)
   curl -fsS --max-time 10 --range 0-299 "${url}" || true
   echo
 }
