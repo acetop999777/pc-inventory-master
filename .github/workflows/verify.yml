@@ -2,26 +2,22 @@ name: verify
 
 on:
   pull_request:
-    branches: [ main ]
   push:
     branches: [ main ]
-
-permissions:
-  contents: read
 
 concurrency:
   group: verify-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   verify:
-    name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Use Node
         uses: actions/setup-node@v4
@@ -35,6 +31,5 @@ jobs:
       - name: Verify (single source of truth)
         env:
           CI: "true"
-          DOCKER_BUILDKIT: "1"
-          COMPOSE_DOCKER_CLI_BUILD: "1"
+          SMOKE_TIMEOUT_SEC: "180"
         run: bash scripts/verify.sh
