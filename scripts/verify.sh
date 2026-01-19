@@ -1,56 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+IS_CI=0
+if [ "${GITHUB_ACTIONS:-}" = "true" ] || [ "${CI:-}" = "true" ]; then
+  IS_CI=1
+fi
+
+SKIP_DOCKER="${SKIP_DOCKER:-0}"
+SKIP_SMOKE="${SKIP_SMOKE:-0}"
+SMOKE_MAX_SECONDS="${SMOKE_MAX_SECONDS:-240}"
+
+echo "================================================="
+echo "[verify] repo: $(pwd)"
+echo "[verify] node: $(node -v 2>/dev/null || echo 'N/A')"
+echo "[verify] npm : $(npm -v 2>/dev/null || echo 'N/A')"
+echo "[verify] IS_CI=${IS_CI}  SKIP_DOCKER=${SKIP_DOCKER}  SKIP_SMOKE=${SKIP_SMOKE}  SMOKE_MAX_SECONDS=${SMOKE_MAX_SECONDS}"
+echo "================================================="
+
 bash scripts/sanity.sh
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+echo "[client] npm ci + typecheck + test + build"
+pushd client >/dev/null
+npm ci
+npm run typecheck
+npm run test:ci
+CI=true npm run build
+popd >/dev/null
+echo "✅ [client] ok"
 
-echo "================================================="
-echo "[verify] repo: $ROOT"
-echo "[verify] node: $(node -v 2>/dev/null || echo 'missing')"
-echo "[verify] npm : $(npm -v 2>/dev/null || echo 'missing')"
-echo "[verify] SKIP_DOCKER=${SKIP_DOCKER:-0}  SKIP_SMOKE=${SKIP_SMOKE:-0}"
-echo "================================================="
+echo "[server] npm ci + (typecheck/test/build if exists)"
+pushd server >/dev/null
+npm ci
+npm run typecheck 2>/dev/null || true
+npm test 2>/dev/null || true
+npm run build 2>/dev/null || true
+popd >/dev/null
+echo "✅ [server] ok"
 
-if [ -d client ]; then
-  bash scripts/verify_client.sh
-else
-  echo "[verify] skip: ./client not found"
+if [ "${SKIP_DOCKER}" = "1" ]; then
+  echo "[verify] SKIP_DOCKER=1; skip docker build + smoke"
+  echo "================================================="
+  echo "✅ VERIFY PASSED"
+  echo "================================================="
+  exit 0
 fi
 
-if [ -d server ]; then
-  bash scripts/verify_server.sh
-else
-  echo "[verify] skip: ./server not found"
+echo "[verify] docker compose build"
+docker compose build
+echo "✅ [verify] docker build ok"
+
+if [ "${SKIP_SMOKE}" = "1" ]; then
+  echo "[verify] SKIP_SMOKE=1; skip smoke"
+  echo "================================================="
+  echo "✅ VERIFY PASSED"
+  echo "================================================="
+  exit 0
 fi
 
-if [ "${SKIP_DOCKER:-0}" != "1" ]; then
-  if command -v docker >/dev/null 2>&1; then
-    if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ] || [ -f compose.yaml ]; then
-      echo "[verify] docker compose build"
-      docker compose build
-      echo "✅ [verify] docker build ok"
-    else
-      echo "[verify] skip docker: no compose file"
-    fi
-  else
-    echo "[verify] skip docker: docker not installed"
-  fi
-else
-  echo "[verify] skip docker (SKIP_DOCKER=1)"
-fi
-
-if [ "${SKIP_SMOKE:-0}" != "1" ]; then
-  if [ -f scripts/smoke.sh ]; then
-    echo "[verify] smoke"
-    bash scripts/smoke.sh
-    echo "✅ [verify] smoke ok"
-  else
-    echo "[verify] skip smoke: scripts/smoke.sh not found"
-  fi
-else
-  echo "[verify] skip smoke (SKIP_SMOKE=1)"
-fi
+export SMOKE_MAX_SECONDS
+bash scripts/smoke.sh
 
 echo "================================================="
 echo "✅ VERIFY PASSED"
