@@ -4,7 +4,11 @@ import type { ClientRowProps } from '../../../../features/clients/types';
 function money(n: any): string {
   const v = Number(n ?? 0);
   if (!Number.isFinite(v)) return '$0';
-  return v.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  return v.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
 }
 
 export const ClientRow: React.FC<ClientRowProps> = ({
@@ -32,7 +36,10 @@ export const ClientRow: React.FC<ClientRowProps> = ({
     >
       <div className="min-w-0">
         <div className="font-medium truncate">
-          {(client as any).wechatName || (client as any).realName || (client as any).wechatId || client.id}
+          {(client as any).wechatName ||
+            (client as any).realName ||
+            (client as any).wechatId ||
+            client.id}
         </div>
         <div className="text-xs text-gray-500 truncate">
           {(client as any).realName ? `Real: ${(client as any).realName}` : ''}

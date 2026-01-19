@@ -28,7 +28,12 @@ function tryParseJson(text: string): any | null {
   }
 }
 
-function toApiError(status: number, payload: any, fallbackText: string, statusText: string): ApiError {
+function toApiError(
+  status: number,
+  payload: any,
+  fallbackText: string,
+  statusText: string,
+): ApiError {
   const p = payload as Partial<ApiErrorPayload> | null;
   const code = p?.error?.code || `HTTP_${status}`;
   const message =
@@ -84,7 +89,7 @@ async function requestRaw(input: RequestInfo, init?: RequestInit): Promise<Fetch
       // 成功但不是 JSON：让调用者自己决定怎么处理
       // 这里返回 text，避免很多旧代码直接 await res.json() 崩掉
       //（如果你强制所有成功返回都是 JSON，可以改成 throw new Error）
-      return (cachedText as any) as T;
+      return cachedText as any as T;
     },
   };
 }

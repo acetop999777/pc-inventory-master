@@ -1,0 +1,224 @@
+import React, { act } from 'react';
+import type { ClientEntity } from '../../../domain/client/client.types';
+import { createRoot } from 'react-dom/client';
+import { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } from '../ClientsRoutes';
+
+/* eslint-disable testing-library/no-unnecessary-act */
+
+// 让 React 知道我们在测试环境里（消除 “not configured to support act” 警告）
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+let mockClientsData: ClientEntity[] = [];
+let mockAutoCreateDraft = true;
+let mockLastDetailProps: any = null;
+
+const mockNavigate = jest.fn();
+const mockUpdateClient = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+  useParams: () => ({ id: 'draft1' }),
+}));
+
+jest.mock('../../../utils', () => {
+  const actual = jest.requireActual('../../../utils');
+  return {
+    ...actual,
+    generateId: () => 'draft1',
+  };
+});
+
+jest.mock('../../../app/queries/clients', () => ({
+  useClientsQuery: () => ({ data: mockClientsData }),
+}));
+
+jest.mock('../../../app/queries/inventory', () => ({
+  useInventoryQuery: () => ({ data: [] }),
+}));
+
+jest.mock('../../../app/writeBehind/clientWriteBehind', () => ({
+  useClientWriteBehind: () => ({
+    update: mockUpdateClient,
+    remove: jest.fn(),
+  }),
+}));
+
+const mockQueue = {
+  flushKey: jest.fn(async () => undefined),
+  getSnapshot: () => ({ keys: [] as any[] }),
+};
+
+jest.mock('../../../app/saveQueue/SaveQueueProvider', () => ({
+  useSaveQueue: () => ({ queue: mockQueue, snapshot: { keys: [] as any[] } }),
+}));
+
+const mockGuard = {
+  setGuard: jest.fn(),
+  run: (fn: any) => fn(),
+};
+
+jest.mock('../../../app/navigation/NavigationGuard', () => ({
+  useNavigationGuard: () => mockGuard,
+}));
+
+jest.mock('../ClientDetailPage', () => {
+  const React = require('react');
+  return {
+    ClientDetailPage: (props: any) => {
+      mockLastDetailProps = props;
+      return React.createElement('div', { 'data-testid': 'detail' });
+    },
+  };
+});
+
+jest.mock('../ClientsListPage', () => {
+  const React = require('react');
+  return {
+    ClientsListPage: (props: any) => {
+      const { onNewClient } = props;
+      React.useEffect(() => {
+        if (mockAutoCreateDraft) onNewClient();
+      }, [onNewClient]);
+      return React.createElement('div', { 'data-testid': 'list' });
+    },
+  };
+});
+
+
+function makeClient(id: string, overrides: Partial<ClientEntity> = {}): ClientEntity {
+  return {
+    id,
+    wechatName: '',
+    wechatId: '',
+    realName: '',
+    xhsName: '',
+    xhsId: '',
+    orderDate: '',
+    deliveryDate: '',
+    isShipping: false,
+    tracking: '',
+    status: 'Pending' as any,
+    specs: {},
+    pcppLink: '',
+    notes: '',
+    ...(overrides as any),
+  } as ClientEntity;
+}
+
+const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+
+async function renderApp(ui: React.ReactElement) {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(ui);
+    await flush(); // 让 useEffect / state 更新先跑一轮
+  });
+
+  return {
+    tick: async () => {
+      await act(async () => {
+        await flush();
+      });
+    },
+    unmount: async () => {
+      await act(async () => {
+        root.unmount();
+        await flush();
+      });
+      container.remove();
+    },
+  };
+}
+
+describe('Clients draft-only commit behavior', () => {
+  beforeEach(() => {
+    mockClientsData = [];
+    mockAutoCreateDraft = true;
+    mockLastDetailProps = null;
+
+    mockNavigate.mockReset();
+    mockUpdateClient.mockReset();
+    mockQueue.flushKey.mockClear();
+    mockGuard.setGuard.mockClear();
+  });
+
+  test('draft-only: wechatName blank -> updates stay in draft, no updateClient call', async () => {
+    const utils = await renderApp(
+      <ClientsDraftProvider>
+        <ClientsListRoute />
+        <ClientDetailRoute />
+      </ClientsDraftProvider>
+    );
+
+    expect(mockLastDetailProps).toBeTruthy();
+
+    await act(async () => {
+      mockLastDetailProps.onUpdateField('realName', 'Alice');
+      await flush();
+    });
+
+    expect(mockUpdateClient).not.toHaveBeenCalled();
+
+    await utils.unmount();
+  });
+
+  test('draft-only: wechatName blank -> nonblank triggers commit once with full draft snapshot', async () => {
+    const utils = await renderApp(
+      <ClientsDraftProvider>
+        <ClientsListRoute />
+        <ClientDetailRoute />
+      </ClientsDraftProvider>
+    );
+
+    expect(mockLastDetailProps).toBeTruthy();
+
+    // 关键：分两次 act + flush，让 draft state 先真正写入 realName
+    await act(async () => {
+      mockLastDetailProps.onUpdateField('realName', 'Alice');
+      await flush();
+    });
+
+    await act(async () => {
+      mockLastDetailProps.onUpdateField('wechatName', '张三');
+      await flush();
+    });
+
+    expect(mockUpdateClient).toHaveBeenCalledTimes(1);
+
+    const [id, partial, full] = mockUpdateClient.mock.calls[0];
+    expect(id).toBe('draft1');
+    expect(partial).toEqual({ wechatName: '张三' });
+    expect(full).toBeTruthy();
+    expect(full.wechatName).toBe('张三');
+    expect(full.realName).toBe('Alice');
+
+    await utils.unmount();
+  });
+
+  test('persisted client: field update calls updateClient with partial', async () => {
+    mockAutoCreateDraft = false;
+    mockClientsData = [makeClient('draft1', { wechatName: '已落库' })];
+
+    const utils = await renderApp(
+      <ClientsDraftProvider>
+        <ClientDetailRoute />
+      </ClientsDraftProvider>
+    );
+
+    expect(mockLastDetailProps).toBeTruthy();
+
+    await act(async () => {
+      mockLastDetailProps.onUpdateField('realName', 'Bob');
+      await flush();
+    });
+
+    expect(mockUpdateClient).toHaveBeenCalledTimes(1);
+    expect(mockUpdateClient.mock.calls[0][0]).toBe('draft1');
+    expect(mockUpdateClient.mock.calls[0][1]).toEqual({ realName: 'Bob' });
+
+    await utils.unmount();
+  });
+});

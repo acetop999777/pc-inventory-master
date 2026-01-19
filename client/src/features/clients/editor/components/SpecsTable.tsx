@@ -95,11 +95,9 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
   const rawSpecs = (data as any)?.specs;
 
   const specsObj: Record<string, SpecRow> = useMemo(() => {
-
     const s: any = rawSpecs;
 
     return s && typeof s === 'object' ? s : {};
-
   }, [rawSpecs]);
   const shipRequired = Boolean((data as any).isShipping);
   const pcppLink = String((data as any).pcppLink || '').trim();
@@ -215,7 +213,12 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
     const next = {
       ...specsObj,
-      [cat]: { ...cur, name: (item as any).name, sku: (item as any).sku || '', cost: Number((item as any).cost || 0) },
+      [cat]: {
+        ...cur,
+        name: (item as any).name,
+        sku: (item as any).sku || '',
+        cost: Number((item as any).cost || 0),
+      },
     };
     update('specs' as keyof ClientEntity, next as any);
     setActiveDrop(null);
@@ -233,10 +236,15 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     }
   };
 
-  const headerPlaceholder = pcppLink ? 'Re-paste to update link/specs' : 'Paste PCPartPicker list to auto-fill...';
+  const headerPlaceholder = pcppLink
+    ? 'Re-paste to update link/specs'
+    : 'Paste PCPartPicker list to auto-fill...';
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden" onClick={() => setActiveDrop(null)}>
+    <div
+      className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+      onClick={() => setActiveDrop(null)}
+    >
       <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">
@@ -265,7 +273,11 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                 className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100"
                 title={copied ? 'Copied' : 'Copy link'}
               >
-                {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} className="text-slate-500" />}
+                {copied ? (
+                  <Check size={16} className="text-emerald-600" />
+                ) : (
+                  <Copy size={16} className="text-slate-500" />
+                )}
               </button>
             </div>
           ) : null}
@@ -290,22 +302,32 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
           const suggestions =
             dropdownOpen && !isShippingRow
               ? inventory
-                  .filter((i) => String((i as any).name || '').toLowerCase().includes(nameVal.toLowerCase()))
+                  .filter((i) =>
+                    String((i as any).name || '')
+                      .toLowerCase()
+                      .includes(nameVal.toLowerCase()),
+                  )
                   .slice(0, 5)
               : [];
 
           const rawCostNum = typeof spec.cost === 'number' ? spec.cost : Number(spec.cost || 0);
           const draft = costDraft[cat];
-          const costStr = draft !== undefined ? draft : String(Number.isFinite(rawCostNum) ? rawCostNum : 0);
+          const costStr =
+            draft !== undefined ? draft : String(Number.isFinite(rawCostNum) ? rawCostNum : 0);
 
           const trackingUrl = isShippingRow ? upsUrlFromText(nameVal) : null;
 
           return (
-            <div key={cat} className="grid grid-cols-12 gap-4 px-5 py-3 hover:bg-slate-50/50 items-center text-sm">
+            <div
+              key={cat}
+              className="grid grid-cols-12 gap-4 px-5 py-3 hover:bg-slate-50/50 items-center text-sm"
+            >
               <div className="col-span-2 text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                 {cat}
                 {Number(spec.qty || 1) > 1 ? (
-                  <span className="bg-slate-200 text-slate-600 px-1.5 rounded text-[9px]">x{spec.qty}</span>
+                  <span className="bg-slate-200 text-slate-600 px-1.5 rounded text-[9px]">
+                    x{spec.qty}
+                  </span>
                 ) : null}
               </div>
 
@@ -341,8 +363,12 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                         className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between"
                         onMouseDown={() => selectInventoryItem(cat, s)}
                       >
-                        <span className="font-bold text-slate-700 truncate">{String((s as any).name || '')}</span>
-                        <span className="font-mono text-slate-400">${Number((s as any).cost || 0)}</span>
+                        <span className="font-bold text-slate-700 truncate">
+                          {String((s as any).name || '')}
+                        </span>
+                        <span className="font-mono text-slate-400">
+                          ${Number((s as any).cost || 0)}
+                        </span>
                       </div>
                     ))}
                   </div>

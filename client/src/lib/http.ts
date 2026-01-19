@@ -1,11 +1,9 @@
 import { apiFetch, type ApiFetchInit } from './api';
 
 export const http = {
-  get: (url: string, init: ApiFetchInit = {}) =>
-    apiFetch(url, { ...init, method: 'GET' }),
+  get: (url: string, init: ApiFetchInit = {}) => apiFetch(url, { ...init, method: 'GET' }),
 
-  del: (url: string, init: ApiFetchInit = {}) =>
-    apiFetch(url, { ...init, method: 'DELETE' }),
+  del: (url: string, init: ApiFetchInit = {}) => apiFetch(url, { ...init, method: 'DELETE' }),
 
   post: (url: string, json?: any, init: ApiFetchInit = {}) =>
     apiFetch(url, { ...init, method: 'POST', json }),

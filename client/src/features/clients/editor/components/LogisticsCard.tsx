@@ -38,14 +38,16 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
           >
             <div
               className={[
-                "w-4 h-4 rounded-full border-2 transition-all",
-                i <= currentIndex ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300 group-hover:border-blue-300",
+                'w-4 h-4 rounded-full border-2 transition-all',
+                i <= currentIndex
+                  ? 'bg-blue-600 border-blue-600'
+                  : 'bg-white border-slate-300 group-hover:border-blue-300',
               ].join(' ')}
             />
             <span
               className={[
-                "text-[8px] font-bold uppercase transition-colors",
-                (data as any).status === s ? "text-blue-600" : "text-slate-300",
+                'text-[8px] font-bold uppercase transition-colors',
+                (data as any).status === s ? 'text-blue-600' : 'text-slate-300',
               ].join(' ')}
             >
               {String(s).split(' ')[0]}
@@ -65,7 +67,9 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
           <CompactInput
             type="date"
             label="Delivery Date"
-            value={(data as any).deliveryDate ? String((data as any).deliveryDate).split('T')[0] : ''}
+            value={
+              (data as any).deliveryDate ? String((data as any).deliveryDate).split('T')[0] : ''
+            }
             onChange={(e) => update('deliveryDate' as keyof ClientEntity, e.target.value)}
           />
         </div>
@@ -98,9 +102,16 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
         </div>
 
         <div className="pt-4 border-t border-slate-50">
-          <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => update('isShipping' as keyof ClientEntity, !(data as any).isShipping)}>
-            <div className={`w-9 h-5 rounded-full p-0.5 transition-colors ${(data as any).isShipping ? 'bg-blue-600' : 'bg-slate-200'}`}>
-              <div className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${(data as any).isShipping ? 'translate-x-4' : ''}`} />
+          <div
+            className="flex items-center gap-2 mb-3 cursor-pointer"
+            onClick={() => update('isShipping' as keyof ClientEntity, !(data as any).isShipping)}
+          >
+            <div
+              className={`w-9 h-5 rounded-full p-0.5 transition-colors ${(data as any).isShipping ? 'bg-blue-600' : 'bg-slate-200'}`}
+            >
+              <div
+                className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${(data as any).isShipping ? 'translate-x-4' : ''}`}
+              />
             </div>
             <span className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
               <Truck size={12} /> Shipping Required

@@ -1,0 +1,84 @@
+{
+  "name": "pc-inv-client",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.16",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.119",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "lucide-react": "^0.471.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "react-scripts": "5.0.1",
+    "recharts": "^2.15.4",
+    "typescript": "^4.9.5",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:ci": "react-scripts test --watchAll=false --passWithNoTests",
+    "verify": "npm run typecheck && npm run test:ci && npm run build"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.0"
+  }
+}
+
+{
+  "scripts": {
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --max-warnings=0"
+  },
+  "eslintConfig": {
+    "extends": ["react-app", "react-app/jest", "prettier"],
+    "rules": {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "error",
+
+      "@typescript-eslint/no-unused-vars": ["error", {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }],
+
+      "no-debugger": "error",
+      "eqeqeq": "error",
+      "prefer-const": "error"
+    },
+    "overrides": [
+      {
+        "files": ["**/*.test.*", "**/__tests__/**"],
+        "rules": {
+          "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
+        }
+      }
+    ]
+  }
+}

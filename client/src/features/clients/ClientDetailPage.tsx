@@ -31,7 +31,7 @@ export function ClientDetailPage({
       const next = prev.filter((_: any, i: number) => i !== idx);
       onUpdateField('photos' as any, next);
     },
-    [activeClient, onUpdateField]
+    [activeClient, onUpdateField],
   );
 
   const onFileChange = React.useCallback(
@@ -59,7 +59,7 @@ export function ClientDetailPage({
 
       e.target.value = '';
     },
-    [activeClient, onUpdateField]
+    [activeClient, onUpdateField],
   );
 
   const title = (activeClient as any).wechatName || 'Client';

@@ -6,7 +6,9 @@ import type { ClientHubProps } from '../../../features/clients/types';
 import { ClientRow } from './components/ClientRow';
 
 function isDeliveredStatus(status: any): boolean {
-  const s = String(status ?? '').trim().toLowerCase();
+  const s = String(status ?? '')
+    .trim()
+    .toLowerCase();
   return s === 'delivered' || s === 'done' || s === 'completed';
 }
 
@@ -46,17 +48,17 @@ export const ClientHub: React.FC<ClientHubProps> = ({
 
   const active = React.useMemo(
     () => filtered.filter((c) => !isDeliveredStatus((c as any).status)),
-    [filtered]
+    [filtered],
   );
 
   const archived = React.useMemo(
     () => filtered.filter((c) => isDeliveredStatus((c as any).status)),
-    [filtered]
+    [filtered],
   );
 
   const computeFinancials = React.useCallback(
     (c: ClientEntity) => (getFinancials ? getFinancials(c) : calculateFinancials(c)),
-    [getFinancials]
+    [getFinancials],
   );
 
   return (
@@ -65,10 +67,7 @@ export const ClientHub: React.FC<ClientHubProps> = ({
         <div className="text-xl font-semibold">Clients</div>
         <div className="flex-1" />
         {onNewClient ? (
-          <button
-            className="px-3 py-1 rounded-md border hover:bg-gray-50"
-            onClick={onNewClient}
-          >
+          <button className="px-3 py-1 rounded-md border hover:bg-gray-50" onClick={onNewClient}>
             New
           </button>
         ) : null}

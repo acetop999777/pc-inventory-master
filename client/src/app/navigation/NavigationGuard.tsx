@@ -105,7 +105,9 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
 
   const value = useMemo(() => ({ setGuard, run }), [setGuard, run]);
 
-  return <NavigationGuardContext.Provider value={value}>{children}</NavigationGuardContext.Provider>;
+  return (
+    <NavigationGuardContext.Provider value={value}>{children}</NavigationGuardContext.Provider>
+  );
 }
 
 export function useNavigationGuard() {

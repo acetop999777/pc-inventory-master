@@ -13,7 +13,9 @@ export function SaveQueueProvider({ children }: { children: React.ReactNode }) {
   const queue = useMemo(() => new SaveQueue(), []);
   const snapshot = useSyncExternalStore(queue.subscribe, () => queue.getSnapshot());
 
-  return <SaveQueueContext.Provider value={{ queue, snapshot }}>{children}</SaveQueueContext.Provider>;
+  return (
+    <SaveQueueContext.Provider value={{ queue, snapshot }}>{children}</SaveQueueContext.Provider>
+  );
 }
 
 export function useSaveQueue() {

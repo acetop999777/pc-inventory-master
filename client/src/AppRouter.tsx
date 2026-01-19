@@ -7,7 +7,11 @@ import InventoryHub from './presentation/modules/Inventory/InventoryHub';
 import InboundHub from './presentation/modules/Inbound/InboundHub';
 
 import { NavigationGuardProvider, useNavigationGuard } from './app/navigation/NavigationGuard';
-import { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } from './features/clients/ClientsRoutes';
+import {
+  ClientsDraftProvider,
+  ClientsListRoute,
+  ClientDetailRoute,
+} from './features/clients/ClientsRoutes';
 
 function viewFromPath(pathname: string): 'clients' | 'inventory' | 'inbound' | 'dashboard' {
   if (pathname.startsWith('/inventory')) return 'inventory';

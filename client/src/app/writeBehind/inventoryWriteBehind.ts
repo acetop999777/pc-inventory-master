@@ -4,9 +4,7 @@ import { InventoryItem } from '../../types';
 import { inventoryQueryKey, normalizeInventoryRow } from '../queries/inventory';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 
-type InventoryWrite =
-  | { op: 'patch'; fields: Partial<InventoryItem> }
-  | { op: 'delete' };
+type InventoryWrite = { op: 'patch'; fields: Partial<InventoryItem> } | { op: 'delete' };
 
 function mergeInventoryWrite(a: InventoryWrite, b: InventoryWrite): InventoryWrite {
   if (a.op === 'delete' || b.op === 'delete') return { op: 'delete' };
@@ -27,12 +25,14 @@ export function useInventoryWriteBehind() {
   const applyOptimistic = (id: string, fields: Partial<InventoryItem>) => {
     const nextFields = coerceFields(fields);
     qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
-      old.map((it) => (it.id === id ? { ...it, ...nextFields, lastUpdated: Date.now() } : it))
+      old.map((it) => (it.id === id ? { ...it, ...nextFields, lastUpdated: Date.now() } : it)),
     );
   };
 
   const removeOptimistic = (id: string) => {
-    qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) => old.filter((it) => it.id !== id));
+    qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
+      old.filter((it) => it.id !== id),
+    );
   };
 
   const update = (id: string, fields: Partial<InventoryItem>) => {
@@ -52,7 +52,7 @@ export function useInventoryWriteBehind() {
         const normalized = normalizeInventoryRow(updatedRow);
 
         qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
-          old.map((it) => (it.id === id ? { ...it, ...normalized } : it))
+          old.map((it) => (it.id === id ? { ...it, ...normalized } : it)),
         );
       },
       debounceMs: 500,

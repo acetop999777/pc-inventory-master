@@ -1,5 +1,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ClientEntity } from '../../domain/client/client.types';
@@ -43,7 +51,10 @@ function DraftProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ getDraft, setDraft, clearDraft }), [getDraft, setDraft, clearDraft]);
+  const value = useMemo(
+    () => ({ getDraft, setDraft, clearDraft }),
+    [getDraft, setDraft, clearDraft],
+  );
   return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 
@@ -86,7 +97,7 @@ export function ClientsListRoute() {
     (c: ClientEntity) => {
       nav(`/clients/${c.id}`);
     },
-    [nav]
+    [nav],
   );
 
   const onDeleteClient = useCallback(
@@ -94,7 +105,7 @@ export function ClientsListRoute() {
       if (!window.confirm(`Delete ${name ?? 'this client'}?`)) return;
       remove(id);
     },
-    [remove]
+    [remove],
   );
 
   return (
@@ -196,7 +207,11 @@ export function ClientDetailRoute() {
         if (field === 'wechatName') {
           const willCommit = isBlank(prevWechat) && !isBlank(val);
           if (willCommit) {
-            updateClient(clientId, { wechatName: String(val ?? '') } as Partial<ClientEntity>, next);
+            updateClient(
+              clientId,
+              { wechatName: String(val ?? '') } as Partial<ClientEntity>,
+              next,
+            );
           }
         }
         return;
@@ -205,7 +220,7 @@ export function ClientDetailRoute() {
       // 已落库：正常 write-behind
       updateClient(clientId, { [field]: val } as Partial<ClientEntity>);
     },
-    [clientId, isDraftOnly, draft, setDraft, updateClient]
+    [clientId, isDraftOnly, draft, setDraft, updateClient],
   );
 
   const retry = useCallback(async () => {
@@ -276,3 +291,6 @@ export function ClientsRoutes() {
     </ClientsDraftProvider>
   );
 }
+
+// test-only escape hatch
+export const __getDraftStoreForTests = () => useDraftStore;

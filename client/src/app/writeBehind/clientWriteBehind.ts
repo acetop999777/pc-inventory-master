@@ -5,9 +5,7 @@ import { calculateFinancials } from '../../domain/client/client.logic';
 import { clientsQueryKey } from '../queries/clients';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 
-type ClientWrite =
-  | { op: 'patch'; fields: Partial<ClientEntity> }
-  | { op: 'delete' };
+type ClientWrite = { op: 'patch'; fields: Partial<ClientEntity> } | { op: 'delete' };
 
 function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
   if (a.op === 'delete' || b.op === 'delete') return { op: 'delete' };
@@ -16,7 +14,10 @@ function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
 
 function coerceFields(fields: Partial<ClientEntity>): Partial<ClientEntity> {
   const f: any = { ...fields };
-  const toMoney = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const toMoney = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
   if (Object.prototype.hasOwnProperty.call(f, 'totalPrice')) f.totalPrice = toMoney(f.totalPrice);
   if (Object.prototype.hasOwnProperty.call(f, 'paidAmount')) f.paidAmount = toMoney(f.paidAmount);
   if (Object.prototype.hasOwnProperty.call(f, 'rating')) f.rating = Number(f.rating ?? 0);

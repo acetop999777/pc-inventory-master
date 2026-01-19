@@ -20,8 +20,12 @@ function parseMoneyOrNull(raw: string): number | null {
 }
 
 export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) => {
-  const [totalText, setTotalText] = React.useState<string>(data.totalPrice == null ? '' : String(data.totalPrice));
-  const [paidText, setPaidText] = React.useState<string>(data.paidAmount == null ? '' : String(data.paidAmount));
+  const [totalText, setTotalText] = React.useState<string>(
+    data.totalPrice == null ? '' : String(data.totalPrice),
+  );
+  const [paidText, setPaidText] = React.useState<string>(
+    data.paidAmount == null ? '' : String(data.paidAmount),
+  );
 
   const focusRef = React.useRef<'total' | 'paid' | null>(null);
 

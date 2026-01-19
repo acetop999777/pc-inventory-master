@@ -2,7 +2,6 @@ import React from 'react';
 import type { ClientsListPageProps, ClientsListPageExtraProps } from './types';
 import ClientHub from '../../presentation/modules/ClientHub/ClientHub';
 
-
 type Props = ClientsListPageProps & ClientsListPageExtraProps;
 
 export function ClientsListPage({

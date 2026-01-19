@@ -286,7 +286,8 @@ export class SaveQueue {
     await Promise.race([work.then(() => undefined), timer]);
 
     const snap = this.getSnapshot();
-    const ok = !timedOut && snap.pendingCount === 0 && snap.inFlightCount === 0 && snap.errorCount === 0;
+    const ok =
+      !timedOut && snap.pendingCount === 0 && snap.inFlightCount === 0 && snap.errorCount === 0;
     return { ok };
   }
 
