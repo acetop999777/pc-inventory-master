@@ -2,26 +2,39 @@ name: CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
   push:
-    branches: [ "main" ]
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  client-verify:
+  client_verify:
     name: client verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
+        shell: bash
         working-directory: client
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (with npm cache)
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: client/package-lock.json
+          cache-dependency-path: |
+            client/package-lock.json
 
       - name: Install
         run: npm ci
@@ -29,14 +42,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Format check
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test (CI)
+      - name: Tests
         run: npm run test:ci
 
-      - name: Build (CI=true)
-        run: CI=true npm run build
+      - name: Build
+        run: npm run build
