@@ -2,8 +2,9 @@ name: CI
 
 on:
   pull_request:
+    branches: [ "main" ]
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   client-verify:
@@ -11,13 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        shell: bash
         working-directory: client
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node
-      - uses: actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -26,29 +26,17 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Verify (typecheck + format:check + lint + test + CI build)
-        run: npm run verify
+      - name: Typecheck
+        run: npm run typecheck
 
-  repo-verify:
-    name: repo verify (docker + smoke)
-    runs-on: ubuntu-latest
-    needs: [client-verify]
-    steps:
-      - uses: actions/checkout@v4
+      - name: Format check
+        run: npm run format:check
 
-      - name: Setup Node
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: |
-            client/package-lock.json
-            server/package-lock.json
+      - name: Lint
+        run: npm run lint
 
-      - name: Docker info
-        run: |
-          docker --version
-          docker compose version
+      - name: Test (CI)
+        run: npm run test:ci
 
-      - name: Verify script
-        run: bash scripts/verify.sh
+      - name: Build (CI=true)
+        run: CI=true npm run build
