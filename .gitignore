@@ -1,13 +1,14 @@
-.env
-.env.*
-node_modules/
-client/node_modules/
-server/node_modules/
+.env*
+**/.env*
+
+**/node_modules/
 client/build/
 build/
 dist/
+
 *.log
 .DS_Store
+
 db-data/
 pgdata/
 postgres-data/
@@ -15,26 +16,16 @@ uploads/
 tmp/
 .cache/
 coverage/
+
 backups/
-*.bak
-full_project_code.txt
-*.patch
-refactor_phase1.patch
-n
-~/
+.bak/
+
+*.bak*
+*.broken*
 *.orig
 *.rej
-server/.env
-client/.env
 
-# local backups
-/backups/
+*.patch
 
-# local backups
-backups/
-
-# local env
-.env
-
-# backups (keep out of git)
-backups/
+# local helper binaries/scripts
+n
