@@ -1,6 +1,7 @@
 import React, { act } from 'react';
 import type { ClientEntity } from '../../../domain/client/client.types';
 import { createRoot } from 'react-dom/client';
+import { ConfirmProvider } from '../../../app/confirm/ConfirmProvider';
 const { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } = require('../ClientsRoutes');
 
 /* eslint-disable testing-library/no-unnecessary-act */
@@ -146,10 +147,12 @@ describe('Clients draft-only commit behavior', () => {
 
   test('draft-only: wechatName blank -> updates stay in draft, no updateClient call', async () => {
     const utils = await renderApp(
-      <ClientsDraftProvider>
-        <ClientsListRoute />
-        <ClientDetailRoute />
-      </ClientsDraftProvider>,
+      <ConfirmProvider>
+        <ClientsDraftProvider>
+          <ClientsListRoute />
+          <ClientDetailRoute />
+        </ClientsDraftProvider>
+      </ConfirmProvider>,
     );
 
     expect(mockLastDetailProps).toBeTruthy();
@@ -166,10 +169,12 @@ describe('Clients draft-only commit behavior', () => {
 
   test('draft-only: wechatName blank -> nonblank triggers commit once with full draft snapshot', async () => {
     const utils = await renderApp(
-      <ClientsDraftProvider>
-        <ClientsListRoute />
-        <ClientDetailRoute />
-      </ClientsDraftProvider>,
+      <ConfirmProvider>
+        <ClientsDraftProvider>
+          <ClientsListRoute />
+          <ClientDetailRoute />
+        </ClientsDraftProvider>
+      </ConfirmProvider>,
     );
 
     expect(mockLastDetailProps).toBeTruthy();
@@ -202,9 +207,11 @@ describe('Clients draft-only commit behavior', () => {
     mockClientsData = [makeClient('draft1', { wechatName: '已落库' })];
 
     const utils = await renderApp(
-      <ClientsDraftProvider>
-        <ClientDetailRoute />
-      </ClientsDraftProvider>,
+      <ConfirmProvider>
+        <ClientsDraftProvider>
+          <ClientDetailRoute />
+        </ClientsDraftProvider>
+      </ConfirmProvider>,
     );
 
     expect(mockLastDetailProps).toBeTruthy();

@@ -150,6 +150,10 @@ export function ClientDetailRoute() {
 
   const { getDraft, setDraft, clearDraft } = useDraftStore();
   const draft = clientId ? getDraft(clientId) : null;
+  const draftRef = useRef<ClientEntity | null>(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   const fromCache = useMemo(() => {
     if (!clientId) return null;
@@ -221,45 +225,41 @@ export function ClientDetailRoute() {
     (field: keyof ClientEntity, val: any) => {
       if (!clientId) return;
 
-      if (draft && draft.id === clientId) {
-        let willCommit = false;
-        let willRealtime = false;
-        let nextSnapshot: ClientEntity | null = null;
+      const curDraft = draftRef.current;
+      if (curDraft && curDraft.id === clientId) {
+        const prevWechat = curDraft.wechatName ?? '';
+        const next: ClientEntity = { ...curDraft, [field]: val };
+        const prevHasWechat = !isBlank(prevWechat);
+        const nextHasWechat = !isBlank(next.wechatName);
 
-        setDraft(clientId, (prev) => {
-          const base = prev ?? draft;
-          const prevWechat = base?.wechatName ?? '';
-          const next: ClientEntity = { ...(base as ClientEntity), [field]: val };
-          const prevHasWechat = !isBlank(prevWechat);
-          const nextHasWechat = !isBlank(next.wechatName);
+        // keep ref in sync for rapid consecutive updates (e.g. paste -> sets specs then link)
+        draftRef.current = next;
+        setDraft(clientId, next);
 
-          willCommit = !prevHasWechat && nextHasWechat && field === 'wechatName';
-          willRealtime = prevHasWechat && nextHasWechat;
-          nextSnapshot = next;
-          return next;
-        });
-
-        if (willCommit && nextSnapshot) {
+        // first time wechatName becomes non-blank -> commit full draft snapshot
+        if (!prevHasWechat && nextHasWechat && field === 'wechatName') {
           updateClient(
             clientId,
             { wechatName: String(val ?? '') } as Partial<ClientEntity>,
-            nextSnapshot,
+            next,
           );
           return;
         }
 
-        if (willRealtime && nextSnapshot) {
-          updateClient(clientId, { [field]: val } as Partial<ClientEntity>, nextSnapshot);
+        // after wechatName exists, keep real-time writes (even if cache hasn't refreshed yet)
+        if (nextHasWechat) {
+          updateClient(clientId, { [field]: val } as Partial<ClientEntity>, next);
           return;
         }
 
+        // still draft-only while wechatName empty
         if (isDraftOnly) return;
       }
 
       // 已落库：正常 write-behind
       updateClient(clientId, { [field]: val } as Partial<ClientEntity>);
     },
-    [clientId, isDraftOnly, draft, setDraft, updateClient],
+    [clientId, isDraftOnly, setDraft, updateClient],
   );
 
   const retry = useCallback(async () => {
