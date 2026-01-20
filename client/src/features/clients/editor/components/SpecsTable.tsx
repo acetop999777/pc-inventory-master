@@ -3,6 +3,7 @@ import { Cpu, ExternalLink, Copy, Check } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import { InventoryItem } from '../../../../types';
 import { CORE_CATS } from '../../../../utils';
+import { parsePcppText } from '../pcpp';
 
 interface Props {
   data: ClientEntity;
@@ -20,11 +21,6 @@ type SpecRow = {
 
 const SHIPPING_KEY = 'SHIPPING';
 
-function extractPCPPLink(text: string): string {
-  const m = text.match(/https?:\/\/pcpartpicker\.com\/list\/\S+/i);
-  return m ? m[0] : '';
-}
-
 function upsUrlFromText(text: string): string | null {
   if (!text) return null;
   const raw = text.trim();
@@ -40,49 +36,6 @@ function upsUrlFromText(text: string): string | null {
   }
 
   return null;
-}
-
-function normTokens(s: string): string[] {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function findBestMatch(namePart: string, inventory: InventoryItem[]): InventoryItem | null {
-  const q = String(namePart || '').trim();
-  if (!q) return null;
-
-  const qTokens = new Set(normTokens(q));
-  const qLower = q.toLowerCase();
-
-  let best: { item: InventoryItem; score: number } | null = null;
-
-  for (const it of inventory) {
-    const n = String((it as any).name || '');
-    if (!n) continue;
-    const nLower = n.toLowerCase();
-
-    // fast path
-    let score = 0;
-    if (nLower === qLower) score += 100;
-    if (nLower.includes(qLower) || qLower.includes(nLower)) score += 25;
-
-    const tks = normTokens(n);
-    for (const t of tks) if (qTokens.has(t)) score += 2;
-
-    // small bonus if SKU matches tokens
-    const sku = String((it as any).sku || '').toLowerCase();
-    if (sku && qLower.includes(sku)) score += 6;
-
-    if (!best || score > best.score) best = { item: it, score };
-  }
-
-  // require some minimal confidence to avoid garbage matches
-  if (!best || best.score < 6) return null;
-  return best.item;
 }
 
 export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalculate }) => {
@@ -130,75 +83,14 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
 
   const parsePCPP = (text: string) => {
     if (!text) return;
+    const parsed = parsePcppText(text, inventory);
+    if (!parsed) return;
 
-    const initSpecs: Record<string, SpecRow> = {};
-    for (const c of CORE_CATS) initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 };
-
-    // merge existing specs so we don't wipe manual edits
-    const newSpecs: Record<string, SpecRow> = { ...initSpecs, ...(specsObj || {}) };
-
-    const map: Record<string, string> = {
-      CPU: 'CPU',
-      'CPU Cooler': 'COOLER',
-      Motherboard: 'MB',
-      Memory: 'RAM',
-      Storage: 'SSD',
-      'Video Card': 'GPU',
-      Case: 'CASE',
-      'Power Supply': 'PSU',
-      'Case Fan': 'FAN',
-      Monitor: 'MONITOR',
-      'Operating System': 'OTHER',
-    };
-
-    const lines = text.split('\n');
-    const link = extractPCPPLink(text);
-
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line || line.startsWith('Custom:')) continue;
-
-      for (const [pcppLabel, internalCat] of Object.entries(map)) {
-        if (!line.startsWith(pcppLabel + ':')) continue;
-
-        const content = line.substring(pcppLabel.length + 1).trim();
-        const namePart = content.split('($')[0].trim();
-
-        const dbMatch = findBestMatch(namePart, inventory);
-        const costToUse = dbMatch ? Number((dbMatch as any).cost || 0) : 0;
-
-        let targetKey = internalCat;
-        let counter = 2;
-
-        while (newSpecs[targetKey] && newSpecs[targetKey].name) {
-          if (newSpecs[targetKey].name === (dbMatch ? (dbMatch as any).name : namePart)) break;
-          targetKey = `${internalCat} ${counter}`;
-          counter++;
-        }
-
-        const existing = newSpecs[targetKey] || { name: '', sku: '', cost: 0, qty: 0 };
-
-        if (existing.name) {
-          newSpecs[targetKey] = {
-            ...existing,
-            cost: Number(existing.cost || 0) + costToUse,
-            qty: (Number(existing.qty || 1) || 1) + 1,
-          };
-        } else {
-          newSpecs[targetKey] = {
-            name: dbMatch ? String((dbMatch as any).name || namePart) : namePart,
-            sku: dbMatch ? String((dbMatch as any).sku || '') : '',
-            cost: costToUse,
-            qty: 1,
-          };
-        }
-
-        break;
-      }
-    }
+    const newSpecs: Record<string, SpecRow> = { ...parsed.specs };
+    if (specsObj?.[SHIPPING_KEY]) newSpecs[SHIPPING_KEY] = specsObj[SHIPPING_KEY];
 
     update('specs' as keyof ClientEntity, newSpecs as any);
-    if (link) update('pcppLink' as keyof ClientEntity, link);
+    if (parsed.link) update('pcppLink' as keyof ClientEntity, parsed.link);
     onCalculate?.();
   };
 

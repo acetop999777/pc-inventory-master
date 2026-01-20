@@ -1,27 +1,20 @@
 import React from 'react';
-import type { ClientsListPageProps, ClientsListPageExtraProps } from './types';
+import type { ClientsListPageExtraProps, ClientsListPageProps } from './types';
 import ClientHub from '../../presentation/modules/ClientHub/ClientHub';
 
 type Props = ClientsListPageProps & ClientsListPageExtraProps;
 
-export function ClientsListPage({
-  clients,
-  activeClientId,
-  getFinancials,
-  onSelectClient,
-  onNewClient,
-  onDeleteClient,
-}: Props) {
+const noop = () => {};
+
+export function ClientsListPage({ clients, onSelectClient, onNewClient, onDeleteClient }: Props) {
   return (
-    <div className="w-full">
-      <ClientHub
-        clients={clients}
-        activeClientId={activeClientId}
-        getFinancials={getFinancials}
-        onSelectClient={onSelectClient}
-        onNewClient={onNewClient}
-        onDeleteClient={onDeleteClient}
-      />
-    </div>
+    <ClientHub
+      clients={clients}
+      onSelectClient={onSelectClient ?? noop}
+      onNewClient={onNewClient ?? noop}
+      onDeleteClient={(id, name) => onDeleteClient?.(id, name)}
+    />
   );
 }
+
+export default ClientsListPage;

@@ -4,6 +4,7 @@ import { InlineEdit } from '../components/Shared';
 import { ALL_CATS, formatMoney, apiCall } from '../utils';
 import { AppData, InventoryItem, AuditLog } from '../types';
 import { apiFetch } from './lib/api';
+import { useConfirm } from '../app/confirm/ConfirmProvider';
 
 interface Props {
   data: AppData;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function StockVault({ data, refresh, notify, log: _log }: Props) {
+  const confirmDialog = useConfirm();
   const [cat, setCat] = useState('All');
 
   // --- Add Stock Modal State ---
@@ -42,7 +44,13 @@ export default function StockVault({ data, refresh, notify, log: _log }: Props) 
 
   const handleQuickMinus = async (item: InventoryItem) => {
     if (item.quantity <= 0) return;
-    if (window.confirm(`Decrease stock of ${item.name} by 1?`)) {
+    const ok = await confirmDialog({
+      title: 'Decrease Stock',
+      message: `Decrease stock of ${item.name} by 1?`,
+      confirmText: 'Decrease',
+      cancelText: 'Cancel',
+    });
+    if (ok) {
       const newQty = item.quantity - 1;
       await apiCall('/inventory/batch', 'POST', [{ ...item, quantity: newQty }]);
       refresh();
@@ -69,7 +77,14 @@ export default function StockVault({ data, refresh, notify, log: _log }: Props) 
   };
 
   const deleteItem = async (item: InventoryItem) => {
-    if (window.confirm(`Permanently delete ${item.name}?`)) {
+    const ok = await confirmDialog({
+      title: 'Delete Item',
+      message: `Permanently delete ${item.name}?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      tone: 'danger',
+    });
+    if (ok) {
       await apiCall(`/inventory/${item.id}`, 'DELETE');
       notify('Item Deleted');
       refresh();

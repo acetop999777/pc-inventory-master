@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Minus, Plus, Search, Trash2 } from 'lucide-react';
 import { ALL_CATS } from '../../../utils';
 import { InventoryItem } from '../../../types';
 import { useInventoryQuery } from '../../../app/queries/inventory';
 import { useInventoryWriteBehind } from '../../../app/writeBehind/inventoryWriteBehind';
+import { useConfirm } from '../../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 
 type InlineEditorProps = {
@@ -71,9 +72,11 @@ const InlineEditor = ({ value, onChange, type = 'text' }: InlineEditorProps) => 
 
 export default function InventoryHub() {
   const { data } = useInventoryQuery();
-  const inventory: InventoryItem[] = data ?? [];
+  const inventory: InventoryItem[] = useMemo(() => data ?? [], [data]);
   const { update, remove } = useInventoryWriteBehind();
+  const confirmDialog = useConfirm();
   const [search, setSearch] = useState('');
+  const [activeCat, setActiveCat] = useState('ALL');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalItem, setModalItem] = useState<InventoryItem | null>(null);
@@ -85,9 +88,29 @@ export default function InventoryHub() {
     setModalOpen(true);
   };
 
-  const filtered = inventory.filter((i) =>
-    `${i.name} ${i.category} ${i.sku ?? ''}`.toLowerCase().includes(search.toLowerCase()),
+  const filtered = useMemo(() => {
+    const base =
+      activeCat === 'ALL' ? inventory : inventory.filter((i) => i.category === activeCat);
+    const q = search.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter((i) =>
+      `${i.name} ${i.category} ${i.sku ?? ''}`.toLowerCase().includes(q),
+    );
+  }, [inventory, search, activeCat]);
+
+  const totalValue = useMemo(
+    () =>
+      filtered.reduce(
+        (sum, i) => sum + Number(i.cost ?? 0) * Number(i.quantity ?? 0),
+        0,
+      ),
+    [filtered],
   );
+
+  const formatMoney = (n: number) =>
+    n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+  const catTabs = ['ALL', ...ALL_CATS];
 
   const updateItem = (item: InventoryItem, fields: Partial<InventoryItem>) => {
     update(item.id, fields);
@@ -106,15 +129,44 @@ export default function InventoryHub() {
         }}
       />
 
-      <div className="flex gap-4 mb-6 items-center">
-        <div className="flex-1 bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-2 shadow-sm">
-          <Search size={16} className="ml-2 text-slate-400" />
-          <input
-            className="w-full text-xs font-bold outline-none"
-            placeholder="Search components..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-wrap items-center gap-2">
+          {catTabs.map((c) => {
+            const active = activeCat === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setActiveCat(c)}
+                className={[
+                  'px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition',
+                  active
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50',
+                ].join(' ')}
+              >
+                {c}
+              </button>
+            );
+          })}
+
+          <div className="ml-auto text-[11px] font-black uppercase tracking-widest text-slate-400">
+            {activeCat === 'ALL' ? 'All inventory value' : `${activeCat} value`}
+            <span className="mx-2 text-slate-300">•</span>
+            <span className="text-slate-700">{formatMoney(totalValue)}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-4 items-center">
+          <div className="flex-1 bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-2 shadow-sm">
+            <Search size={16} className="ml-2 text-slate-400" />
+            <input
+              className="w-full text-xs font-bold outline-none"
+              placeholder="Search components..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -192,7 +244,16 @@ export default function InventoryHub() {
             <div className="col-span-1 flex justify-end">
               <button
                 onClick={() => {
-                  if (window.confirm('Delete?')) remove(i.id);
+                  void (async () => {
+                    const ok = await confirmDialog({
+                      title: 'Delete Item',
+                      message: `Delete ${i.name}?`,
+                      confirmText: 'Delete',
+                      cancelText: 'Cancel',
+                      tone: 'danger',
+                    });
+                    if (ok) remove(i.id);
+                  })();
                 }}
                 className="text-slate-200 hover:text-red-400"
                 title="Delete"

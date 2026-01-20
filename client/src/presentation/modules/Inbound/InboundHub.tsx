@@ -6,9 +6,12 @@ import { StagedItem, processScan, parseNeweggText } from '../../../domain/invent
 import { InventoryItem } from '../../../types';
 import { apiCallOrThrow } from '../../../utils';
 import { useInventoryQuery, inventoryQueryKey } from '../../../app/queries/inventory';
+import { useAlert, useConfirm } from '../../../app/confirm/ConfirmProvider';
 
 export default function InboundHub() {
   const qc = useQueryClient();
+  const confirmDialog = useConfirm();
+  const alert = useAlert();
   const { data } = useInventoryQuery();
   const inventory: InventoryItem[] = data ?? [];
 
@@ -27,11 +30,17 @@ export default function InboundHub() {
   const handleParse = (text: string) => {
     const res = parseNeweggText(text, inventory);
     if (res.items.length > 0) setBatch((prev) => [...res.items, ...prev]);
-    else alert('No items found or parse error');
+    else void alert({ title: 'Parse Failed', message: 'No items found or parse error.' });
   };
 
   const handleCommit = async () => {
-    if (!window.confirm(`Commit ${batch.length} items to inventory?`)) return;
+    const ok = await confirmDialog({
+      title: 'Commit Batch',
+      message: `Commit ${batch.length} items to inventory?`,
+      confirmText: 'Commit',
+      cancelText: 'Cancel',
+    });
+    if (!ok) return;
 
     const payloadMap = new Map<string, InventoryItem>();
 
@@ -71,11 +80,11 @@ export default function InboundHub() {
     try {
       await apiCallOrThrow('/inventory/batch', 'POST', Array.from(payloadMap.values()));
       setBatch([]);
-      alert('Inventory Updated Successfully!');
+      await alert({ title: 'Done', message: 'Inventory updated successfully.' });
       await qc.invalidateQueries({ queryKey: inventoryQueryKey });
     } catch (e) {
       console.error(e);
-      alert('Failed to commit batch');
+      await alert({ title: 'Error', message: 'Failed to commit batch.' });
     }
   };
 

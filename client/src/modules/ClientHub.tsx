@@ -10,6 +10,7 @@ import {
 } from '../utils';
 import { AppData, Client } from '../types';
 import ClientEditor from './ClientEditor';
+import { useConfirm } from '../app/confirm/ConfirmProvider';
 
 interface Props {
   data: AppData;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function ClientHub({ data, refresh, notify, log: _log }: Props) {
+  const confirmDialog = useConfirm();
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [active, setActive] = useState<Client | null>(null);
   const [search, setSearch] = useState('');
@@ -82,7 +84,14 @@ export default function ClientHub({ data, refresh, notify, log: _log }: Props) {
 
   const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to DELETE client: ${name}?`)) return;
+    const ok = await confirmDialog({
+      title: 'Delete Client',
+      message: `Are you sure you want to delete: ${name}?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await apiCallOrThrow(`/clients/${id}`, 'DELETE');
       notify('Client deleted');

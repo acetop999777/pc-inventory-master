@@ -19,15 +19,17 @@ import { useInventoryQuery } from '../../app/queries/inventory';
 import { useClientWriteBehind } from '../../app/writeBehind/clientWriteBehind';
 import { useSaveQueue } from '../../app/saveQueue/SaveQueueProvider';
 import { useNavigationGuard } from '../../app/navigation/NavigationGuard';
+import { useConfirm } from '../../app/confirm/ConfirmProvider';
 
 import { ClientsListPage } from './ClientsListPage';
 import { ClientDetailPage } from './ClientDetailPage';
 
 const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'] as const;
 
+type DraftSetter = ClientEntity | ((prev: ClientEntity | null) => ClientEntity);
 type DraftCtx = {
   getDraft: (id: string) => ClientEntity | null;
-  setDraft: (id: string, c: ClientEntity) => void;
+  setDraft: (id: string, c: DraftSetter) => void;
   clearDraft: (id: string) => void;
 };
 
@@ -38,8 +40,12 @@ function DraftProvider({ children }: { children: React.ReactNode }) {
 
   const getDraft = useCallback((id: string) => drafts[id] ?? null, [drafts]);
 
-  const setDraft = useCallback((id: string, c: ClientEntity) => {
-    setDrafts((prev) => ({ ...prev, [id]: c }));
+  const setDraft = useCallback((id: string, next: DraftSetter) => {
+    setDrafts((prev) => {
+      const current = prev[id] ?? null;
+      const resolved = typeof next === 'function' ? (next as any)(current) : next;
+      return { ...prev, [id]: resolved };
+    });
   }, []);
 
   const clearDraft = useCallback((id: string) => {
@@ -79,6 +85,7 @@ export function ClientsDraftProvider({ children }: { children: React.ReactNode }
 export function ClientsListRoute() {
   const nav = useNavigate();
   const { data } = useClientsQuery();
+  const confirmDialog = useConfirm();
 
   // keep deps stable (avoid memo warnings / churn)
   const clients = useMemo(() => data ?? [], [data]);
@@ -102,10 +109,17 @@ export function ClientsListRoute() {
 
   const onDeleteClient = useCallback(
     async (id: string, name?: string) => {
-      if (!window.confirm(`Delete ${name ?? 'this client'}?`)) return;
+      const ok = await confirmDialog({
+        title: 'Delete Client',
+        message: `Delete ${name ?? 'this client'}?`,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        tone: 'danger',
+      });
+      if (!ok) return;
       remove(id);
     },
-    [remove],
+    [remove, confirmDialog],
   );
 
   return (
@@ -122,6 +136,7 @@ export function ClientDetailRoute() {
   const nav = useNavigate();
   const { id } = useParams();
   const clientId = String(id ?? '');
+  const confirmDialog = useConfirm();
 
   const { data: clientsData } = useClientsQuery();
   const clients = useMemo(() => clientsData ?? [], [clientsData]);
@@ -140,6 +155,15 @@ export function ClientDetailRoute() {
     if (!clientId) return null;
     return clients.find((c) => c.id === clientId) ?? null;
   }, [clients, clientId]);
+
+  // If user lands on a draft-only id with no draft loaded, seed a blank draft.
+  useEffect(() => {
+    if (!clientId) return;
+    if (draft || fromCache) return;
+    const seed = createEmptyClient();
+    seed.id = clientId;
+    setDraft(clientId, seed);
+  }, [clientId, draft, fromCache, setDraft]);
 
   // ✅ draft-only：未落库（clients query 里没有）
   const isDraftOnly = Boolean(draft) && !fromCache;
@@ -197,24 +221,39 @@ export function ClientDetailRoute() {
     (field: keyof ClientEntity, val: any) => {
       if (!clientId) return;
 
-      if (isDraftOnly && draft && draft.id === clientId) {
-        const prevWechat = draft.wechatName ?? '';
-        const next: ClientEntity = { ...draft, [field]: val };
+      if (draft && draft.id === clientId) {
+        let willCommit = false;
+        let willRealtime = false;
+        let nextSnapshot: ClientEntity | null = null;
 
-        setDraft(clientId, next);
+        setDraft(clientId, (prev) => {
+          const base = prev ?? draft;
+          const prevWechat = base?.wechatName ?? '';
+          const next: ClientEntity = { ...(base as ClientEntity), [field]: val };
+          const prevHasWechat = !isBlank(prevWechat);
+          const nextHasWechat = !isBlank(next.wechatName);
 
-        // 只有第一次把 wechatName 从空变成非空，才触发“落库”
-        if (field === 'wechatName') {
-          const willCommit = isBlank(prevWechat) && !isBlank(val);
-          if (willCommit) {
-            updateClient(
-              clientId,
-              { wechatName: String(val ?? '') } as Partial<ClientEntity>,
-              next,
-            );
-          }
+          willCommit = !prevHasWechat && nextHasWechat && field === 'wechatName';
+          willRealtime = prevHasWechat && nextHasWechat;
+          nextSnapshot = next;
+          return next;
+        });
+
+        if (willCommit && nextSnapshot) {
+          updateClient(
+            clientId,
+            { wechatName: String(val ?? '') } as Partial<ClientEntity>,
+            nextSnapshot,
+          );
+          return;
         }
-        return;
+
+        if (willRealtime && nextSnapshot) {
+          updateClient(clientId, { [field]: val } as Partial<ClientEntity>, nextSnapshot);
+          return;
+        }
+
+        if (isDraftOnly) return;
       }
 
       // 已落库：正常 write-behind
@@ -237,8 +276,14 @@ export function ClientDetailRoute() {
     const blocked = post ? post.hasError || post.pending || post.inFlight : false;
 
     if (!blocked) return true;
-    return window.confirm('Sync failed / pending. Leave this page anyway?');
-  }, [activeKey, queue]);
+    return await confirmDialog({
+      title: 'Leave Page?',
+      message: 'Sync failed / pending. Leave this page anyway?',
+      confirmText: 'Leave',
+      cancelText: 'Stay',
+      tone: 'danger',
+    });
+  }, [activeKey, queue, confirmDialog]);
 
   useEffect(() => {
     // draft-only：不需要 guard（离开就丢弃 draft）

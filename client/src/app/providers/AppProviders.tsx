@@ -2,6 +2,7 @@ import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../query/queryClient';
 import { SaveQueueProvider, useSaveQueue } from '../saveQueue/SaveQueueProvider';
+import { ConfirmProvider } from '../confirm/ConfirmProvider';
 
 type Props = { children: React.ReactNode };
 
@@ -29,8 +30,10 @@ export function AppProviders({ children }: Props) {
   return (
     <QueryClientProvider client={queryClient}>
       <SaveQueueProvider>
-        <BeforeUnloadGuard />
-        {children}
+        <ConfirmProvider>
+          <BeforeUnloadGuard />
+          {children}
+        </ConfirmProvider>
       </SaveQueueProvider>
     </QueryClientProvider>
   );

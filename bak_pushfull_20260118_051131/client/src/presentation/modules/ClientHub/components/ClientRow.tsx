@@ -1,75 +1,91 @@
+cat > src/presentation/modules/ClientHub/components/ClientRow.tsx <<'EOF'
 import React from 'react';
-import { Calendar, Trash2 } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client/client.types';
-import { calculateFinancials } from '../../../../domain/client/client.logic';
-import { formatMoney, formatDate } from '../../../../utils';
+import type { ClientRowProps } from '../../../../features/clients/types';
 
-interface Props {
-  client: ClientEntity;
-  onSelect: () => void;
-  onDelete: (e: React.MouseEvent) => void;
+function money(n: any): string {
+  const v = Number(n ?? 0);
+  if (!Number.isFinite(v)) return '$0';
+  return v.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
 }
 
-export const ClientRow: React.FC<Props> = ({ client, onSelect, onDelete }) => {
-  const financials = calculateFinancials(client);
-  const due = Number(financials.balanceDue ?? 0);
-  const profit = Number(financials.profit ?? 0);
+function fmtDate(v: any): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '—';
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return s;
+  const d = new Date(t);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 
-  const profitPill =
-    profit >= 0 ? (
-      <span className="px-2 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100">
-        {formatMoney(profit)}
-      </span>
-    ) : (
-      <span className="px-2 py-1 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-100">
-        {formatMoney(profit)}
-      </span>
-    );
+const UI_TAG_LITERAL = 'UI_TAG: CLIENTS_TABLE_V2_20260119';
+const COLS = 'grid-cols-[minmax(200px,1.6fr)_120px_120px_120px_120px_120px_72px]';
+
+export const ClientRow: React.FC<ClientRowProps> = ({
+  client,
+  financials,
+  isActive,
+  active,
+  onSelect,
+  onDelete,
+}) => {
+  const activeFlag = Boolean(isActive ?? active);
+
+  const anyC: any = client as any;
+  const name = anyC.wechatName || anyC.realName || anyC.wechatId || client.id;
+
+  const orderDate = fmtDate(anyC.orderDate);
+  const deliveryDate = fmtDate(anyC.deliveryDate);
+
+  const total = Number((financials as any)?.orderTotal ?? (financials as any)?.total ?? 0);
+  const due = Number((financials as any)?.balanceDue ?? (financials as any)?.due ?? 0);
+  const profit = Number((financials as any)?.profit ?? 0);
 
   return (
     <div
-      className="grid grid-cols-12 gap-2 items-center px-4 py-3 hover:bg-slate-50 cursor-pointer group"
+      className={[
+        'grid items-center gap-2 px-3 py-2 rounded-md border cursor-pointer',
+        COLS,
+        activeFlag ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50',
+      ].join(' ')}
       onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      data-ui-tag={UI_TAG_LITERAL}
     >
-      {/* Name */}
-      <div className="col-span-5 md:col-span-4">
-        <div className="font-black text-slate-800 truncate">
-          {(client as any).wechatName || 'Unnamed'}
-        </div>
-        <div className="text-[10px] text-slate-400 truncate">
-          {(client as any).realName || ''}
+      <div className="min-w-0">
+        <div className="font-medium truncate">{name}</div>
+        <div className="text-[11px] text-gray-500 truncate">
+          {anyC.wechatId ? `WeChat: ${anyC.wechatId}` : ''}
+          {anyC.status ? `  ·  ${String(anyC.status)}` : ''}
         </div>
       </div>
 
-      {/* Date */}
-      <div className="hidden md:flex md:col-span-2 items-center gap-2 text-xs font-mono text-slate-400">
-        <Calendar size={12} className="text-slate-300" />
-        {formatDate((client as any).orderDate)}
-      </div>
+      <div className="text-sm tabular-nums">{orderDate}</div>
+      <div className="text-sm tabular-nums">{deliveryDate}</div>
 
-      {/* Total / Due / Profit */}
-      <div className="col-span-6 md:col-span-5 flex items-center gap-2 justify-end">
-        <span className="px-2 py-1 rounded-full text-[10px] font-black bg-slate-50 text-slate-700 border border-slate-100">
-          {formatMoney((client as any).totalPrice)}
-        </span>
+      <div className="text-sm text-right tabular-nums">{money(total)}</div>
+      <div className="text-sm text-right tabular-nums">{money(due)}</div>
+      <div className="text-sm text-right tabular-nums">{money(profit)}</div>
 
-        <span className="px-2 py-1 rounded-full text-[10px] font-black bg-white text-slate-600 border border-slate-200">
-          {formatMoney(due)}
-        </span>
-
-        {profitPill}
-      </div>
-
-      {/* Delete */}
-      <div className="col-span-1 flex justify-end">
-        <button
-          onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-rose-500"
-          title="Delete"
-        >
-          <Trash2 size={16} />
-        </button>
+      <div className="text-right">
+        {onDelete ? (
+          <button
+            className="px-2 py-1 rounded-md border hover:bg-red-50"
+            onClick={onDelete}
+            title="Delete"
+          >
+            Del
+          </button>
+        ) : null}
       </div>
     </div>
   );
 };
+EOF

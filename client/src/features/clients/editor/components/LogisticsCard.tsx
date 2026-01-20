@@ -87,20 +87,6 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
           />
         </div>
 
-        {/* tracking -> phone */}
-        <div className="grid grid-cols-2 gap-4">
-          <CompactInput
-            label="State"
-            value={(data as any).state || ''}
-            onChange={(e) => update('state' as keyof ClientEntity, e.target.value)}
-          />
-          <CompactInput
-            label="Phone"
-            value={(data as any).phone || ''}
-            onChange={(e) => update('phone' as keyof ClientEntity, e.target.value)}
-          />
-        </div>
-
         <div className="pt-4 border-t border-slate-50">
           <div
             className="flex items-center gap-2 mb-3 cursor-pointer"
@@ -125,6 +111,18 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
                 value={(data as any).address || ''}
                 onChange={(e) => update('address' as keyof ClientEntity, e.target.value)}
               />
+              <div className="grid grid-cols-2 gap-4">
+                <CompactInput
+                  label="State"
+                  value={(data as any).state || ''}
+                  onChange={(e) => update('state' as keyof ClientEntity, e.target.value)}
+                />
+                <CompactInput
+                  label="Phone"
+                  value={(data as any).phone || ''}
+                  onChange={(e) => update('phone' as keyof ClientEntity, e.target.value)}
+                />
+              </div>
             </div>
           )}
         </div>

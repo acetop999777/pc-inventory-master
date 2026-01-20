@@ -1,8 +1,67 @@
 import { InventoryItem } from '../../../types';
-import { CORE_CATS, findBestMatch } from '../../../utils';
+import { CORE_CATS } from '../../../utils';
 
 export type SpecRow = { name: string; sku: string; cost: number; qty: number };
 export type ParsedPcpp = { specs: Record<string, SpecRow>; link: string };
+
+function normalizeStrict(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function tokenizePcpp(s: string): string[] {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function matchInventoryForPcpp(namePart: string, inventory: InventoryItem[]): InventoryItem | null {
+  const q = String(namePart || '').trim();
+  if (!q) return null;
+
+  const qNorm = normalizeStrict(q);
+  const qTokens = tokenizePcpp(q);
+  if (!qTokens.length) return null;
+  const qSet = new Set(qTokens);
+
+  let best: { item: InventoryItem; score: number } | null = null;
+
+  for (const it of inventory) {
+    const invName = String((it as any).name || '').trim();
+    if (!invName) continue;
+
+    const invNorm = normalizeStrict(invName);
+    if (invNorm && invNorm === qNorm) return it;
+
+    const sku = String((it as any).sku || '').trim();
+    const skuNorm = normalizeStrict(sku);
+    if (skuNorm && qNorm.includes(skuNorm)) return it;
+
+    const tokens = tokenizePcpp(invName);
+    if (!tokens.length) continue;
+
+    const strongTokens = tokens.filter((t) => t.length >= 4 || /\d/.test(t));
+    if (strongTokens.length < 2) continue;
+
+    let ok = true;
+    for (const t of strongTokens) {
+      if (!qSet.has(t)) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+
+    const score = strongTokens.length;
+    if (!best || score > best.score) best = { item: it, score };
+  }
+
+  return best ? best.item : null;
+}
 
 /**
  * Parse PCPartPicker "Part List" text.
@@ -50,7 +109,7 @@ export function parsePcppText(text: string, inventory: InventoryItem[]): ParsedP
 
       const content = line.substring(pcppLabel.length + 1).trim();
       const namePart = content.split('($')[0].trim();
-      const dbMatch = findBestMatch(namePart, inventory);
+      const dbMatch = matchInventoryForPcpp(namePart, inventory);
 
       const chosenName = dbMatch ? dbMatch.name : namePart;
       const chosenSku = dbMatch?.sku || '';

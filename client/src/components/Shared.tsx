@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LucideIcon } from 'lucide-react';
+import { useConfirm } from '../app/confirm/ConfirmProvider';
 
 interface InlineEditProps {
   value: string | number | undefined;
@@ -14,6 +15,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
   className,
   confirm = false,
 }) => {
+  const confirmDialog = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
   const [tempVal, setTempVal] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -23,10 +25,16 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
     if (isEditing && inputRef.current) inputRef.current.focus();
   }, [isEditing]);
 
-  const finish = () => {
+  const finish = async () => {
     if (tempVal !== value) {
       if (confirm) {
-        if (window.confirm('Change value?')) onSave(String(tempVal));
+        const ok = await confirmDialog({
+          title: 'Confirm Change',
+          message: 'Change value?',
+          confirmText: 'Apply',
+          cancelText: 'Cancel',
+        });
+        if (ok) onSave(String(tempVal));
         else setTempVal(value);
       } else {
         onSave(String(tempVal));
@@ -42,9 +50,9 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
         className={`w-full bg-white border border-blue-400 rounded px-1 outline-none shadow-sm ${className}`}
         value={tempVal}
         onChange={(e) => setTempVal(e.target.value)}
-        onBlur={finish}
+        onBlur={() => void finish()}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') finish();
+          if (e.key === 'Enter') void finish();
           if (e.key === 'Escape') setIsEditing(false);
         }}
       />

@@ -1,13 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Activity, RefreshCw, Calendar, Wallet } from 'lucide-react';
 import { apiCall } from '../utils';
 
@@ -32,8 +24,8 @@ export default function Dashboard({ notify }: { notify?: (msg: string, type?: st
   const [loadingChart, setLoadingChart] = useState(false);
 
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
-  const [startDate, setStartDate] = useState(
-    () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  const [startDate, setStartDate] = useState(() =>
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -50,11 +42,7 @@ export default function Dashboard({ notify }: { notify?: (msg: string, type?: st
   const loadChart = useCallback(async () => {
     setLoadingChart(true);
     try {
-      const res = await apiCall('/dashboard/profit', 'POST', {
-        start: startDate,
-        end: endDate,
-        group: groupBy,
-      });
+      const res = await apiCall('/dashboard/profit', 'POST', { start: startDate, end: endDate, group: groupBy });
       if (res) setChartData(res as ChartPoint[]);
     } catch (e) {
       console.error(e);
@@ -101,25 +89,19 @@ export default function Dashboard({ notify }: { notify?: (msg: string, type?: st
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <p className="text-xs font-medium text-slate-500 uppercase">Inventory Value</p>
-          <h3 className="text-2xl font-bold text-slate-900 mt-1">
-            ${stats.inventoryValue.toLocaleString()}
-          </h3>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">${stats.inventoryValue.toLocaleString()}</h3>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <p className="text-xs font-medium text-slate-500 uppercase">Total Profit</p>
-          <h3 className="text-2xl font-bold text-emerald-600 mt-1">
-            +${stats.totalProfit.toLocaleString()}
-          </h3>
+          <h3 className="text-2xl font-bold text-emerald-600 mt-1">+${stats.totalProfit.toLocaleString()}</h3>
         </div>
 
         <div className="bg-blue-50/50 p-6 rounded-2xl shadow-sm border border-blue-100">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-black text-blue-500 uppercase">Balance Due</p>
-              <h3 className="text-2xl font-bold text-blue-700 mt-1">
-                ${stats.totalBalanceDue.toLocaleString()}
-              </h3>
+              <h3 className="text-2xl font-bold text-blue-700 mt-1">${stats.totalBalanceDue.toLocaleString()}</h3>
             </div>
             <Wallet className="text-blue-300" size={20} />
           </div>
@@ -174,9 +156,7 @@ export default function Dashboard({ notify }: { notify?: (msg: string, type?: st
               />
             </div>
 
-            {loadingChart && (
-              <div className="text-xs text-slate-400 font-medium">Loading chart…</div>
-            )}
+            {loadingChart && <div className="text-xs text-slate-400 font-medium">Loading chart…</div>}
           </div>
         </div>
 
@@ -191,13 +171,7 @@ export default function Dashboard({ notify }: { notify?: (msg: string, type?: st
               </defs>
 
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: '#94a3b8' }}
-                axisLine={false}
-                tickLine={false}
-                dy={10}
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} dy={10} />
               <YAxis
                 tick={{ fontSize: 11, fill: '#94a3b8' }}
                 axisLine={false}
@@ -206,21 +180,9 @@ export default function Dashboard({ notify }: { notify?: (msg: string, type?: st
               />
               <Tooltip
                 cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
-                contentStyle={{
-                  borderRadius: '8px',
-                  border: 'none',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
               />
-              <Area
-                type="monotone"
-                dataKey="profit"
-                name="Net Profit"
-                stroke="#10b981"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorProfit)"
-              />
+              <Area type="monotone" dataKey="profit" name="Net Profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
