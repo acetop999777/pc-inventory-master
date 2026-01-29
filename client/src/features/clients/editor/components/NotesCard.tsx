@@ -9,7 +9,7 @@ interface Props {
 
 export const NotesCard: React.FC<Props> = ({ data, update }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-2xl md:rounded-[2rem] p-4 md:p-6 shadow-sm">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
           <FileText size={14} className="text-slate-400" /> Notes

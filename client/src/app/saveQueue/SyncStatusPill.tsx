@@ -69,6 +69,7 @@ export function SyncStatusPill() {
   });
 
   const canRetry = hasError && !busy && anyRetriable;
+  const failureCount = errorKeys.length;
 
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
@@ -128,6 +129,15 @@ export function SyncStatusPill() {
     }
   };
 
+  const formatTime = (ts: number) => {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleTimeString();
+    } catch {
+      return '';
+    }
+  };
+
   return (
     <>
       <div className="fixed top-4 right-4 z-[999]">
@@ -146,7 +156,7 @@ export function SyncStatusPill() {
           {hasError ? (
             <>
               <AlertTriangle size={14} />
-              <span>Needs Sync</span>
+              <span>Needs Sync ({failureCount})</span>
 
               {canRetry ? (
                 <button
@@ -183,6 +193,62 @@ export function SyncStatusPill() {
           )}
         </div>
       </div>
+
+      {hasError ? (
+        <div className="fixed top-16 right-4 z-[998] w-[420px] max-w-[90vw]">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+            <div className="px-4 py-2 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Sync Errors • {failureCount}
+            </div>
+            <div className="max-h-[60vh] overflow-auto divide-y divide-slate-100">
+              {errorKeys.map((k) => {
+                const err = normalizeErr(k.lastError as any);
+                const retryable =
+                  typeof err.retryable === 'boolean' ? err.retryable : err.retryable == null;
+                const label = k.label || k.key;
+                const reqId = err.requestId ? String(err.requestId) : '';
+                const code = err.code ? String(err.code) : 'ERROR';
+                const message = err.message || 'Request failed';
+                return (
+                  <div key={k.key} className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-black text-slate-700 truncate">
+                        {label}
+                      </div>
+                      <div className="text-[10px] text-slate-400">{formatTime(k.updatedAt)}</div>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-600">{message}</div>
+                    <div className="mt-1 text-[10px] text-slate-400">
+                      {code}
+                      {reqId ? ` • rid:${reqId}` : ''}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      {retryable ? (
+                        <button
+                          onClick={() => queue.retryKey(k.key)}
+                          className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200 hover:bg-slate-50"
+                        >
+                          Retry
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                          Needs Fix
+                        </span>
+                      )}
+                      <button
+                        onClick={() => queue.dismissKey(k.key)}
+                        className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200 hover:bg-slate-50"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {detailsOpen && (
         <div

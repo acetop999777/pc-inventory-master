@@ -1,7 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Search, Plus, ChevronDown, Archive, X } from 'lucide-react';
+import { Search, Plus, ChevronDown, Archive } from 'lucide-react';
 import { ClientRow } from './components/ClientRow';
 import { ClientEntity } from '../../../domain/client/client.types';
+import { calculateFinancials } from '../../../domain/client/client.logic';
+import { formatMoney } from '../../../utils';
 
 interface Props {
   clients: ClientEntity[];
@@ -19,6 +21,7 @@ interface Props {
 const UI_TAG = 'UI_TAG: CLIENTHUB_V6_20260119';
 const LS_KEY = 'pcinv.clients.archivedOpen.v2';
 const LS_ACTIVE_ROW = 'pcinv.clients.lastActiveRow.v1';
+const STATUS_FILTER_OPTIONS = ['All', 'Pending', 'Deposit', 'Building', 'Ready', 'Delivered'];
 
 function norm(v: any) {
   return String(v ?? '').trim().toLowerCase();
@@ -29,6 +32,54 @@ function isDelivered(c: ClientEntity) {
 function toTime(s: any) {
   const t = Date.parse(String(s ?? ''));
   return Number.isFinite(t) ? t : 0;
+}
+function getFilterTime(c: ClientEntity) {
+  const raw =
+    (c as any).orderDate ??
+    (c as any).deliveryDate ??
+    (c as any).createdAt ??
+    (c as any).created_at;
+  return toTime(raw);
+}
+function parseDateInput(value: string, endOfDay = false) {
+  if (!value) return 0;
+  const parts = value.split('-').map((v) => Number(v));
+  if (parts.length !== 3 || parts.some((v) => !Number.isFinite(v))) return 0;
+  const [y, m, d] = parts;
+  if (endOfDay) return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+  return new Date(y, m - 1, d).getTime();
+}
+function toISODate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function parseISODate(value: string): Date | null {
+  if (!value) return null;
+  const parts = value.split('-').map((v) => Number(v));
+  if (parts.length !== 3 || parts.some((v) => !Number.isFinite(v))) return null;
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d);
+}
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function addMonths(d: Date, delta: number): Date {
+  return new Date(d.getFullYear(), d.getMonth() + delta, 1);
+}
+function buildCalendarCells(month: Date): Date[] {
+  const year = month.getFullYear();
+  const monthIdx = month.getMonth();
+  const firstOfMonth = new Date(year, monthIdx, 1);
+  const startDay = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+  const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
+
+  return Array.from({ length: totalCells }, (_, idx) => {
+    const dayOffset = idx - startDay + 1;
+    return new Date(year, monthIdx, dayOffset);
+  });
 }
 
 // Active: prefer orderDate
@@ -66,17 +117,6 @@ function isTypingTarget(el: EventTarget | null) {
   return false;
 }
 
-function Kbd({ children, title }: { children: React.ReactNode; title?: string }) {
-  return (
-    <span
-      title={title}
-      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)] text-[10px] font-black uppercase tracking-wider text-slate-500"
-    >
-      {children}
-    </span>
-  );
-}
-
 function DotCount({ n }: { n: number }) {
   return (
     <span className="text-[10px] font-black text-slate-400">
@@ -94,8 +134,30 @@ export default function ClientHub({
   onArchiveClient,
 }: Props) {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() =>
+    startOfMonth(parseISODate(dateFrom) ?? new Date()),
+  );
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [archivedRendered, setArchivedRendered] = useState(false);
+
+  const statusActive = statusFilter !== 'All';
+  const dateActive = Boolean(dateFrom || dateTo);
+  const dateFromTs = useMemo(() => parseDateInput(dateFrom, false), [dateFrom]);
+  const dateToTs = useMemo(() => parseDateInput(dateTo, true), [dateTo]);
+
+  useEffect(() => {
+    if (statusFilter === 'Delivered') setArchivedOpen(true);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    const base = parseISODate(dateFrom) ?? new Date();
+    setCalendarMonth(startOfMonth(base));
+  }, [datePickerOpen, dateFrom]);
 
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
@@ -130,6 +192,19 @@ export default function ClientHub({
   };
 
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const datePickerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (datePickerRef.current && datePickerRef.current.contains(target)) return;
+      setDatePickerOpen(false);
+    };
+    window.addEventListener('mousedown', onPointerDown);
+    return () => window.removeEventListener('mousedown', onPointerDown);
+  }, [datePickerOpen]);
 
   // restore archived open state
   useEffect(() => {
@@ -152,6 +227,13 @@ export default function ClientHub({
   }, [archivedOpen]);
 
   const matches = (c: ClientEntity) => {
+    if (statusFilter !== 'All' && norm((c as any).status) !== norm(statusFilter)) return false;
+    if (dateFromTs || dateToTs) {
+      const t = getFilterTime(c);
+      if (!t) return false;
+      if (dateFromTs && t < dateFromTs) return false;
+      if (dateToTs && t > dateToTs) return false;
+    }
     const q = norm(search);
     if (!q) return true;
     const hay = [
@@ -179,10 +261,25 @@ export default function ClientHub({
     const r = filtered.filter((c) => isDelivered(c)).sort(sortArchived);
     return { active: a, archived: r };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, search]);
+  }, [clients, search, statusFilter, dateFromTs, dateToTs]);
 
-  const allVisible = useMemo(() => [...active, ...(archivedOpen ? archived : [])], [active, archived, archivedOpen]);
+  const activeVisible = active;
+  const archivedVisible = archived;
+  const forceArchivedOpen = statusFilter === 'Delivered';
+  const archivedPanelOpen = forceArchivedOpen || archivedOpen;
+  const allVisible = useMemo(
+    () => [...activeVisible, ...(archivedPanelOpen ? archivedVisible : [])],
+    [activeVisible, archivedPanelOpen, archivedVisible],
+  );
   const topMatch = allVisible[0] ?? null;
+  const calendarViews = useMemo(() => {
+    const left = startOfMonth(calendarMonth);
+    const right = addMonths(left, 1);
+    return [
+      { month: left, cells: buildCalendarCells(left) },
+      { month: right, cells: buildCalendarCells(right) },
+    ];
+  }, [calendarMonth]);
 
   // keyboard shortcuts
   useEffect(() => {
@@ -242,7 +339,7 @@ export default function ClientHub({
 
   // render archived content when opening; when closing keep for animation then unmount
   useLayoutEffect(() => {
-    if (archivedOpen) {
+    if (archivedPanelOpen) {
       setArchivedRendered(true);
       return;
     }
@@ -252,7 +349,7 @@ export default function ClientHub({
     }
     const t = window.setTimeout(() => setArchivedRendered(false), 300);
     return () => window.clearTimeout(t);
-  }, [archivedOpen, reduceMotion]);
+  }, [archivedPanelOpen, reduceMotion]);
 
   const TableHeader = () => (
     <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
@@ -267,9 +364,9 @@ export default function ClientHub({
   );
 
   const Empty = ({ text }: { text: string }) => (
-    <div className="p-10 text-center">
+    <div className="p-6 md:p-10 text-center rounded-2xl md:rounded-none border border-dashed border-slate-200 md:border-0 bg-white md:bg-transparent">
       <div className="text-slate-300 text-xs font-black uppercase tracking-widest">{text}</div>
-      <div className="mt-2 text-[11px] font-medium text-slate-400">
+      <div className="mt-2 text-[11px] font-medium text-slate-400 hidden md:block">
         Tip: press <span className="font-black">n</span> to create, <span className="font-black">/</span> to search.
       </div>
     </div>
@@ -353,7 +450,7 @@ export default function ClientHub({
     return (
       <div
         className={[
-          'sticky top-4 z-20 -mx-4 md:-mx-8 px-4 md:px-8',
+          'md:sticky md:top-4 z-20 -mx-4 md:-mx-8 px-4 md:px-8',
           isOpen
             ? 'py-2 bg-slate-50/70 backdrop-blur border-y border-slate-200/60 shadow-[0_1px_0_rgba(15,23,42,0.06)]'
             : 'py-1 bg-transparent border-t border-slate-200/60 hover:bg-slate-50/70 hover:backdrop-blur',
@@ -390,75 +487,301 @@ export default function ClientHub({
   }, [archivedRendered, archived.length, search]);
 
   const archivedPanelStyle: React.CSSProperties = {
-    height: archivedOpen ? archivedHeight : 0,
-    opacity: archivedOpen ? 1 : 0,
+    height: archivedPanelOpen ? archivedHeight : 0,
+    opacity: archivedPanelOpen ? 1 : 0,
     overflow: 'hidden',
     willChange: 'height, opacity',
     transition: reduceMotion ? 'none' : 'height 280ms ease, opacity 180ms ease',
-    pointerEvents: archivedOpen ? 'auto' : 'none',
+    pointerEvents: archivedPanelOpen ? 'auto' : 'none',
   };
 
-  const clearSearch = () => setSearch('');
+  const totalCount = activeVisible.length + archivedVisible.length;
+  const showFilteredCount = Boolean(search || statusFilter !== 'All' || dateFrom || dateTo);
+  const countLabel = showFilteredCount ? `${totalCount} matches` : `${clients.length} total`;
+  const totals = useMemo(() => {
+    const list = [...activeVisible, ...archivedVisible];
+    return list.reduce(
+      (acc, client) => {
+        const fin = calculateFinancials(client);
+        acc.due += Number(fin.balanceDue || 0);
+        acc.profit += Number(fin.profit || 0);
+        return acc;
+      },
+      { due: 0, profit: 0 },
+    );
+  }, [activeVisible, archivedVisible]);
 
   return (
     <div className="p-4 md:p-8 max-w-[96rem] mx-auto pb-32">
       <span className="hidden">{UI_TAG}</span>
 
+      <div className="md:hidden mb-6">
+        <div className="relative overflow-hidden rounded-[28px] bg-slate-900 p-5 text-white shadow-xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Clients
+              </div>
+              <div className="mt-1 text-2xl font-black tracking-tight">Client Desk</div>
+              <div className="mt-2 text-[11px] font-semibold text-slate-300">{countLabel}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                Active
+              </div>
+              <div className="mt-1 text-xl font-black">{active.length}</div>
+              <div className="text-[10px] font-semibold text-slate-400">In progress</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                Archived
+              </div>
+              <div className="mt-1 text-xl font-black">{archived.length}</div>
+              <div className="text-[10px] font-semibold text-slate-400">Delivered</div>
+            </div>
+          </div>
+
+          <button
+            onClick={onNewClient}
+            className="mt-4 w-full rounded-2xl bg-white text-slate-900 py-2.5 text-[11px] font-black uppercase tracking-widest shadow-lg"
+            title="New client (n)"
+          >
+            + New Client
+          </button>
+
+          <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-blue-500/30 blur-3xl" />
+          <div className="pointer-events-none absolute -left-8 -bottom-10 h-28 w-28 rounded-full bg-emerald-400/20 blur-3xl" />
+        </div>
+      </div>
+
+      <div className="hidden md:block mb-4">
+        <h2 className="text-2xl font-semibold text-slate-800">Clients List</h2>
+      </div>
+
       {/* Top Bar */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-6">
-        {/* Search */}
-        <div className="flex-1">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-3 py-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-200 transition">
-            <Search size={16} className="text-slate-400" />
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:rounded-2xl md:border md:border-slate-200 md:bg-slate-50 md:px-4 md:py-3">
+        <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center md:gap-3">
+          <div className="relative w-full md:w-72">
             <input
               ref={searchRef}
-              className="w-full text-[12px] font-bold outline-none placeholder:text-slate-300"
-              placeholder="Search clients…"
+              className="w-full rounded-2xl md:rounded-full border border-slate-200 bg-white px-4 py-2 pr-9 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+              placeholder="Search clients..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            {search ? (
+            <Search
+              size={16}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+          </div>
+
+          <div className="hidden md:flex flex-wrap items-center gap-2">
+            <div
+              className={[
+                'flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] font-semibold text-slate-700',
+                statusActive ? 'border-slate-300 bg-slate-200' : 'border-slate-200 bg-white',
+              ].join(' ')}
+            >
+              <span>Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-transparent text-[13px] font-semibold text-slate-700 outline-none"
+                aria-label="Status filter"
+              >
+                {STATUS_FILTER_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative" ref={datePickerRef}>
               <button
                 type="button"
-                onClick={clearSearch}
-                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center"
-                title="Clear (Esc)"
+                onClick={() => setDatePickerOpen((v) => !v)}
+                className={[
+                  'flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] font-semibold text-slate-700',
+                  dateActive ? 'border-slate-300 bg-slate-200' : 'border-slate-200 bg-white',
+                ].join(' ')}
               >
-                <X size={14} className="text-slate-500" />
+                <span>Date Range</span>
               </button>
-            ) : null}
+              {datePickerOpen ? (
+                <div className="absolute left-0 top-full mt-2 z-30 w-[36rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
+                      className="h-7 w-7 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+                      aria-label="Previous month"
+                    >
+                      ‹
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(startOfMonth(new Date()))}
+                        className="rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-50"
+                      >
+                        This Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(startOfMonth(addMonths(new Date(), 1)))}
+                        className="rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-50"
+                      >
+                        Next Month
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
+                      className="h-7 w-7 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+                      aria-label="Next month"
+                    >
+                      ›
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-4">
+                    {calendarViews.map((view) => (
+                      <div key={view.month.toISOString()}>
+                        <div className="text-center text-sm font-bold text-slate-700">
+                          {view.month.toLocaleDateString('en-US', {
+                            month: 'long',
+                            year: 'numeric',
+                          })}
+                        </div>
+                        <div className="mt-2 grid grid-cols-7 gap-1 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">
+                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                            <div key={d}>{d}</div>
+                          ))}
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-7 gap-1 text-center">
+                          {view.cells.map((d) => {
+                            const inMonth = d.getMonth() === view.month.getMonth();
+                            const cellIso = toISODate(d);
+                            const startDate = dateFrom ? parseISODate(dateFrom) : null;
+                            const endDate = dateTo ? parseISODate(dateTo) : null;
+                            const cellTs = parseDateInput(cellIso, false);
+                            const startTs = startDate
+                              ? parseDateInput(toISODate(startDate), false)
+                              : 0;
+                            const endTs = endDate ? parseDateInput(toISODate(endDate), false) : 0;
+                            const isStart = Boolean(startTs && cellTs === startTs);
+                            const isEnd = Boolean(endTs && cellTs === endTs);
+                            const inRange = Boolean(
+                              startTs && endTs && cellTs > startTs && cellTs < endTs,
+                            );
+
+                            const cls = [
+                              'h-8 w-8 rounded-full text-[12px] font-semibold transition',
+                              inMonth ? 'text-slate-700' : 'text-slate-300',
+                              inRange ? 'bg-slate-100' : '',
+                              isStart || isEnd ? 'bg-slate-900 text-white' : '',
+                              !inRange && !isStart && !isEnd ? 'hover:bg-slate-50' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ');
+
+                            return (
+                              <button
+                                key={cellIso}
+                                type="button"
+                                className={cls}
+                                onClick={() => {
+                                  const picked = toISODate(d);
+                                  const start = dateFrom ? parseISODate(dateFrom) : null;
+                                  const end = dateTo ? parseISODate(dateTo) : null;
+
+                                  if (!start || end) {
+                                    setDateFrom(picked);
+                                    setDateTo('');
+                                  } else {
+                                    const pickedTs = parseDateInput(picked, false);
+                                    const startTsLocal = parseDateInput(toISODate(start), false);
+                                    if (pickedTs < startTsLocal) {
+                                      setDateFrom(picked);
+                                      setDateTo(toISODate(start));
+                                    } else {
+                                      setDateTo(picked);
+                                    }
+                                  }
+
+                                  if (!inMonth) {
+                                    setCalendarMonth(startOfMonth(d));
+                                  }
+                                }}
+                              >
+                                {d.getDate()}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateFrom('');
+                        setDateTo('');
+                      }}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-700"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDatePickerOpen(false)}
+                      className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-bold text-white"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
 
-          {/* Shortcut chips */}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Kbd title="Focus search">/</Kbd>
-            <Kbd title="New client">n</Kbd>
-            <Kbd title="Clear / collapse">Esc</Kbd>
-            <Kbd title="Open top match from search input">Enter</Kbd>
-            <span className="text-[10px] font-bold text-slate-400 ml-1">
-              {search ? `${active.length + archived.length} matches` : `${clients.length} total`}
-            </span>
-          </div>
+          <div className="md:hidden text-[10px] font-bold text-slate-400">{countLabel}</div>
         </div>
 
-        {/* New */}
-        <div className="flex items-center gap-3 justify-end">
+        <div className="flex items-center justify-end gap-3 md:justify-start">
+          <div className="hidden md:flex items-center gap-4 rounded-full border border-slate-200 bg-white px-4 py-2 text-[11px] font-semibold text-slate-500">
+            <div className="flex items-center gap-2">
+              <span>Total Due</span>
+              <span className="text-sm font-black text-slate-800">{formatMoney(totals.due)}</span>
+            </div>
+            <div className="h-4 w-px bg-slate-200" />
+            <div className="flex items-center gap-2">
+              <span>Total Profit</span>
+              <span className="text-sm font-black text-slate-800">{formatMoney(totals.profit)}</span>
+            </div>
+          </div>
           <button
             onClick={onNewClient}
-            className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition"
+            className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-lg hover:shadow-xl active:scale-[0.99] transition"
             title="New client (n)"
           >
             <Plus size={16} />
-            <span className="text-[11px] font-black uppercase tracking-wider">New</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">New Client</span>
           </button>
         </div>
       </div>
 
       {/* ACTIVE */}
-      <SectionBar title="Active" count={active.length} sub="In progress" />
-      <div className="bg-white rounded-[1.6rem] border border-slate-200 shadow-sm overflow-hidden">
+      <SectionBar title="Active" count={activeVisible.length} sub="In progress" />
+      <div className="space-y-4 md:space-y-0 bg-transparent md:bg-white md:rounded-[1.6rem] md:border md:border-slate-200 md:shadow-sm overflow-visible md:overflow-hidden">
         <TableHeader />
-        {active.map((c) => (
+        {activeVisible.map((c) => (
           <ClientRow
             key={c.id}
             client={c}
@@ -482,28 +805,30 @@ export default function ClientHub({
             }
           />
         ))}
-        {active.length === 0 && <Empty text={search ? 'No active matches' : 'No active clients'} />}
+        {activeVisible.length === 0 && (
+          <Empty text={search ? 'No active matches' : 'No active clients'} />
+        )}
       </div>
 
       {/* ARCHIVED */}
       <div className="mt-8">
         <SectionBar
           title="Archived"
-          count={archived.length}
-          collapsible
-          open={archivedOpen}
-          onToggle={() => setArchivedOpen((v) => !v)}
+          count={archivedVisible.length}
+          collapsible={!forceArchivedOpen}
+          open={archivedPanelOpen}
+          onToggle={!forceArchivedOpen ? () => setArchivedOpen((v) => !v) : undefined}
           leadingIcon={<Archive size={14} />}
           sticky
           sub="Delivered"
         />
 
-        <div style={archivedPanelStyle} aria-hidden={!archivedOpen}>
+        <div style={archivedPanelStyle} aria-hidden={!archivedPanelOpen}>
           <div ref={archivedInnerRef} className="pt-2">
             {archivedRendered ? (
-              <div className="bg-white rounded-[1.6rem] border border-slate-200 shadow-sm overflow-hidden">
+              <div className="space-y-4 md:space-y-0 bg-transparent md:bg-white md:rounded-[1.6rem] md:border md:border-slate-200 md:shadow-sm overflow-visible md:overflow-hidden">
                 <TableHeader />
-                {archived.map((c) => (
+                {archivedVisible.map((c) => (
                   <ClientRow
                     key={c.id}
                     client={c}
@@ -521,7 +846,9 @@ export default function ClientHub({
                     onArchive={undefined}
                   />
                 ))}
-                {archived.length === 0 && <Empty text={search ? 'No archived matches' : 'No archived clients'} />}
+                {archivedVisible.length === 0 && (
+                  <Empty text={search ? 'No archived matches' : 'No archived clients'} />
+                )}
               </div>
             ) : null}
           </div>

@@ -18,7 +18,7 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans">
-      <div className="w-64 bg-slate-900 text-white flex flex-col shrink-0 transition-all">
+      <div className="hidden md:flex w-64 bg-slate-900 text-white flex-col shrink-0 transition-all">
         <div className="p-8">
           <h1 className="text-xl font-black tracking-tighter flex items-center gap-2">
             <span className="text-blue-500">DONKEY</span> DEPOT
@@ -52,9 +52,34 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-auto relative pb-20 md:pb-0">
         <SyncStatusPill />
         {children}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-30 md:hidden">
+        <div className="mx-auto max-w-[900px] px-4 pb-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-lg px-3 py-2">
+            <div className="grid grid-cols-4 gap-2">
+              {navItems.map((item) => {
+                const active = currentView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onChangeView(item.id)}
+                    className={[
+                      'flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[9px] font-black uppercase tracking-widest transition',
+                      active ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50',
+                    ].join(' ')}
+                  >
+                    <item.icon size={16} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

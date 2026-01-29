@@ -39,6 +39,9 @@ This repo is a small monorepo with two runtime services:
 ### Server (`server/`)
 
 - `index.js`: express app + routes + DB init
+- `services/`: transactional business logic (inventory batch, logs)
+- `repositories/`: SQL-only data access helpers
+- `db/tx.js`: transaction helper (BEGIN/COMMIT/ROLLBACK)
 - `db/migrate.js`: migration runner
 - `db/migrations/*.sql`: schema migrations
 - `middleware/*`: request id + error handling
@@ -51,6 +54,10 @@ From `server/db/migrations/*.sql` and `server/index.js` baseline init:
 - `inventory`: parts inventory with weighted average cost (`cost`) and `quantity`
 - `audit_logs`: inventory change history (used by inbound/stock flows)
 - `product_cache`: barcode lookup cache
+- `idempotency_keys`: operationId de-dupe for critical writes
+- `inventory_movements`: append-only inventory ledger (receive/consume/adjust/opening)
+- `inbound_receipts`: receipt headers (vendor/mode/notes/received_at)
+- `inbound_receipt_items`: receipt line items
 
 ## API surface (server)
 

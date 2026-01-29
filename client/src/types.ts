@@ -11,6 +11,7 @@ export interface InventoryItem {
   location?: string;
   status?: string;
   notes?: string;
+  metadata?: Record<string, any>;
   photos?: string[];
 }
 

@@ -81,6 +81,52 @@ CREATE TABLE IF NOT EXISTS logs (
   meta JSONB
 );
 
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  operation_id TEXT PRIMARY KEY,
+  endpoint TEXT,
+  status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
+  response_json JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id BIGSERIAL PRIMARY KEY,
+  inventory_id TEXT NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
+  qty_delta INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  unit_cost NUMERIC(12,4) NULL,
+  unit_cost_used NUMERIC(12,4) NULL,
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ref_type TEXT NULL,
+  ref_id TEXT NULL,
+  on_hand_after INTEGER NOT NULL,
+  avg_cost_after NUMERIC(12,4) NOT NULL,
+  request_id TEXT NULL,
+  operation_id TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS inbound_receipts (
+  id BIGSERIAL PRIMARY KEY,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  vendor TEXT NULL,
+  mode TEXT NOT NULL DEFAULT 'MANUAL',
+  notes TEXT NULL,
+  images JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  request_id TEXT NULL,
+  operation_id TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS inbound_receipt_items (
+  id BIGSERIAL PRIMARY KEY,
+  receipt_id BIGINT NOT NULL REFERENCES inbound_receipts(id) ON DELETE CASCADE,
+  inventory_id TEXT NOT NULL REFERENCES inventory(id) ON DELETE RESTRICT,
+  qty_received INTEGER NOT NULL CHECK (qty_received > 0),
+  unit_cost NUMERIC(12,4) NOT NULL CHECK (unit_cost >= 0),
+  line_total NUMERIC(12,4) GENERATED ALWAYS AS (qty_received * unit_cost) STORED,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- indexes
 CREATE INDEX IF NOT EXISTS idx_clients_order_date ON clients(order_date DESC);
 CREATE INDEX IF NOT EXISTS idx_inventory_category_name ON inventory(category, name);
@@ -93,6 +139,16 @@ WHERE sku IS NOT NULL AND btrim(sku) <> '';
 CREATE INDEX IF NOT EXISTS idx_audit_logs_sku  ON audit_logs(sku);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_date ON audit_logs(date DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_ref  ON audit_logs(ref_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_inventory_date
+ON inventory_movements(inventory_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_ref
+ON inventory_movements(ref_type, ref_id);
+CREATE INDEX IF NOT EXISTS idx_inbound_receipts_received_at
+ON inbound_receipts(received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inbound_receipt_items_receipt
+ON inbound_receipt_items(receipt_id);
+CREATE INDEX IF NOT EXISTS idx_inbound_receipt_items_inventory_receipt
+ON inbound_receipt_items(inventory_id, receipt_id);
 
 -- constraints (idempotent)
 DO $$

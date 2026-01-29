@@ -22,13 +22,34 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
   const currentIndex = Math.max(0, options.indexOf((data as any).status || options[0]));
 
   return (
-    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+    <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100">
       <h3 className="font-black uppercase text-xs mb-6 text-slate-400 tracking-widest flex items-center gap-2">
         <Calendar size={14} />
         Workflow Status
       </h3>
 
-      <div className="flex justify-between items-center relative mb-8 px-2">
+      <div className="md:hidden flex gap-2 overflow-x-auto pb-2">
+        {options.map((s) => {
+          const active = (data as any).status === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => update('status' as keyof ClientEntity, s)}
+              className={[
+                'whitespace-nowrap rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition',
+                active
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-500 border-slate-200',
+              ].join(' ')}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:flex justify-between items-center relative mb-6">
         <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-100 -z-10" />
         {options.map((s, i) => (
           <div
@@ -57,7 +78,7 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
       </div>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CompactInput
             type="date"
             label="Order Date"
@@ -74,14 +95,14 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CompactInput
             label="City"
             value={(data as any).city || ''}
             onChange={(e) => update('city' as keyof ClientEntity, e.target.value)}
           />
           <CompactInput
-            label="Zip Code"
+            label="Zip"
             value={(data as any).zip || ''}
             onChange={(e) => update('zip' as keyof ClientEntity, e.target.value)}
           />
@@ -111,7 +132,7 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
                 value={(data as any).address || ''}
                 onChange={(e) => update('address' as keyof ClientEntity, e.target.value)}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <CompactInput
                   label="State"
                   value={(data as any).state || ''}

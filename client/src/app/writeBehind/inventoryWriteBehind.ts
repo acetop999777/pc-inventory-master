@@ -43,12 +43,15 @@ export function useInventoryWriteBehind() {
       label: 'Inventory',
       patch: { op: 'patch', fields: coerceFields(fields) },
       merge: mergeInventoryWrite,
-      write: async (w) => {
+      write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await apiCallOrThrow(`/inventory/${id}`, 'DELETE');
+          await apiCallOrThrow(`/inventory/${id}`, 'DELETE', { operationId: ctx.operationId });
           return;
         }
-        const updatedRow = await apiCallOrThrow<any>(`/inventory/${id}`, 'PUT', w.fields);
+        const updatedRow = await apiCallOrThrow<any>(`/inventory/${id}`, 'PUT', {
+          ...w.fields,
+          operationId: ctx.operationId,
+        });
         const normalized = normalizeInventoryRow(updatedRow);
 
         qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
@@ -66,8 +69,8 @@ export function useInventoryWriteBehind() {
       label: 'Inventory',
       patch: { op: 'delete' },
       merge: mergeInventoryWrite,
-      write: async () => {
-        await apiCallOrThrow(`/inventory/${id}`, 'DELETE');
+      write: async (_w, ctx) => {
+        await apiCallOrThrow(`/inventory/${id}`, 'DELETE', { operationId: ctx.operationId });
       },
       debounceMs: 0,
     });

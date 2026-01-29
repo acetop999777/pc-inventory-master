@@ -10,6 +10,13 @@ export interface StagedItem extends InventoryItem {
   isGift?: boolean;
 }
 
+type ParsedInbound = {
+  items: StagedItem[];
+  msg: string;
+  type?: string;
+  orderedAt?: string | null;
+};
+
 export const processScan = async (
   code: string,
   currentBatch: StagedItem[],
@@ -38,6 +45,17 @@ export const processScan = async (
     return { item: newItem, msg: 'Matched existing: ' + match.name };
   }
 
+  const neweggMatch = findInventoryByNeweggItem(code, inventory);
+  if (neweggMatch) {
+    const newItem: StagedItem = {
+      ...neweggMatch,
+      qtyInput: 1,
+      costInput: neweggMatch.cost,
+      isMatch: true,
+    };
+    return { item: newItem, msg: 'Matched existing: ' + neweggMatch.name };
+  }
+
   // C. Check API
   const apiData = await lookupBarcode(code);
 
@@ -60,6 +78,7 @@ export const processScan = async (
     status: fuzzyMatch?.status || 'In Stock',
     notes: fuzzyMatch?.notes || '',
     photos: fuzzyMatch?.photos || [],
+    metadata: fuzzyMatch?.metadata || {},
     lastUpdated: Date.now(),
 
     qtyInput: 1,
@@ -81,22 +100,454 @@ export const processScan = async (
   return { item: newItem, msg, type };
 };
 
-export const parseNeweggText = (
-  text: string,
-  inventory: InventoryItem[],
-): { items: StagedItem[]; msg: string; type?: string } => {
-  try {
-    const gtMatch = text.match(/Grand Total\s*\n?\$?([\d,]+\.\d{2})/);
-    const grandTotal = gtMatch ? parseFloat(gtMatch[1].replace(/,/g, '')) : 0;
+const NEWEGG_ITEM_MIN_LEN = 8;
 
+function sanitizeNeweggItem(value: any): string {
+  const tokens = String(value || '')
+    .toUpperCase()
+    .match(/[A-Z0-9]+/g);
+  if (!tokens) return '';
+  for (const token of tokens) {
+    if (token.length < NEWEGG_ITEM_MIN_LEN) continue;
+    if (!/\d/.test(token)) continue;
+    return token;
+  }
+  return '';
+}
+
+export function normalizeNeweggItem(value: any): string {
+  return sanitizeNeweggItem(value);
+}
+
+function extractNeweggItemNumber(line: string, nextLine?: string): string {
+  const direct = sanitizeNeweggItem(String(line || '').replace(/^Item\s*#:\s*/i, ''));
+  if (direct) return direct;
+  return sanitizeNeweggItem(nextLine);
+}
+
+function findInventoryByNeweggItem(
+  code: string,
+  inventory: InventoryItem[],
+): InventoryItem | null {
+  const target = normalizeNeweggItem(code);
+  if (!target) return null;
+  return (
+    inventory.find((it) => {
+      const meta = it?.metadata;
+      if (!meta || typeof meta !== 'object') return false;
+      const entry = normalizeNeweggItem((meta as any).neweggItem);
+      return entry && entry === target;
+    }) || null
+  );
+}
+
+function mergeNeweggMetadata(
+  base: Record<string, any> | undefined,
+  itemNumber: string,
+): Record<string, any> | undefined {
+  const next =
+    base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
+  const cleaned = sanitizeNeweggItem(itemNumber);
+  if (cleaned) next.neweggItem = cleaned;
+  return next;
+}
+
+export function normalizeSerialNumber(value: any): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.replace(/^(?:s\/n|sn|serial(?:\s*number)?)[:#]?\s*/i, '').trim();
+}
+
+function mergeSerialMetadata(
+  base: Record<string, any> | undefined,
+  serial: string,
+): Record<string, any> | undefined {
+  const next =
+    base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
+  const cleaned = normalizeSerialNumber(serial);
+  if (!cleaned) return next;
+  const existingRaw = typeof next.sn === 'string' ? next.sn : '';
+  if (!existingRaw) {
+    next.sn = cleaned;
+    return next;
+  }
+  const list = existingRaw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (list.includes(cleaned)) return next;
+  next.sn = [...list, cleaned].join(', ');
+  return next;
+}
+
+function parseNeweggOrderDate(lines: string[]): string | null {
+  const idx = lines.findIndex((l) => l.toLowerCase() === 'order date:');
+  if (idx === -1 || idx + 1 >= lines.length) return null;
+  const raw = lines[idx + 1];
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+at\s+(\d{1,2}):(\d{2})(AM|PM)$/i);
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  const year = Number(m[3]);
+  let hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const mer = m[6].toUpperCase();
+  if (mer === 'PM' && hour < 12) hour += 12;
+  if (mer === 'AM' && hour === 12) hour = 0;
+  const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString();
+}
+
+function parseMoney(value: string): number | null {
+  const m = value.match(/\$?\s*([\d,]+\.\d{2})/);
+  if (!m) return null;
+  const num = parseFloat(m[1].replace(/,/g, ''));
+  return Number.isFinite(num) ? num : null;
+}
+
+function collectTotalsByLabel(lines: string[], label: RegExp): number[] {
+  const totals: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!label.test(line)) continue;
+    const inline = parseMoney(line);
+    if (inline != null) {
+      totals.push(inline);
+      continue;
+    }
+    const next = lines[i + 1];
+    const nextVal = next ? parseMoney(next) : null;
+    if (nextVal != null) totals.push(nextVal);
+  }
+  return totals;
+}
+
+function parseNeweggGrandTotal(lines: string[]): number {
+  const labelPriority = [
+    /^grand total\b/i,
+    /^total for the shipment\(s\)\b/i,
+    /^order total\b/i,
+  ];
+  for (const label of labelPriority) {
+    const totals = collectTotalsByLabel(lines, label);
+    if (totals.length > 0) return totals.reduce((sum, val) => sum + val, 0);
+  }
+
+  const subtotalTotals = collectTotalsByLabel(lines, /^subtotal\b/i);
+  if (subtotalTotals.length > 0) {
+    return subtotalTotals.reduce((sum, val) => sum + val, 0);
+  }
+
+  return 0;
+}
+
+function parseDateFromLines(lines: string[]): Date | null {
+  for (const line of lines) {
+    const m = line.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+    if (m) {
+      const mm = Number(m[1]);
+      const dd = Number(m[2]);
+      const yyyy = Number(m[3]);
+      const dt = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+      if (!Number.isNaN(dt.getTime())) return dt;
+    }
+  }
+
+  for (const line of lines) {
+    const t = Date.parse(line);
+    if (Number.isFinite(t)) return new Date(t);
+  }
+  return null;
+}
+
+function parseMicroCenterReadyAt(lines: string[]): string | null {
+  const line = lines.find((l) => /ready by/i.test(l));
+  if (!line) return null;
+  const m = line.match(/ready by\s+(\d{1,2}):(\d{2})\s*(am|pm)/i);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  const minute = Number(m[2]);
+  const mer = m[3].toUpperCase();
+  if (mer === 'PM' && hour < 12) hour += 12;
+  if (mer === 'AM' && hour === 12) hour = 0;
+
+  const base = parseDateFromLines(lines) || new Date();
+  base.setHours(hour, minute, 0, 0);
+  return base.toISOString();
+}
+
+function parseMicroCenterTransactionDate(lines: string[]): string | null {
+  const direct = lines.find((l) => /transaction date/i.test(l));
+  if (direct) {
+    const m = direct.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+    if (m) {
+      const mm = Number(m[1]);
+      const dd = Number(m[2]);
+      const yyyy = Number(m[3]);
+      const dt = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+      if (!Number.isNaN(dt.getTime())) return dt.toISOString();
+    }
+  }
+  const parsed = parseDateFromLines(lines);
+  return parsed ? parsed.toISOString() : null;
+}
+
+function parseMicroCenterSerialLine(line: string): { serial: string; qty?: number; subtotal?: number } | null {
+  if (!/(^|\b)S\/N\b|(^|\b)SN\b/i.test(line)) return null;
+  const snStart = line.match(/(?:S\/N|SN)\s*[:#]?\s*/i);
+  if (!snStart) return null;
+  const remainder = line.slice((snStart.index || 0) + snStart[0].length).trim();
+  if (!remainder) return { serial: '' };
+
+  const fullMatch = /(\d+)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})\s*$/.exec(
+    remainder,
+  );
+  if (fullMatch && fullMatch.index != null) {
+    const serial = remainder.slice(0, fullMatch.index).trim();
+    const qty = parseInt(fullMatch[1], 10);
+    const subtotal = parseFloat(fullMatch[3].replace(/,/g, ''));
+    return { serial, qty, subtotal };
+  }
+
+  const qtyTotalMatch = /(\d+)\s+\$?([\d,]+\.\d{2})\s*$/.exec(remainder);
+  if (qtyTotalMatch && qtyTotalMatch.index != null) {
+    const serial = remainder.slice(0, qtyTotalMatch.index).trim();
+    const qty = parseInt(qtyTotalMatch[1], 10);
+    const subtotal = parseFloat(qtyTotalMatch[2].replace(/,/g, ''));
+    return { serial, qty, subtotal };
+  }
+
+  return { serial: remainder.trim() };
+}
+
+function parseMicroCenterQtyLine(line: string): { qty: number; subtotal: number } | null {
+  const fullMatch = /^\s*(\d+)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})\s*$/.exec(line);
+  if (fullMatch) {
+    return {
+      qty: parseInt(fullMatch[1], 10),
+      subtotal: parseFloat(fullMatch[3].replace(/,/g, '')),
+    };
+  }
+  const qtyTotalMatch = /^\s*(\d+)\s+\$?([\d,]+\.\d{2})\s*$/.exec(line);
+  if (qtyTotalMatch) {
+    return {
+      qty: parseInt(qtyTotalMatch[1], 10),
+      subtotal: parseFloat(qtyTotalMatch[2].replace(/,/g, '')),
+    };
+  }
+  return null;
+}
+
+function parseMicroCenterSkuTable(
+  lines: string[],
+  inventory: InventoryItem[],
+): StagedItem[] {
+  const items: StagedItem[] = [];
+  const isBlockedLine = (line: string) =>
+    /^(?:subtotal|tax|sale total|total|clearance markdown|reference number)/i.test(line) ||
+    /^sku\s+description\b/i.test(line);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/^\d{5,}\b/.test(line)) continue;
+    if (isBlockedLine(line)) continue;
+    const parts = line.split(/\s+/);
+    let name = '';
+    if (parts.length >= 2) {
+      parts.shift();
+      name = parts.join(' ').trim();
+    } else {
+      const nextLine = lines[i + 1];
+      if (nextLine && !isBlockedLine(nextLine) && !/^s\/n\b|^sn\b/i.test(nextLine)) {
+        name = nextLine.trim();
+      }
+    }
+    if (!name) continue;
+
+    let qty = 1;
+    let subtotal = 0;
+    let serial = '';
+    let foundCost = false;
+    let foundSerial = false;
+
+    for (let j = i + 1; j < Math.min(lines.length, i + 8); j++) {
+      const next = lines[j];
+      if (!next) continue;
+      if (/^\d{5,}\b/.test(next)) break;
+      if (isBlockedLine(next)) break;
+
+      const snInfo = parseMicroCenterSerialLine(next);
+      if (snInfo) {
+        if (!foundSerial && snInfo.serial) {
+          serial = snInfo.serial;
+          foundSerial = true;
+        }
+        if (!foundCost && snInfo.qty != null && snInfo.subtotal != null) {
+          qty = snInfo.qty;
+          subtotal = snInfo.subtotal;
+          foundCost = true;
+        }
+        continue;
+      }
+
+      if (!foundCost) {
+        const qtyLine = parseMicroCenterQtyLine(next);
+        if (qtyLine) {
+          qty = qtyLine.qty;
+          subtotal = qtyLine.subtotal;
+          foundCost = true;
+          continue;
+        }
+
+        if (/^\d+$/.test(next)) {
+          const priceMatch = lines[j + 1]?.match(/\$?([\d,]+\.\d{2})/);
+          if (priceMatch) {
+            qty = parseInt(next, 10);
+            subtotal = parseFloat(priceMatch[1].replace(/,/g, ''));
+            foundCost = true;
+          }
+        }
+      }
+    }
+
+    const dbMatch = findBestMatch(name, inventory);
+    const autoCat = dbMatch?.category || guessCategory(name);
+    const unitCost = qty > 0 && subtotal > 0 ? subtotal / qty : 0;
+
+    items.push({
+      id: dbMatch?.id || generateId(),
+      name: dbMatch?.name || name,
+      category: autoCat,
+      sku: dbMatch?.sku || '',
+      keyword: dbMatch?.keyword || '',
+      quantity: dbMatch?.quantity || 0,
+      cost: dbMatch?.cost || 0,
+      price: dbMatch?.price || 0,
+      location: dbMatch?.location || '',
+      status: dbMatch?.status || 'In Stock',
+      notes: dbMatch?.notes || '',
+      photos: dbMatch?.photos || [],
+      metadata: mergeSerialMetadata(dbMatch?.metadata, serial),
+      lastUpdated: Date.now(),
+
+      qtyInput: qty,
+      costInput: parseFloat(unitCost.toFixed(2)),
+      isMatch: !!dbMatch,
+      isApi: false,
+    });
+  }
+
+  return items;
+}
+
+function parseMicroCenterSkuLabel(
+  lines: string[],
+  inventory: InventoryItem[],
+): StagedItem[] {
+  const items: StagedItem[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/^SKU:/i.test(line)) continue;
+
+    let name = 'Unknown Item';
+    let k = i - 1;
+    while (k >= 0) {
+      const prev = lines[k];
+      if (
+        /pickup items|pickup order items|item\s+qty\s+subtotal|ready by/i.test(prev)
+      ) {
+        k--;
+        continue;
+      }
+      name = prev;
+      break;
+    }
+
+    let qty = 1;
+    let subtotal = 0;
+    let serial = '';
+    let foundCost = false;
+    let foundSerial = false;
+    for (let j = 1; j < 8; j++) {
+      const l = lines[i + j];
+      if (!l) continue;
+      const snInfo = parseMicroCenterSerialLine(l);
+      if (snInfo) {
+        if (!foundSerial && snInfo.serial) {
+          serial = snInfo.serial;
+          foundSerial = true;
+        }
+        if (!foundCost && snInfo.qty != null && snInfo.subtotal != null) {
+          qty = snInfo.qty;
+          subtotal = snInfo.subtotal;
+          foundCost = true;
+          continue;
+        }
+      }
+      if (!foundCost) {
+        const pairMatch = l.match(/^\s*(\d+)\s+\$?([\d,]+\.\d{2})/);
+        if (pairMatch) {
+          qty = parseInt(pairMatch[1], 10);
+          subtotal = parseFloat(pairMatch[2].replace(/,/g, ''));
+          foundCost = true;
+          break;
+        }
+        if (/^\d+$/.test(l)) {
+          const next = lines[i + j + 1];
+          const priceMatch = next?.match(/\$?([\d,]+\.\d{2})/);
+          if (priceMatch) {
+            qty = parseInt(l, 10);
+            subtotal = parseFloat(priceMatch[1].replace(/,/g, ''));
+            foundCost = true;
+            break;
+          }
+        }
+      }
+    }
+
+    const dbMatch = findBestMatch(name, inventory);
+    const autoCat = dbMatch?.category || guessCategory(name);
+    const unitCost = qty > 0 && subtotal > 0 ? subtotal / qty : 0;
+
+    items.push({
+      id: dbMatch?.id || generateId(),
+      name: dbMatch?.name || name,
+      category: autoCat,
+      sku: dbMatch?.sku || '',
+      keyword: dbMatch?.keyword || '',
+      quantity: dbMatch?.quantity || 0,
+      cost: dbMatch?.cost || 0,
+      price: dbMatch?.price || 0,
+      location: dbMatch?.location || '',
+      status: dbMatch?.status || 'In Stock',
+      notes: dbMatch?.notes || '',
+      photos: dbMatch?.photos || [],
+      metadata: mergeSerialMetadata(dbMatch?.metadata, serial),
+      lastUpdated: Date.now(),
+
+      qtyInput: qty,
+      costInput: parseFloat(unitCost.toFixed(2)),
+      isMatch: !!dbMatch,
+      isApi: false,
+    });
+  }
+
+  return items;
+}
+
+export const parseNeweggText = (text: string, inventory: InventoryItem[]): ParsedInbound => {
+  try {
     const lines = text
       .split('\n')
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
+    const grandTotal = parseNeweggGrandTotal(lines);
     const items: StagedItem[] = [];
+    const orderedAt = parseNeweggOrderDate(lines);
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('Item #:')) {
+      if (/^Item\s*#:/i.test(lines[i])) {
         // Name extraction
         let name = 'Unknown Item';
         let k = i - 1;
@@ -114,6 +565,8 @@ export const parseNeweggText = (
           name = line;
           break;
         }
+
+        const itemNumber = extractNeweggItemNumber(lines[i], lines[i + 1]);
 
         // Qty & Price extraction
         let qty = 1;
@@ -139,7 +592,9 @@ export const parseNeweggText = (
           }
         }
 
-        const dbMatch = findBestMatch(name, inventory);
+        const dbMatch = itemNumber
+          ? findInventoryByNeweggItem(itemNumber, inventory)
+          : findBestMatch(name, inventory);
         const autoCat = dbMatch?.category || guessCategory(name);
         const isGift = lines.slice(Math.max(0, i - 6), i).some((l) => l.includes('Free Gift Item'));
 
@@ -156,6 +611,7 @@ export const parseNeweggText = (
           status: dbMatch?.status || 'In Stock',
           notes: dbMatch?.notes || '',
           photos: dbMatch?.photos || [],
+          metadata: mergeNeweggMetadata(dbMatch?.metadata, itemNumber),
           lastUpdated: Date.now(),
 
           qtyInput: qty,
@@ -180,11 +636,56 @@ export const parseNeweggText = (
       return { ...item, costInput: parseFloat(finalCost.toFixed(2)) };
     });
 
-    if (finalBatch.length === 0) return { items: [], msg: 'No items found', type: 'error' };
+    if (finalBatch.length === 0)
+      return { items: [], msg: 'No items found', type: 'error', orderedAt };
 
-    return { items: finalBatch, msg: 'Parsed ' + finalBatch.length + ' items' };
+    return { items: finalBatch, msg: 'Parsed ' + finalBatch.length + ' items', orderedAt };
   } catch (e) {
     console.error(e);
-    return { items: [], msg: 'Parse Error', type: 'error' };
+    return { items: [], msg: 'Parse Error', type: 'error', orderedAt: null };
+  }
+};
+
+export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): ParsedInbound => {
+  try {
+    const lines = text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    const looksLikeMicroCenter = lines.some((l) => /micro\s*center/i.test(l))
+      || lines.some((l) =>
+        /(your sale information|transaction date|reference number|price per|total price|sale total|clearance markdown|s\/n:)/i.test(
+          l,
+        ),
+      );
+    if (!looksLikeMicroCenter) {
+      return { items: [], msg: 'No items found', type: 'error', orderedAt: null };
+    }
+
+    const orderedAt = parseMicroCenterReadyAt(lines) || parseMicroCenterTransactionDate(lines);
+    let startIdx = lines.findIndex((l) => /your sale information/i.test(l));
+    if (startIdx < 0) startIdx = 0;
+    const headerIdx = lines.findIndex((l, idx) => idx >= startIdx && /^sku\s+description\b/i.test(l));
+    const parseStart = headerIdx >= 0 ? headerIdx + 1 : startIdx;
+    let endIdx = lines.findIndex(
+      (l, idx) =>
+        idx > parseStart
+        && /^(subtotal|tax|sale total|total)\b/i.test(l),
+    );
+    if (endIdx < 0) endIdx = lines.length;
+    const section = lines.slice(parseStart, endIdx);
+
+    let items = parseMicroCenterSkuTable(section, inventory);
+    if (items.length === 0) items = parseMicroCenterSkuLabel(lines, inventory);
+
+    if (items.length === 0) {
+      return { items: [], msg: 'No items found', type: 'error', orderedAt };
+    }
+
+    return { items, msg: 'Parsed ' + items.length + ' items', orderedAt };
+  } catch (e) {
+    console.error(e);
+    return { items: [], msg: 'Parse Error', type: 'error', orderedAt: null };
   }
 };

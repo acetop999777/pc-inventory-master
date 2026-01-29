@@ -8,6 +8,15 @@ const requestId = require('./middleware/requestId');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 const AppError = require('./errors/AppError');
+const { applyInventoryBatch, updateInventoryItem } = require('./services/inventoryService');
+const { createLog } = require('./services/logService');
+const {
+  createReceipt,
+  listReceipts,
+  getReceiptDetail,
+  updateReceiptImages,
+  updateReceipt,
+} = require('./services/inboundReceiptService');
 
 const app = express();
 
@@ -79,7 +88,7 @@ function assertClientInput(c) {
 
   if (fields.length > 0) {
     throw new AppError({
-      code: 'VALIDATION_FAILED',
+      code: 'INVALID_ARGUMENT',
       httpStatus: 400,
       retryable: false,
       message: 'Validation failed',
@@ -240,6 +249,60 @@ await pool.query(`
       );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS idempotency_keys (
+        operation_id TEXT PRIMARY KEY,
+        endpoint TEXT,
+        status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
+        response_json JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_movements (
+        id BIGSERIAL PRIMARY KEY,
+        inventory_id TEXT NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
+        qty_delta INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        unit_cost NUMERIC(12,4) NULL,
+        unit_cost_used NUMERIC(12,4) NULL,
+        occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ref_type TEXT NULL,
+        ref_id TEXT NULL,
+        on_hand_after INTEGER NOT NULL,
+        avg_cost_after NUMERIC(12,4) NOT NULL,
+        request_id TEXT NULL,
+        operation_id TEXT NOT NULL UNIQUE
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbound_receipts (
+        id BIGSERIAL PRIMARY KEY,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        vendor TEXT NULL,
+        mode TEXT NOT NULL DEFAULT 'MANUAL',
+        notes TEXT NULL,
+        images JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        request_id TEXT NULL,
+        operation_id TEXT NOT NULL UNIQUE
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbound_receipt_items (
+        id BIGSERIAL PRIMARY KEY,
+        receipt_id BIGINT NOT NULL REFERENCES inbound_receipts(id) ON DELETE CASCADE,
+        inventory_id TEXT NOT NULL REFERENCES inventory(id) ON DELETE RESTRICT,
+        qty_received INTEGER NOT NULL CHECK (qty_received > 0),
+        unit_cost NUMERIC(12,4) NOT NULL CHECK (unit_cost >= 0),
+        line_total NUMERIC(12,4) GENERATED ALWAYS AS (qty_received * unit_cost) STORED,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+
     // indexes (fresh db 也自动有)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_clients_order_date ON clients(order_date DESC);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_category_name ON inventory(category, name);`);
@@ -254,6 +317,21 @@ await pool.query(`
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_sku ON audit_logs(sku);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_date ON audit_logs(date DESC);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_ref ON audit_logs(ref_id);`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_inventory_movements_inventory_date ON inventory_movements(inventory_id, occurred_at DESC);`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_inventory_movements_ref ON inventory_movements(ref_type, ref_id);`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_inbound_receipts_received_at ON inbound_receipts(received_at DESC);`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_inbound_receipt_items_receipt ON inbound_receipt_items(receipt_id);`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_inbound_receipt_items_inventory_receipt ON inbound_receipt_items(inventory_id, receipt_id);`,
+    );
 
     console.log('Database initialized.');
   } catch (err) {
@@ -397,107 +475,246 @@ app.post('/api/dashboard/profit', async (req, res, next) => {
 
 app.get('/api/inventory', async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM inventory ORDER BY category, name');
+    const includeArchivedRaw = String(req.query.includeArchived || '').toLowerCase();
+    const includeArchived =
+      includeArchivedRaw === '1' || includeArchivedRaw === 'true' || includeArchivedRaw === 'yes';
+    const query = includeArchived
+      ? 'SELECT * FROM inventory ORDER BY category, name'
+      : `SELECT * FROM inventory
+         WHERE status IS NULL OR lower(status) <> 'archived'
+         ORDER BY category, name`;
+    const { rows } = await pool.query(query);
     res.json(rows);
   } catch (e) {
     next(e);
   }
 });
 
-app.post('/api/inventory/batch', async (req, res, next) => {
-  const items = req.body || [];
-  const client = await pool.connect();
+app.get('/api/inventory/:id/movements', async (req, res, next) => {
+  const id = req.params.id;
   try {
-    await client.query('BEGIN');
-    for (const item of items) {
-      const { rows } = await client.query('SELECT * FROM inventory WHERE id = $1', [item.id]);
-      if (rows.length > 0) {
-        await client.query(
-          `UPDATE inventory
-           SET quantity=$1, cost=$2, name=$3, keyword=$4, sku=$5, category=$6,
-               price=$7, location=$8, status=$9, notes=$10, updated_at=NOW()
-           WHERE id=$11`,
-          [
-            item.quantity,
-            item.cost,
-            item.name,
-            item.keyword,
-            item.sku,
-            item.category,
-            item.price || 0,
-            item.location || '',
-            item.status || 'In Stock',
-            item.notes || '',
-            item.id,
-          ]
-        );
-      } else {
-        await client.query(
-          `INSERT INTO inventory (id, category, name, keyword, sku, quantity, cost, price, location, status, notes, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())`,
-          [
-            item.id,
-            item.category,
-            item.name,
-            item.keyword,
-            item.sku,
-            item.quantity,
-            item.cost,
-            item.price || 0,
-            item.location || '',
-            item.status || 'In Stock',
-            item.notes || '',
-          ]
-        );
-      }
-    }
-    await client.query('COMMIT');
-    res.json({ success: true });
+    const { rows } = await pool.query(
+      `SELECT m.*, r.vendor as receipt_vendor, r.received_at as receipt_received_at
+       FROM inventory_movements m
+       LEFT JOIN inbound_receipts r
+         ON m.ref_type = 'RECEIPT' AND r.id::text = m.ref_id
+       WHERE m.inventory_id = $1 AND m.qty_delta <> 0
+       ORDER BY m.occurred_at ASC, m.id ASC`,
+      [id],
+    );
+
+    let prevCost = 0;
+    const normalized = rows.map((row) => {
+      const qtyDelta = Number(row.qty_delta ?? 0);
+      const onHandAfter = Number(row.on_hand_after ?? 0);
+      const avgCostAfter = Number(row.avg_cost_after ?? 0);
+      const prevQty = onHandAfter - qtyDelta;
+      const prevCostVal = Number.isFinite(prevCost) ? prevCost : 0;
+      prevCost = avgCostAfter;
+
+      return {
+        id: row.id,
+        inventoryId: row.inventory_id,
+        qtyDelta,
+        reason: row.reason,
+        unitCost: row.unit_cost != null ? Number(row.unit_cost) : null,
+        unitCostUsed: row.unit_cost_used != null ? Number(row.unit_cost_used) : null,
+        onHandAfter,
+        avgCostAfter,
+        occurredAt: row.occurred_at,
+        refType: row.ref_type,
+        refId: row.ref_id,
+        vendor: row.receipt_vendor || null,
+        receiptReceivedAt: row.receipt_received_at || null,
+        prevQty,
+        prevCost: prevCostVal,
+      };
+    });
+
+    res.json(normalized.reverse());
   } catch (e) {
-    await client.query('ROLLBACK');
     next(e);
-  } finally {
-    client.release();
+  }
+});
+
+app.post('/api/inventory/batch', async (req, res, next) => {
+  const endpoint = req.originalUrl || req.url;
+  const { operationId, items } = req.body || {};
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'inventory',
+      event: 'inventory.batch.request',
+      requestId: req.requestId || null,
+      operationId,
+      endpoint,
+      itemCount: Array.isArray(items) ? items.length : 0,
+    }),
+  );
+  try {
+    const result = await applyInventoryBatch({
+      pool,
+      operationId,
+      items,
+      endpoint,
+      requestId: req.requestId || null,
+    });
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.batch.response',
+        requestId: req.requestId || null,
+        operationId,
+        endpoint,
+        status: 'success',
+      }),
+    );
+    res.json(result);
+  } catch (e) {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.batch.response',
+        requestId: req.requestId || null,
+        operationId,
+        endpoint,
+        status: 'error',
+        error: e?.code || e?.message || 'ERROR',
+      }),
+    );
+    next(e);
   }
 });
 
 app.put('/api/inventory/:id', async (req, res, next) => {
   const id = req.params.id;
   const body = req.body || {};
-  const allowed = ['category', 'name', 'keyword', 'sku', 'quantity', 'cost', 'price', 'location', 'status', 'notes'];
-
-  const sets = [];
-  const values = [];
-  let idx = 1;
-
-  for (const k of allowed) {
-    if (Object.prototype.hasOwnProperty.call(body, k)) {
-      sets.push(`${k} = $${idx++}`);
-      values.push(body[k]);
-    }
-  }
-
+  const endpoint = req.originalUrl || req.url;
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'inventory',
+      event: 'inventory.update.request',
+      requestId: req.requestId || null,
+      operationId: body.operationId,
+      endpoint,
+      inventoryId: id,
+    }),
+  );
   try {
-    if (sets.length === 0) {
-      await pool.query(`UPDATE inventory SET updated_at = NOW() WHERE id = $1`, [id]);
-      const { rows } = await pool.query('SELECT * FROM inventory WHERE id = $1', [id]);
-      return res.json(rows[0] || { success: true });
-    }
-
-    values.push(id);
-    const q = `UPDATE inventory SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
-    const r = await pool.query(q, values);
-    return res.json(r.rows[0] || { success: true });
+    const row = await updateInventoryItem({
+      pool,
+      id,
+      fields: body,
+      operationId: body.operationId,
+      requestId: req.requestId || null,
+      endpoint,
+    });
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.update.response',
+        requestId: req.requestId || null,
+        operationId: body.operationId,
+        endpoint,
+        inventoryId: id,
+        status: 'success',
+      }),
+    );
+    return res.json(row || { success: true });
   } catch (e) {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.update.response',
+        requestId: req.requestId || null,
+        operationId: body.operationId,
+        endpoint,
+        inventoryId: id,
+        status: 'error',
+        error: e?.code || e?.message || 'ERROR',
+      }),
+    );
     next(e);
   }
 });
 
 app.delete('/api/inventory/:id', async (req, res, next) => {
+  const endpoint = req.originalUrl || req.url;
+  const operationId = req?.body?.operationId || req?.query?.operationId || null;
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'inventory',
+      event: 'inventory.delete.request',
+      requestId: req.requestId || null,
+      operationId,
+      endpoint,
+      inventoryId: req.params.id,
+    }),
+  );
   try {
-    await pool.query('DELETE FROM inventory WHERE id = $1', [req.params.id]);
+    const invId = req.params.id;
+    const { rows: refRows } = await pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM inbound_receipt_items WHERE inventory_id = $1',
+      [invId],
+    );
+    const refCount = Number(refRows?.[0]?.cnt ?? 0);
+    if (refCount > 0) {
+      const { rows: archivedRows } = await pool.query(
+        `UPDATE inventory
+         SET status = $2, quantity = 0, updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [invId, 'Archived'],
+      );
+      console.log(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          scope: 'inventory',
+          event: 'inventory.delete.archived',
+          requestId: req.requestId || null,
+          operationId,
+          endpoint,
+          inventoryId: invId,
+          refCount,
+        }),
+      );
+      return res.json({ archived: true, refCount, item: archivedRows[0] || null });
+    }
+
+    await pool.query('DELETE FROM inventory WHERE id = $1', [invId]);
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.delete.response',
+        requestId: req.requestId || null,
+        operationId,
+        endpoint,
+        inventoryId: req.params.id,
+        status: 'success',
+      }),
+    );
     res.json({ success: true });
   } catch (e) {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.delete.response',
+        requestId: req.requestId || null,
+        operationId,
+        endpoint,
+        inventoryId: req.params.id,
+        status: 'error',
+        error: e?.code || e?.message || 'ERROR',
+      }),
+    );
     next(e);
   }
 });
@@ -673,15 +890,202 @@ app.get('/api/logs', async (req, res, next) => {
 });
 
 app.post('/api/logs', async (req, res, next) => {
-  const { id, timestamp, type, title, msg, meta } = req.body || {};
+  const endpoint = req.originalUrl || req.url;
+  const { operationId, ...log } = req.body || {};
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'logs',
+      event: 'logs.create.request',
+      requestId: req.requestId || null,
+      operationId,
+      endpoint,
+      logId: log?.id,
+    }),
+  );
   try {
-    await pool.query(
-      'INSERT INTO logs (id, timestamp, type, title, msg, meta) VALUES ($1,$2,$3,$4,$5,$6)',
-      [id, timestamp, type, title, msg, meta]
+    const result = await createLog({
+      pool,
+      operationId,
+      log,
+      endpoint,
+      requestId: req.requestId || null,
+    });
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'logs',
+        event: 'logs.create.response',
+        requestId: req.requestId || null,
+        operationId,
+        endpoint,
+        status: 'success',
+      }),
     );
-    res.json({ success: true });
+    res.json(result);
+  } catch (e) {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'logs',
+        event: 'logs.create.response',
+        requestId: req.requestId || null,
+        operationId,
+        endpoint,
+        status: 'error',
+        error: e?.code || e?.message || 'ERROR',
+      }),
+    );
+    next(e);
+  }
+});
+
+// ---- inbound receipts ----
+app.get('/api/inbound/receipts', async (req, res, next) => {
+  try {
+    const limit = Number(req.query.limit || 50);
+    const rows = await listReceipts({ pool, limit });
+    res.json(rows);
   } catch (e) {
     next(e);
+  }
+});
+
+app.get('/api/inbound/receipts/:id', async (req, res, next) => {
+  try {
+    const result = await getReceiptDetail({ pool, id: req.params.id });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/inbound/receipts', async (req, res, next) => {
+  const endpoint = req.originalUrl || req.url;
+  const payload = req.body || {};
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'receipts',
+      event: 'receipt.create.request',
+      requestId: req.requestId || null,
+      operationId: payload.operationId,
+      endpoint,
+      itemCount: Array.isArray(payload.items) ? payload.items.length : 0,
+    }),
+  );
+  try {
+    const result = await createReceipt({
+      pool,
+      operationId: payload.operationId,
+      receivedAt: payload.receivedAt,
+      vendor: payload.vendor,
+      mode: payload.mode,
+      notes: payload.notes,
+      images: payload.images,
+      items: payload.items,
+      requestId: req.requestId || null,
+      endpoint,
+    });
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'receipts',
+        event: 'receipt.create.response',
+        requestId: req.requestId || null,
+        operationId: payload.operationId,
+        endpoint,
+        status: 'success',
+      }),
+    );
+    res.json(result);
+  } catch (e) {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'receipts',
+        event: 'receipt.create.response',
+        requestId: req.requestId || null,
+        operationId: payload.operationId,
+        endpoint,
+        status: 'error',
+        error: e?.code || e?.message || 'ERROR',
+      }),
+    );
+    next(e);
+  }
+});
+
+app.patch('/api/inbound/receipts/:id', async (req, res, next) => {
+  const id = req.params.id;
+  const payload = req.body || {};
+  const endpoint = req.originalUrl || req.url;
+  try {
+    const result = await updateReceipt({
+      pool,
+      id,
+      payload,
+      requestId: req.requestId || null,
+      endpoint,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/inbound/receipts/:id', async (req, res, next) => {
+  const id = req.params.id;
+  const endpoint = req.originalUrl || req.url;
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'receipts',
+      event: 'receipt.delete.request',
+      requestId: req.requestId || null,
+      endpoint,
+      receiptId: id,
+    }),
+  );
+  try {
+    const { rows } = await pool.query('DELETE FROM inbound_receipts WHERE id = $1 RETURNING *', [
+      id,
+    ]);
+    if (rows.length === 0) {
+      throw new AppError({
+        code: 'NOT_FOUND',
+        httpStatus: 404,
+        retryable: false,
+        message: 'Receipt not found',
+        details: { id },
+      });
+    }
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'receipts',
+        event: 'receipt.delete.response',
+        requestId: req.requestId || null,
+        endpoint,
+        receiptId: id,
+        status: 'success',
+      }),
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'receipts',
+        event: 'receipt.delete.response',
+        requestId: req.requestId || null,
+        endpoint,
+        receiptId: id,
+        status: 'error',
+        error: err?.code || err?.message || 'ERROR',
+      }),
+    );
+    next(err);
   }
 });
 

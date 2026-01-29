@@ -4,6 +4,7 @@ export interface ClientSpecs {
     sku: string;
     cost: number;
     qty: number;
+    needsPurchase?: boolean;
   };
 }
 

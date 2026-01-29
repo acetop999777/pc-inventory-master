@@ -39,18 +39,24 @@ export function StockAdjustModal(props: {
   const currentAvg = Number(item.cost ?? 0);
 
   const qty = clampInt(Number(qtyInput));
-  const unitCost = Number(unitCostInput);
+  const unitCostRaw = Number(unitCostInput);
+  const hasValidUnitCost = Number.isFinite(unitCostRaw) && unitCostRaw >= 0;
+  const unitCost = hasValidUnitCost ? unitCostRaw : currentAvg;
+  const effectiveQty = mode === 'remove' ? Math.min(qty, currentQty) : qty;
 
-  const previewQty = mode === 'add' ? currentQty + qty : Math.max(0, currentQty - qty);
+  const previewQty =
+    mode === 'add' ? currentQty + effectiveQty : Math.max(0, currentQty - effectiveQty);
 
   const previewAvg =
     mode === 'add'
       ? previewQty > 0
-        ? (currentQty * currentAvg + qty * (Number.isFinite(unitCost) ? unitCost : 0)) / previewQty
+        ? Math.max(0, (currentQty * currentAvg + effectiveQty * unitCost) / previewQty)
         : 0
-      : currentAvg; // remove doesn't change WAC
+      : previewQty > 0
+        ? Math.max(0, (currentQty * currentAvg - effectiveQty * unitCost) / previewQty)
+        : 0;
 
-  const canApply = qty > 0 && (mode === 'remove' || (Number.isFinite(unitCost) && unitCost >= 0));
+  const canApply = effectiveQty > 0 && hasValidUnitCost;
 
   const apply = () => {
     if (!canApply) return;
@@ -156,18 +162,13 @@ export function StockAdjustModal(props: {
                     Unit Cost (this update)
                   </div>
                   <input
-                    className={`w-full px-3 py-2 rounded-xl border text-sm font-bold outline-none focus:ring-2 ${
-                      mode === 'remove'
-                        ? 'border-slate-200 bg-slate-50 text-slate-300'
-                        : 'border-slate-200 bg-white text-slate-900 focus:ring-blue-200'
-                    }`}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-200"
                     value={unitCostInput}
                     onChange={(e) => setUnitCostInput(e.target.value)}
                     inputMode="decimal"
-                    disabled={mode === 'remove'}
                   />
                   <div className="text-[11px] text-slate-400">
-                    Used to compute new WAC (only for Add)
+                    Used to compute new WAC (add or remove)
                   </div>
                 </div>
               </div>
@@ -199,14 +200,14 @@ export function StockAdjustModal(props: {
                     </div>
                     <div className="mt-2 text-[11px] text-slate-400">
                       {mode === 'remove'
-                        ? 'Removing stock keeps WAC unchanged.'
+                        ? 'WAC = (oldQty*oldAvg - removeQty*unitCost) / (oldQty-removeQty)'
                         : 'WAC = (oldQty*oldAvg + addQty*unitCost) / (oldQty+addQty)'}
                     </div>
                   </div>
 
                   {!canApply && (
                     <div className="text-[11px] text-red-500 font-bold">
-                      Please enter a valid quantity{mode === 'add' ? ' and unit cost' : ''}.
+                      Please enter a valid quantity and unit cost.
                     </div>
                   )}
                 </div>

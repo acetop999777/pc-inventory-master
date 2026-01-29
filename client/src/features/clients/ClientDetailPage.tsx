@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ClientDetailPageProps } from './types';
 import { IdentityCard, LogisticsCard, FinancialsCard, NotesCard, SpecsTable } from './editor';
+import { formatMoney } from '../../utils';
 
 async function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -63,6 +64,10 @@ export function ClientDetailPage({
   );
 
   const title = (activeClient as any).wechatName || 'Client';
+  const statusLabel = String((activeClient as any).status || 'Status').trim() || 'Status';
+  const orderDate = String((activeClient as any).orderDate || '').split('T')[0] || '—';
+  const deliveryDate = String((activeClient as any).deliveryDate || '').split('T')[0] || '—';
+  const profitValue = Number((financials as any).profit ?? 0);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -75,9 +80,64 @@ export function ClientDetailPage({
         onChange={onFileChange}
       />
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+        <div className="md:hidden mb-6">
+          <button
+            onClick={onBack}
+            className="h-9 px-3 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-black uppercase tracking-wider"
+          >
+            Back
+          </button>
+
+          <div className="mt-4 relative overflow-hidden rounded-[28px] bg-slate-900 p-5 text-white shadow-xl">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Client
+            </div>
+            <div className="mt-1 text-2xl font-black tracking-tight">{title}</div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-200">
+                {statusLabel}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-bold text-slate-300">
+                Order {orderDate}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-bold text-slate-300">
+                Delivery {deliveryDate}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                  Balance Due
+                </div>
+                <div className="mt-1 text-lg font-black">
+                  {formatMoney(Number((financials as any).balanceDue ?? 0))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                  Profit
+                </div>
+                <div
+                  className={[
+                    'mt-1 text-lg font-black',
+                    profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300',
+                  ].join(' ')}
+                >
+                  {formatMoney(profitValue)}
+                </div>
+              </div>
+            </div>
+
+            <div className="pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full bg-blue-500/30 blur-3xl" />
+            <div className="pointer-events-none absolute -left-8 -bottom-10 h-24 w-24 rounded-full bg-emerald-400/20 blur-3xl" />
+          </div>
+        </div>
+
         {/* Header: keep clean; global SyncStatusPill already exists */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="hidden md:flex items-center justify-between mb-6">
           <button
             onClick={onBack}
             className="h-9 px-3 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-black uppercase tracking-wider"
@@ -92,9 +152,9 @@ export function ClientDetailPage({
           <div className="w-[44px]" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
           {/* Left */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="lg:col-span-5 space-y-4 md:space-y-6">
             <IdentityCard
               data={activeClient as any}
               update={onUpdateField as any}
@@ -110,7 +170,7 @@ export function ClientDetailPage({
           </div>
 
           {/* Right */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 space-y-4 md:space-y-6">
             <FinancialsCard
               data={activeClient as any}
               update={onUpdateField as any}

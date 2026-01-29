@@ -161,11 +161,12 @@ export const ClientRow: React.FC<Props> = ({
     <div
       className={[
         'group',
-        'grid grid-cols-12 gap-3 items-center',
-        'px-5 py-3',
-        'border-t border-slate-100 first:border-t-0',
         'transition-colors',
-        active ? 'bg-sky-50/60' : 'bg-white hover:bg-slate-50',
+        'border border-slate-200 rounded-2xl bg-white shadow-sm',
+        'md:rounded-none md:border-0 md:border-t md:border-slate-100 md:first:border-t-0 md:shadow-none',
+        active
+          ? 'ring-2 ring-sky-200 md:ring-0 md:bg-sky-50/60'
+          : 'md:hover:bg-slate-50',
       ].join(' ')}
       role="button"
       tabIndex={0}
@@ -177,87 +178,196 @@ export const ClientRow: React.FC<Props> = ({
         }
       }}
     >
-      {/* Client */}
-      <div className="col-span-3 min-w-0">
-        <div className="text-[13px] font-semibold text-slate-900 truncate leading-5 tracking-tight">
-          {name}
+      <div className="md:hidden p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Client
+            </div>
+            <div className="mt-1 text-base font-black text-slate-900 truncate">{name}</div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <StatusPill status={anyC.status} />
+            {deliveredShort ? (
+              <span className="text-[10px] font-semibold text-slate-400">
+                Delivered {deliveredShort}
+              </span>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      {/* Status */}
-      <div className="col-span-2 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <StatusPill status={anyC.status} />
-          {deliveredShort ? (
-            <span className="text-[11px] font-semibold text-slate-400 truncate">
-              Delivered {deliveredShort}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Order
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-700 tabular-nums">
+              {orderDate}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Delivery
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-700 tabular-nums">
+              {deliveryDate}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2 tabular-nums">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Total
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">{money(total)}</div>
+          </div>
+          <div className="rounded-xl border border-sky-200/70 bg-sky-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-sky-400">
+              Due
+            </div>
+            <div className="mt-1 text-sm font-semibold text-sky-700">{money(due)}</div>
+          </div>
+          <div
+            className={[
+              'rounded-xl border px-3 py-2',
+              profit >= 0
+                ? 'border-emerald-200/60 bg-emerald-50/60 text-emerald-700'
+                : 'border-rose-200/60 bg-rose-50 text-rose-700',
+            ].join(' ')}
+          >
+            <div className="text-[9px] font-black uppercase tracking-widest">Profit</div>
+            <div className="mt-1 text-sm font-semibold">{money(profit)}</div>
+          </div>
+        </div>
+
+        {(onArchive || onDelete) && (
+          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Tap to open
             </span>
-          ) : null}
+            <div className="flex items-center gap-2">
+              {onArchive ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchive(e);
+                  }}
+                  title="Archive"
+                  className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm"
+                >
+                  <Archive size={15} className="mx-auto" />
+                  <span className="sr-only">Archive</span>
+                </button>
+              ) : null}
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(e);
+                  }}
+                  title="Delete"
+                  className="h-9 w-9 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm"
+                >
+                  <Trash2 size={15} className="mx-auto" />
+                  <span className="sr-only">Delete</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="hidden md:grid grid-cols-12 gap-3 items-center px-5 py-3">
+        {/* Client */}
+        <div className="col-span-3 min-w-0">
+          <div className="text-[13px] font-semibold text-slate-900 truncate leading-5 tracking-tight">
+            {name}
+          </div>
         </div>
-      </div>
 
-      {/* Order + Delivery */}
-      <div className="col-span-4 grid grid-cols-2 gap-1 tabular-nums text-[12px] font-semibold text-slate-700">
-        <div>{orderDate}</div>
-        <div>{deliveryDate}</div>
-      </div>
+        {/* Status */}
+        <div className="col-span-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <StatusPill status={anyC.status} />
+            {deliveredShort ? (
+              <span className="text-[11px] font-semibold text-slate-400 truncate">
+                Delivered {deliveredShort}
+              </span>
+            ) : null}
+          </div>
+        </div>
 
-      {/* Financials + Actions */}
-      <div className="col-span-3 flex items-center justify-end gap-2">
-        <div className="inline-flex items-center gap-2 tabular-nums whitespace-nowrap">
-          <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-slate-50 border border-slate-200/70">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total</span>
-            <span className="text-[12px] font-semibold text-slate-900">{money(total)}</span>
-          </span>
-          <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-sky-50 border border-sky-200/60">
-            <span className="text-[9px] font-black uppercase tracking-widest text-sky-400">Due</span>
-            <span className="text-[12px] font-semibold text-sky-700">{money(due)}</span>
-          </span>
-          <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-emerald-50/60 border border-emerald-200/50">
-            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Profit</span>
-            <span
-              className={[
-                'text-[12px] font-semibold',
-                profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
-              ].join(' ')}
-            >
-              {money(profit)}
+        {/* Order + Delivery */}
+        <div className="col-span-4 grid grid-cols-2 gap-1 tabular-nums text-[12px] font-semibold text-slate-700">
+          <div>{orderDate}</div>
+          <div>{deliveryDate}</div>
+        </div>
+
+        {/* Financials + Actions */}
+        <div className="col-span-3 flex items-center justify-end gap-2">
+          <div className="inline-flex items-center gap-2 tabular-nums whitespace-nowrap">
+            <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-slate-50 border border-slate-200/70">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Total
+              </span>
+              <span className="text-[12px] font-semibold text-slate-900">{money(total)}</span>
             </span>
-          </span>
-        </div>
+            <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-sky-50 border border-sky-200/60">
+              <span className="text-[9px] font-black uppercase tracking-widest text-sky-400">
+                Due
+              </span>
+              <span className="text-[12px] font-semibold text-sky-700">{money(due)}</span>
+            </span>
+            <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-emerald-50/60 border border-emerald-200/50">
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">
+                Profit
+              </span>
+              <span
+                className={[
+                  'text-[12px] font-semibold',
+                  profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
+                ].join(' ')}
+              >
+                {money(profit)}
+              </span>
+            </span>
+          </div>
 
-        {/* icon-only actions, only-on-hover (desktop) */}
-        <div
-          className={[
-            'flex items-center gap-1',
-            // mobile: always visible; desktop: hover/focus only
-            'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
-            'transition-opacity',
-          ].join(' ')}
-        >
-          {onArchive ? (
-            <button
-              type="button"
-              onClick={onArchive}
-              title="Archive"
-              className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center"
-            >
-              <Archive size={15} />
-              <span className="sr-only">Archive</span>
-            </button>
-          ) : null}
+          {/* icon-only actions, only-on-hover (desktop) */}
+          <div
+            className={[
+              'flex items-center gap-1',
+              'opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
+              'transition-opacity',
+            ].join(' ')}
+          >
+            {onArchive ? (
+              <button
+                type="button"
+                onClick={onArchive}
+                title="Archive"
+                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center"
+              >
+                <Archive size={15} />
+                <span className="sr-only">Archive</span>
+              </button>
+            ) : null}
 
-          {onDelete ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              title="Delete"
-              className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-700 flex items-center justify-center"
-            >
-              <Trash2 size={15} />
-              <span className="sr-only">Delete</span>
-            </button>
-          ) : null}
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                title="Delete"
+                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-700 flex items-center justify-center"
+              >
+                <Trash2 size={15} />
+                <span className="sr-only">Delete</span>
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

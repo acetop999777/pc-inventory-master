@@ -225,10 +225,17 @@ export function ClientDetailRoute() {
     (field: keyof ClientEntity, val: any) => {
       if (!clientId) return;
 
+      const shouldAutoPaid =
+        field === 'status' && String(val ?? '').toLowerCase() === 'delivered';
+
       const curDraft = draftRef.current;
       if (curDraft && curDraft.id === clientId) {
         const prevWechat = curDraft.wechatName ?? '';
-        const next: ClientEntity = { ...curDraft, [field]: val };
+        const next: ClientEntity = {
+          ...curDraft,
+          [field]: val,
+          ...(shouldAutoPaid ? { paidAmount: Number(curDraft.totalPrice) || 0 } : {}),
+        };
         const prevHasWechat = !isBlank(prevWechat);
         const nextHasWechat = !isBlank(next.wechatName);
 
@@ -248,7 +255,14 @@ export function ClientDetailRoute() {
 
         // after wechatName exists, keep real-time writes (even if cache hasn't refreshed yet)
         if (nextHasWechat) {
-          updateClient(clientId, { [field]: val } as Partial<ClientEntity>, next);
+          updateClient(
+            clientId,
+            {
+              [field]: val,
+              ...(shouldAutoPaid ? { paidAmount: Number(next.totalPrice) || 0 } : {}),
+            } as Partial<ClientEntity>,
+            next,
+          );
           return;
         }
 
@@ -257,9 +271,14 @@ export function ClientDetailRoute() {
       }
 
       // 已落库：正常 write-behind
-      updateClient(clientId, { [field]: val } as Partial<ClientEntity>);
+      updateClient(clientId, {
+        [field]: val,
+        ...(shouldAutoPaid
+          ? { paidAmount: Number((fromCache as any)?.totalPrice ?? 0) || 0 }
+          : {}),
+      } as Partial<ClientEntity>);
     },
-    [clientId, isDraftOnly, setDraft, updateClient],
+    [clientId, fromCache, isDraftOnly, setDraft, updateClient],
   );
 
   const retry = useCallback(async () => {

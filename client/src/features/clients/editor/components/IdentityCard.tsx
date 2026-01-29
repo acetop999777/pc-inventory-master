@@ -12,12 +12,12 @@ interface Props {
 
 export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onPhotoRemove }) => {
   return (
-    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative overflow-hidden">
+    <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100 relative overflow-hidden">
       <div className="mb-6">
         {/* 只有用户名，没有箭头了 */}
         <div className="flex items-center gap-2 mb-4">
           <input
-            className="text-2xl font-black text-slate-800 bg-transparent outline-none w-full placeholder:text-slate-300"
+            className="text-xl md:text-2xl font-black text-slate-800 bg-transparent outline-none w-full placeholder:text-slate-300"
             placeholder="Client Name"
             value={data.wechatName}
             onChange={(e) => update('wechatName', e.target.value)}
@@ -48,7 +48,7 @@ export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onP
         </div>
       </div>
       <div className="space-y-1">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CompactInput
             label="WeChat ID"
             value={data.wechatId}
@@ -60,7 +60,7 @@ export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onP
             onChange={(e) => update('realName', e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CompactInput
             label="XHS Name"
             value={data.xhsName}

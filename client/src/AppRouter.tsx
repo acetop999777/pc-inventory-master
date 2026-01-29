@@ -53,7 +53,7 @@ function AppShell() {
 
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inventory" element={<InventoryHub />} />
-          <Route path="/inbound" element={<InboundHub />} />
+          <Route path="/inbound/*" element={<InboundHub />} />
 
           <Route path="/clients" element={<ClientsListRoute />} />
           <Route path="/clients/:id" element={<ClientDetailRoute />} />
@@ -67,7 +67,7 @@ function AppShell() {
 
 export default function AppLegacy() {
   return (
-    <HashRouter>
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <NavigationGuardProvider>
         <AppShell />
       </NavigationGuardProvider>

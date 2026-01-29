@@ -31,7 +31,7 @@ export type EnqueueRequest<P> = {
   label?: string;
   patch: P;
   merge: (prev: P, next: P) => P;
-  write: (patch: P) => Promise<void>;
+  write: (patch: P, ctx: { operationId: string }) => Promise<void>;
   debounceMs?: number;
 };
 
@@ -39,11 +39,15 @@ type KeyState<P> = {
   key: SaveKey;
   label?: string;
   patch?: P;
-  write?: (patch: P) => Promise<void>;
+  pendingOperationId?: string | null;
+  inFlightOperationId?: string | null;
+  write?: (patch: P, ctx: { operationId: string }) => Promise<void>;
   merge?: (prev: P, next: P) => P;
   debounceMs: number;
 
   timer: any;
+  retryTimer: any;
+  retryCount: number;
   inFlight: Promise<void> | null;
   lastError: unknown;
   updatedAt: number;
@@ -88,6 +92,20 @@ export class SaveQueue {
 
     // Avoid for..of over Set (TS target ES5)
     this.listeners.forEach((cb) => cb());
+  }
+
+  private isRetryableError(err: any): boolean {
+    if (typeof err?.retryable === 'boolean') return err.retryable;
+    if (typeof err?.retriable === 'boolean') return err.retriable;
+    const status = err?.status ?? err?.httpStatus;
+    if (typeof status === 'number') return status >= 500 || status === 429 || status === 408;
+    return true;
+  }
+
+  private makeOperationId(): string {
+    const cryptoObj: any = (globalThis as any).crypto;
+    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+    return `op_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   }
 
   private computeSnapshot(): SaveQueueSnapshot {
@@ -152,10 +170,14 @@ export class SaveQueue {
         key: req.key,
         label: req.label,
         patch: req.patch,
+        pendingOperationId: null,
+        inFlightOperationId: null,
         write: req.write,
         merge: req.merge,
         debounceMs: req.debounceMs ?? 500,
         timer: null,
+        retryTimer: null,
+        retryCount: 0,
         inFlight: null,
         lastError: null,
         updatedAt: now,
@@ -168,6 +190,7 @@ export class SaveQueue {
       st.merge = req.merge;
       st.debounceMs = req.debounceMs ?? st.debounceMs;
       st.patch = st.patch === undefined ? req.patch : st.merge!(st.patch, req.patch);
+      st.pendingOperationId = null;
       st.updatedAt = now;
     }
 
@@ -183,8 +206,8 @@ export class SaveQueue {
   }
 
   private schedule(key: SaveKey, st: KeyState<any>) {
-    // Phase7.3: hold patches while error (no auto-flush; user must Retry).
-    if (st.lastError != null) {
+    // Hold patches while non-retryable error (user must fix inputs / retry).
+    if (st.lastError != null && !this.isRetryableError(st.lastError)) {
       this.emit();
       return;
     }
@@ -207,6 +230,11 @@ export class SaveQueue {
       }
     }
 
+    if (st.retryTimer) {
+      clearTimeout(st.retryTimer);
+      st.retryTimer = null;
+    }
+
     if (st.patch === undefined) {
       this.resolveIfIdle(st);
       this.emit();
@@ -214,7 +242,10 @@ export class SaveQueue {
     }
 
     const patch = st.patch;
+    const operationId = st.pendingOperationId || this.makeOperationId();
     st.patch = undefined;
+    st.pendingOperationId = null;
+    st.inFlightOperationId = operationId;
 
     const write = st.write;
     if (!write) {
@@ -225,16 +256,36 @@ export class SaveQueue {
     }
 
     const run = async () => {
-      await write(patch);
+      await write(patch, { operationId });
     };
 
     const p = run()
       .then(() => {
         st.lastError = null;
+        st.retryCount = 0;
+        st.inFlightOperationId = null;
       })
       .catch((e) => {
         st.lastError = e;
-        st.patch = st.patch === undefined ? patch : st.merge ? st.merge(st.patch, patch) : st.patch;
+        const hadPending = st.patch !== undefined;
+        if (hadPending) {
+          st.patch = st.merge ? st.merge(st.patch, patch) : st.patch;
+          st.pendingOperationId = null;
+        } else {
+          st.patch = patch;
+          st.pendingOperationId = st.inFlightOperationId || null;
+        }
+        st.inFlightOperationId = null;
+
+        if (this.isRetryableError(e)) {
+          const delay = Math.min(1000 * 2 ** st.retryCount, 15000);
+          st.retryCount += 1;
+          if (st.retryTimer) clearTimeout(st.retryTimer);
+          st.retryTimer = setTimeout(() => {
+            st.retryTimer = null;
+            void this.flushKey(key);
+          }, delay);
+        }
       })
       .finally(async () => {
         st.inFlight = null;
@@ -296,7 +347,28 @@ export class SaveQueue {
     if (!st) return;
     if (st.timer) clearTimeout(st.timer);
     st.timer = null;
+    if (st.retryTimer) clearTimeout(st.retryTimer);
+    st.retryTimer = null;
     void this.flushKey(key);
+  }
+
+  dismissKey(key: SaveKey) {
+    const st = this.states.get(key);
+    if (!st) return;
+    if (st.timer) clearTimeout(st.timer);
+    st.timer = null;
+    if (st.retryTimer) clearTimeout(st.retryTimer);
+    st.retryTimer = null;
+    st.patch = undefined;
+    st.lastError = null;
+    st.pendingOperationId = null;
+    st.inFlightOperationId = null;
+    if (!st.inFlight) {
+      st.waiters.forEach((w) => w.resolve());
+      st.waiters.clear();
+      this.states.delete(key);
+    }
+    this.emit();
   }
 
   private resolveIfIdle(st: KeyState<any>) {

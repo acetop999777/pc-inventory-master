@@ -21,6 +21,10 @@ export function normalizeInventoryRow(row: any): InventoryItem {
     location: row?.location ?? undefined,
     status: row?.status ?? undefined,
     notes: row?.notes ?? undefined,
+    metadata:
+      row?.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+        ? row.metadata
+        : {},
     photos: Array.isArray(row?.photos) ? row.photos : undefined,
   };
 }

@@ -59,9 +59,9 @@ export function useClientWriteBehind() {
       label: 'Clients',
       patch: { op: 'patch', fields: coerceFields(fields) },
       merge: mergeClientWrite,
-      write: async (w) => {
+      write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await apiCallOrThrow(`/clients/${id}`, 'DELETE');
+          await apiCallOrThrow(`/clients/${id}`, 'DELETE', { operationId: ctx.operationId });
           return;
         }
 
@@ -76,6 +76,7 @@ export function useClientWriteBehind() {
           ...merged,
           actualCost: fin.totalCost,
           profit: merged.totalPrice > 0 ? fin.profit : null,
+          operationId: ctx.operationId,
         });
 
         qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsert(old, merged));
@@ -91,8 +92,8 @@ export function useClientWriteBehind() {
       label: 'Clients',
       patch: { op: 'delete' },
       merge: mergeClientWrite,
-      write: async () => {
-        await apiCallOrThrow(`/clients/${id}`, 'DELETE');
+      write: async (_w, ctx) => {
+        await apiCallOrThrow(`/clients/${id}`, 'DELETE', { operationId: ctx.operationId });
       },
       debounceMs: 0,
     });
