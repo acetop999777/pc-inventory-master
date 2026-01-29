@@ -23,13 +23,12 @@ export function useReceiptWriteBehind() {
       patch: payload,
       merge: (_prev, next) => next,
       write: async (patch, ctx) => {
-        const res = await apiCallOrThrow<ReceiptDetail>('/inbound/receipts', 'POST', {
+        await apiCallOrThrow<ReceiptDetail>('/inbound/receipts', 'POST', {
           ...patch,
           operationId: ctx.operationId,
         });
         qc.setQueryData(receiptsQueryKey, (old: any) => old || []);
         qc.invalidateQueries({ queryKey: receiptsQueryKey });
-        return res as any;
       },
       debounceMs: 0,
     });

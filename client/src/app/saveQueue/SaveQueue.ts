@@ -103,8 +103,8 @@ export class SaveQueue {
   }
 
   private makeOperationId(): string {
-    const cryptoObj: any = (globalThis as any).crypto;
-    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+    const cryptoObj = globalThis.crypto;
+    if (cryptoObj && typeof cryptoObj.randomUUID === 'function') return cryptoObj.randomUUID();
     return `op_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   }
 

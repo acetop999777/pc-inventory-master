@@ -2,7 +2,39 @@ import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle, X, Copy } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
 
-function safeStringify(v: any) {
+type ErrShape = {
+  name?: unknown;
+  kind?: unknown;
+  status?: unknown;
+  httpStatus?: unknown;
+  code?: unknown;
+  requestId?: unknown;
+  retryable?: unknown;
+  retriable?: unknown;
+  userMessage?: unknown;
+  message?: unknown;
+  details?: unknown;
+  error?: unknown;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const asErrShape = (value: unknown): ErrShape | null => (isRecord(value) ? (value as ErrShape) : null);
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === 'boolean' ? value : undefined;
+
+const getRecord = (value: unknown): Record<string, unknown> | undefined =>
+  isRecord(value) ? value : undefined;
+
+function safeStringify(v: unknown) {
   try {
     return JSON.stringify(v, null, 2);
   } catch {
@@ -14,21 +46,20 @@ function safeStringify(v: any) {
   }
 }
 
-function normalizeErr(e: any) {
-  const kind = e?.name || e?.kind || 'ERROR';
-  const status = e?.status ?? e?.httpStatus ?? undefined;
-  const code = e?.code ?? undefined;
-  const requestId = e?.requestId ?? e?.error?.requestId ?? undefined;
-  const retryable =
-    typeof e?.retryable === 'boolean'
-      ? e.retryable
-      : typeof e?.retriable === 'boolean'
-        ? e.retriable
-        : undefined;
+function normalizeErr(e: unknown) {
+  const err = asErrShape(e);
+  const nested = getRecord(err?.error);
 
-  const message = e?.userMessage ?? e?.message ?? (typeof e === 'string' ? e : '') ?? '';
+  const kind = getString(err?.name) ?? getString(err?.kind) ?? 'ERROR';
+  const status = getNumber(err?.status) ?? getNumber(err?.httpStatus);
+  const code = err?.code ?? undefined;
+  const requestId = getString(err?.requestId) ?? getString(nested?.requestId);
+  const retryable = getBoolean(err?.retryable) ?? getBoolean(err?.retriable);
 
-  const details = e?.details ?? e?.error?.details ?? undefined;
+  const message =
+    getString(err?.userMessage) ?? getString(err?.message) ?? (typeof e === 'string' ? e : '');
+
+  const details = err?.details ?? nested?.details ?? undefined;
 
   return { kind, status, code, requestId, retryable, message, details, raw: e };
 }
@@ -46,7 +77,7 @@ export function SyncStatusPill() {
   const hasError = snap.errorCount > 0;
 
   const errorKeys = snap.keys.filter((k) => k.hasError);
-  const topErrRaw: any = (errorKeys[0]?.lastError as any) ?? null;
+  const topErrRaw = errorKeys[0]?.lastError ?? null;
   const topErr = normalizeErr(topErrRaw);
 
   const errorTitle = (() => {
@@ -62,18 +93,14 @@ export function SyncStatusPill() {
     const body = topErr.message ? `: ${topErr.message}` : '';
     return (head + body).slice(0, 240);
   })();
-  const anyRetriable = errorKeys.some((k) => {
-    const e: any = k.lastError as any;
-    const v = typeof e?.retryable === 'boolean' ? e.retryable : e?.retriable;
-    return v !== false; // default true
-  });
+  const anyRetriable = errorKeys.some((k) => normalizeErr(k.lastError).retryable !== false);
 
   const canRetry = hasError && !busy && anyRetriable;
   const failureCount = errorKeys.length;
 
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
-  const tRef = React.useRef<any>(null);
+  const tRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -202,7 +229,7 @@ export function SyncStatusPill() {
             </div>
             <div className="max-h-[60vh] overflow-auto divide-y divide-slate-100">
               {errorKeys.map((k) => {
-                const err = normalizeErr(k.lastError as any);
+                const err = normalizeErr(k.lastError);
                 const retryable =
                   typeof err.retryable === 'boolean' ? err.retryable : err.retryable == null;
                 const label = k.label || k.key;
