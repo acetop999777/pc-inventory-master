@@ -21,6 +21,8 @@ type SpecRow = {
 };
 
 const SHIPPING_KEY = 'SHIPPING';
+type ClientSpecs = ClientEntity['specs'];
+type ClientSpecRow = ClientSpecs[string];
 
 function upsUrlFromText(text: string): string | null {
   if (!text) return null;
@@ -46,15 +48,34 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
   // cost drafts so decimal typing isn't destroyed by parseFloat on each keystroke
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
 
-  const rawSpecs = data.specs;
-
   const specsObj: Record<string, SpecRow> = useMemo(() => {
-    const s: any = rawSpecs;
+    const s = data.specs;
+    if (!s || typeof s !== 'object') return {};
 
-    return s && typeof s === 'object' ? s : {};
-  }, [rawSpecs]);
+    const out: Record<string, SpecRow> = {};
+    for (const [key, val] of Object.entries(s)) {
+      out[key] = { ...(val as ClientSpecRow) };
+    }
+    return out;
+  }, [data.specs]);
   const shipRequired = Boolean(data.isShipping);
   const pcppLink = String(data.pcppLink || '').trim();
+
+  const normalizeSpecs = (specs: Record<string, SpecRow>): ClientSpecs => {
+    const out: ClientSpecs = {};
+    for (const [key, row] of Object.entries(specs)) {
+      const costNum = Number(row.cost ?? 0);
+      const qtyNum = Number(row.qty ?? 0);
+      out[key] = {
+        name: String(row.name ?? ''),
+        sku: String(row.sku ?? ''),
+        cost: Number.isFinite(costNum) ? costNum : 0,
+        qty: Number.isFinite(qtyNum) ? qtyNum : 0,
+        needsPurchase: Boolean(row.needsPurchase),
+      };
+    }
+    return out;
+  };
 
   const displayCats = useMemo(() => {
     const base = Array.from(new Set([...CORE_CATS, ...Object.keys(specsObj)]));
@@ -90,7 +111,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     const newSpecs: Record<string, SpecRow> = { ...parsed.specs };
     if (specsObj?.[SHIPPING_KEY]) newSpecs[SHIPPING_KEY] = specsObj[SHIPPING_KEY];
 
-    update('specs', newSpecs as any);
+    update('specs', normalizeSpecs(newSpecs));
     if (parsed.link) update('pcppLink', parsed.link);
     onCalculate?.();
   };
@@ -99,7 +120,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
     const nextRow: SpecRow = { ...cur, [field]: val };
     const next = { ...specsObj, [cat]: nextRow };
-    update('specs', next as any);
+    update('specs', normalizeSpecs(next));
     onCalculate?.();
   };
 
@@ -107,7 +128,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     if (CORE_CATS.includes(cat) || cat === SHIPPING_KEY) return;
     const next = { ...specsObj };
     delete next[cat];
-    update('specs', next as any);
+    update('specs', normalizeSpecs(next));
     setActiveDrop((cur) => (cur === cat ? null : cur));
     setCostDraft((d) => {
       const { [cat]: _, ...rest } = d;
@@ -127,7 +148,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
         cost: Number(item.cost || 0),
       },
     };
-    update('specs', next as any);
+    update('specs', normalizeSpecs(next));
     setActiveDrop(null);
     onCalculate?.();
   };
