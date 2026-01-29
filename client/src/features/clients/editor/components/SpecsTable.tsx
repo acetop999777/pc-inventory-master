@@ -46,15 +46,15 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
   // cost drafts so decimal typing isn't destroyed by parseFloat on each keystroke
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
 
-  const rawSpecs = (data as any)?.specs;
+  const rawSpecs = data.specs;
 
   const specsObj: Record<string, SpecRow> = useMemo(() => {
     const s: any = rawSpecs;
 
     return s && typeof s === 'object' ? s : {};
   }, [rawSpecs]);
-  const shipRequired = Boolean((data as any).isShipping);
-  const pcppLink = String((data as any).pcppLink || '').trim();
+  const shipRequired = Boolean(data.isShipping);
+  const pcppLink = String(data.pcppLink || '').trim();
 
   const displayCats = useMemo(() => {
     const base = Array.from(new Set([...CORE_CATS, ...Object.keys(specsObj)]));
@@ -90,8 +90,8 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     const newSpecs: Record<string, SpecRow> = { ...parsed.specs };
     if (specsObj?.[SHIPPING_KEY]) newSpecs[SHIPPING_KEY] = specsObj[SHIPPING_KEY];
 
-    update('specs' as keyof ClientEntity, newSpecs as any);
-    if (parsed.link) update('pcppLink' as keyof ClientEntity, parsed.link);
+    update('specs', newSpecs as any);
+    if (parsed.link) update('pcppLink', parsed.link);
     onCalculate?.();
   };
 
@@ -99,7 +99,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
     const nextRow: SpecRow = { ...cur, [field]: val };
     const next = { ...specsObj, [cat]: nextRow };
-    update('specs' as keyof ClientEntity, next as any);
+    update('specs', next as any);
     onCalculate?.();
   };
 
@@ -107,7 +107,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     if (CORE_CATS.includes(cat) || cat === SHIPPING_KEY) return;
     const next = { ...specsObj };
     delete next[cat];
-    update('specs' as keyof ClientEntity, next as any);
+    update('specs', next as any);
     setActiveDrop((cur) => (cur === cat ? null : cur));
     setCostDraft((d) => {
       const { [cat]: _, ...rest } = d;
@@ -122,12 +122,12 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
       ...specsObj,
       [cat]: {
         ...cur,
-        name: (item as any).name,
-        sku: (item as any).sku || '',
-        cost: Number((item as any).cost || 0),
+        name: item.name,
+        sku: item.sku || '',
+        cost: Number(item.cost || 0),
       },
     };
-    update('specs' as keyof ClientEntity, next as any);
+    update('specs', next as any);
     setActiveDrop(null);
     onCalculate?.();
   };
@@ -143,8 +143,8 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     const skuNorm = normalizeKey(sku);
 
     return !inventory.some((it) => {
-      const invName = normalizeKey(String((it as any).name || ''));
-      const invSku = normalizeKey(String((it as any).sku || ''));
+      const invName = normalizeKey(String(it.name || ''));
+      const invSku = normalizeKey(String(it.sku || ''));
       if (skuNorm && invSku && invSku === skuNorm) return true;
       if (nameNorm && invName && invName === nameNorm) return true;
       if (skuNorm && invName && invName.includes(skuNorm)) return true;
@@ -276,9 +276,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
             dropdownOpen && !isShippingRow
               ? inventory
                   .filter((i) =>
-                    String((i as any).name || '')
-                      .toLowerCase()
-                      .includes(nameVal.toLowerCase()),
+                    String(i.name || '').toLowerCase().includes(nameVal.toLowerCase()),
                   )
                   .slice(0, 5)
               : [];
@@ -340,15 +338,15 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                   <div className="absolute top-full left-0 w-full bg-white shadow-xl rounded-lg border border-slate-100 z-50 mt-1 overflow-hidden">
                     {suggestions.map((s) => (
                       <div
-                        key={(s as any).id}
+                        key={s.id}
                         className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between"
                         onMouseDown={() => selectInventoryItem(cat, s)}
                       >
                         <span className="font-bold text-slate-700 truncate">
-                          {String((s as any).name || '')}
+                          {String(s.name || '')}
                         </span>
                         <span className="font-mono text-slate-400">
-                          ${Number((s as any).cost || 0)}
+                          ${Number(s.cost || 0)}
                         </span>
                       </div>
                     ))}
@@ -420,9 +418,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
             dropdownOpen && !isShippingRow
               ? inventory
                   .filter((i) =>
-                    String((i as any).name || '')
-                      .toLowerCase()
-                      .includes(nameVal.toLowerCase()),
+                    String(i.name || '').toLowerCase().includes(nameVal.toLowerCase()),
                   )
                   .slice(0, 5)
               : [];
@@ -483,15 +479,15 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                   <div className="absolute top-full left-0 w-full bg-white shadow-xl rounded-lg border border-slate-100 z-50 mt-1 overflow-hidden">
                     {suggestions.map((s) => (
                       <div
-                        key={(s as any).id}
+                        key={s.id}
                         className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between"
                         onMouseDown={() => selectInventoryItem(cat, s)}
                       >
                         <span className="font-bold text-slate-700 truncate">
-                          {String((s as any).name || '')}
+                          {String(s.name || '')}
                         </span>
                         <span className="font-mono text-slate-400">
-                          ${Number((s as any).cost || 0)}
+                          ${Number(s.cost || 0)}
                         </span>
                       </div>
                     ))}

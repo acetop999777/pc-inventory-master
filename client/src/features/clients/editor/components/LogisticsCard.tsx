@@ -19,7 +19,7 @@ function normalizeOptions(statusOptions?: readonly string[], statusSteps?: reado
 
 export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, statusSteps }) => {
   const options = normalizeOptions(statusOptions, statusSteps);
-  const currentIndex = Math.max(0, options.indexOf((data as any).status || options[0]));
+  const currentIndex = Math.max(0, options.indexOf(data.status || options[0]));
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100">
@@ -30,12 +30,12 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
 
       <div className="md:hidden flex gap-2 overflow-x-auto pb-2">
         {options.map((s) => {
-          const active = (data as any).status === s;
+          const active = data.status === s;
           return (
             <button
               key={s}
               type="button"
-              onClick={() => update('status' as keyof ClientEntity, s)}
+              onClick={() => update('status', s)}
               className={[
                 'whitespace-nowrap rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition',
                 active
@@ -54,7 +54,7 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
         {options.map((s, i) => (
           <div
             key={s}
-            onClick={() => update('status' as keyof ClientEntity, s)}
+            onClick={() => update('status', s)}
             className="group flex flex-col items-center gap-2 cursor-pointer"
           >
             <div
@@ -68,7 +68,7 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
             <span
               className={[
                 'text-[8px] font-bold uppercase transition-colors',
-                (data as any).status === s ? 'text-blue-600' : 'text-slate-300',
+                data.status === s ? 'text-blue-600' : 'text-slate-300',
               ].join(' ')}
             >
               {String(s).split(' ')[0]}
@@ -82,42 +82,40 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
           <CompactInput
             type="date"
             label="Order Date"
-            value={(data as any).orderDate ? String((data as any).orderDate).split('T')[0] : ''}
-            onChange={(e) => update('orderDate' as keyof ClientEntity, e.target.value)}
+            value={data.orderDate ? String(data.orderDate).split('T')[0] : ''}
+            onChange={(e) => update('orderDate', e.target.value)}
           />
           <CompactInput
             type="date"
             label="Delivery Date"
-            value={
-              (data as any).deliveryDate ? String((data as any).deliveryDate).split('T')[0] : ''
-            }
-            onChange={(e) => update('deliveryDate' as keyof ClientEntity, e.target.value)}
+            value={data.deliveryDate ? String(data.deliveryDate).split('T')[0] : ''}
+            onChange={(e) => update('deliveryDate', e.target.value)}
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CompactInput
             label="City"
-            value={(data as any).city || ''}
-            onChange={(e) => update('city' as keyof ClientEntity, e.target.value)}
+            value={data.city || ''}
+            onChange={(e) => update('city', e.target.value)}
           />
           <CompactInput
             label="Zip"
-            value={(data as any).zip || ''}
-            onChange={(e) => update('zip' as keyof ClientEntity, e.target.value)}
+            value={data.zip || ''}
+            onChange={(e) => update('zip', e.target.value)}
           />
         </div>
 
         <div className="pt-4 border-t border-slate-50">
           <div
             className="flex items-center gap-2 mb-3 cursor-pointer"
-            onClick={() => update('isShipping' as keyof ClientEntity, !(data as any).isShipping)}
+            onClick={() => update('isShipping', !data.isShipping)}
           >
             <div
-              className={`w-9 h-5 rounded-full p-0.5 transition-colors ${(data as any).isShipping ? 'bg-blue-600' : 'bg-slate-200'}`}
+              className={`w-9 h-5 rounded-full p-0.5 transition-colors ${data.isShipping ? 'bg-blue-600' : 'bg-slate-200'}`}
             >
               <div
-                className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${(data as any).isShipping ? 'translate-x-4' : ''}`}
+                className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${data.isShipping ? 'translate-x-4' : ''}`}
               />
             </div>
             <span className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
@@ -125,23 +123,23 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
             </span>
           </div>
 
-          {(data as any).isShipping && (
+          {data.isShipping && (
             <div className="space-y-1 animate-in fade-in slide-in-from-top-1">
               <CompactInput
                 label="Address"
-                value={(data as any).address || ''}
-                onChange={(e) => update('address' as keyof ClientEntity, e.target.value)}
+                value={data.address || ''}
+                onChange={(e) => update('address', e.target.value)}
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <CompactInput
                   label="State"
-                  value={(data as any).state || ''}
-                  onChange={(e) => update('state' as keyof ClientEntity, e.target.value)}
+                  value={data.state || ''}
+                  onChange={(e) => update('state', e.target.value)}
                 />
                 <CompactInput
                   label="Phone"
-                  value={(data as any).phone || ''}
-                  onChange={(e) => update('phone' as keyof ClientEntity, e.target.value)}
+                  value={data.phone || ''}
+                  onChange={(e) => update('phone', e.target.value)}
                 />
               </div>
             </div>
