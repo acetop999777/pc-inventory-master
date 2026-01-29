@@ -346,7 +346,7 @@ export function ClientDetailRoute() {
 }
 
 /**
- * AppLegacy routes controlled elsewhere; keep wrapper only.
+ * AppRouter routes controlled elsewhere; keep wrapper only.
  */
 export function ClientsRoutes() {
   return (

@@ -65,7 +65,7 @@ function AppShell() {
   );
 }
 
-export default function AppLegacy() {
+export default function AppRouter() {
   return (
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <NavigationGuardProvider>
