@@ -261,6 +261,40 @@ function parseDateFromLines(lines: string[]): Date | null {
   return null;
 }
 
+function normalizeReceiptLine(line: string): string {
+  return line
+    .replace(/\u00a0/g, ' ')
+    .replace(/[│|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripLeadingNonAlnum(line: string): string {
+  return line.replace(/^[^A-Za-z0-9]+/, '').trim();
+}
+
+function looksLikeMicroCenterText(text: string): boolean {
+  const normalized = normalizeReceiptLine(text).toLowerCase();
+  if (
+    /micro\s*center|your sale information|transaction date|reference number|price per|total price|sale total|clearance markdown|s\/n|serial number/.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+  const compact = normalized.replace(/[^a-z0-9]+/g, ' ');
+  return (
+    compact.includes('micro center') ||
+    compact.includes('your sale information') ||
+    compact.includes('transaction date') ||
+    compact.includes('reference number') ||
+    compact.includes('price per') ||
+    compact.includes('sale total') ||
+    compact.includes('clearance markdown') ||
+    compact.includes('s n')
+  );
+}
+
 function parseMicroCenterReadyAt(lines: string[]): string | null {
   const line = lines.find((l) => /ready by/i.test(l));
   if (!line) return null;
@@ -349,14 +383,40 @@ function parseMicroCenterSkuTable(
     /^sku\s+description\b/i.test(line);
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const rawLine = lines[i];
+    const line = stripLeadingNonAlnum(rawLine);
     if (!/^\d{5,}\b/.test(line)) continue;
     if (isBlockedLine(line)) continue;
-    const parts = line.split(/\s+/);
+
+    let qty = 1;
+    let subtotal = 0;
+    let serial = '';
+    let foundCost = false;
+    let foundSerial = false;
+
     let name = '';
-    if (parts.length >= 2) {
-      parts.shift();
-      name = parts.join(' ').trim();
+    const skuMatch = line.match(/^(\d{5,})\b/);
+    const rest = skuMatch ? line.slice(skuMatch[1].length).trim() : line;
+    if (rest) {
+      const full = /(.+?)\s+(\d+)\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})\s*$/.exec(
+        rest,
+      );
+      if (full) {
+        name = full[1].trim();
+        qty = parseInt(full[2], 10);
+        subtotal = parseFloat(full[4].replace(/,/g, ''));
+        foundCost = true;
+      } else {
+        const qtyTotal = /(.+?)\s+(\d+)\s+\$?([\d,]+\.\d{2})\s*$/.exec(rest);
+        if (qtyTotal) {
+          name = qtyTotal[1].trim();
+          qty = parseInt(qtyTotal[2], 10);
+          subtotal = parseFloat(qtyTotal[3].replace(/,/g, ''));
+          foundCost = true;
+        } else {
+          name = rest.trim();
+        }
+      }
     } else {
       const nextLine = lines[i + 1];
       if (nextLine && !isBlockedLine(nextLine) && !/^s\/n\b|^sn\b/i.test(nextLine)) {
@@ -365,14 +425,9 @@ function parseMicroCenterSkuTable(
     }
     if (!name) continue;
 
-    let qty = 1;
-    let subtotal = 0;
-    let serial = '';
-    let foundCost = false;
-    let foundSerial = false;
-
     for (let j = i + 1; j < Math.min(lines.length, i + 8); j++) {
-      const next = lines[j];
+      const nextRaw = lines[j];
+      const next = stripLeadingNonAlnum(nextRaw);
       if (!next) continue;
       if (/^\d{5,}\b/.test(next)) break;
       if (isBlockedLine(next)) break;
@@ -447,7 +502,7 @@ function parseMicroCenterSkuLabel(
 ): StagedItem[] {
   const items: StagedItem[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = stripLeadingNonAlnum(lines[i]);
     if (!/^SKU:/i.test(line)) continue;
 
     let name = 'Unknown Item';
@@ -650,11 +705,13 @@ export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): 
   try {
     const lines = text
       .split('\n')
-      .map((l) => l.trim())
+      .map((l) => normalizeReceiptLine(l))
       .filter((l) => l.length > 0);
 
-    const looksLikeMicroCenter = lines.some((l) => /micro\s*center/i.test(l))
-      || lines.some((l) =>
+    const looksLikeMicroCenter =
+      looksLikeMicroCenterText(lines.join(' ')) ||
+      lines.some((l) => /micro\s*center/i.test(l)) ||
+      lines.some((l) =>
         /(your sale information|transaction date|reference number|price per|total price|sale total|clearance markdown|s\/n:)/i.test(
           l,
         ),
@@ -663,10 +720,14 @@ export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): 
       return { items: [], msg: 'No items found', type: 'error', orderedAt: null };
     }
 
-    const orderedAt = parseMicroCenterReadyAt(lines) || parseMicroCenterTransactionDate(lines);
+    const orderedAt = parseMicroCenterTransactionDate(lines) || parseMicroCenterReadyAt(lines);
     let startIdx = lines.findIndex((l) => /your sale information/i.test(l));
     if (startIdx < 0) startIdx = 0;
-    const headerIdx = lines.findIndex((l, idx) => idx >= startIdx && /^sku\s+description\b/i.test(l));
+    const headerIdx = lines.findIndex(
+      (l, idx) =>
+        idx >= startIdx &&
+        /^sku\b.*\bdescription\b/i.test(l),
+    );
     const parseStart = headerIdx >= 0 ? headerIdx + 1 : startIdx;
     let endIdx = lines.findIndex(
       (l, idx) =>
