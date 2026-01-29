@@ -30,7 +30,7 @@ function filterInventoryByCategory(
   if (!catNorm) return inventory;
 
   const filtered = inventory.filter((it) => {
-    const rawCat = String((it as any).category || '').trim();
+    const rawCat = String(it.category || '').trim();
     if (!rawCat) return false;
     const norm = normalizeStrict(rawCat);
     if (!norm) return false;
@@ -62,7 +62,7 @@ function matchInventoryForPcpp(
   const candidates = filterInventoryByCategory(inventory, category);
 
   for (const it of candidates) {
-    const invName = String((it as any).name || '').trim();
+    const invName = String(it.name || '').trim();
     if (!invName) continue;
 
     const invNorm = normalizeStrict(invName);
@@ -100,7 +100,7 @@ function matchInventoryForPcpp(
     const coverage = tokenCount ? matchCount / tokenCount : 0;
     if (coverage < 0.7) continue;
 
-    const sku = String((it as any).sku || '').trim();
+    const sku = String(it.sku || '').trim();
     const skuNorm = normalizeStrict(sku);
     const skuStrong = skuNorm.length >= 5 && /[a-z]/.test(skuNorm) && /\d/.test(skuNorm);
     const qStrongMatchCount = qStrongTokens.filter((t) => invSet.has(t)).length;
