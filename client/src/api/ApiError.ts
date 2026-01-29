@@ -34,7 +34,9 @@ export class ApiError extends Error {
 }
 
 export function isApiError(e: unknown): e is ApiError {
-  return typeof e === 'object' && e !== null && (e as any).name === 'ApiError';
+  if (typeof e !== 'object' || e === null) return false;
+  if (!('name' in e)) return false;
+  return (e as { name?: unknown }).name === 'ApiError';
 }
 
 export function extractUserMessage(e: unknown): string {

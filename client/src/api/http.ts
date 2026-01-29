@@ -8,7 +8,7 @@ type FetchLikeResponse = {
   url: string;
   headers: Headers;
   text: () => Promise<string>;
-  json: <T = any>() => Promise<T>;
+  json: <T = unknown>() => Promise<T>;
 };
 
 async function readTextSafely(res: Response): Promise<string> {
@@ -19,7 +19,7 @@ async function readTextSafely(res: Response): Promise<string> {
   }
 }
 
-function tryParseJson(text: string): any | null {
+function tryParseJson(text: string): unknown | null {
   if (!text) return null;
   try {
     return JSON.parse(text);
@@ -30,7 +30,7 @@ function tryParseJson(text: string): any | null {
 
 function toApiError(
   status: number,
-  payload: any,
+  payload: unknown,
   fallbackText: string,
   statusText: string,
 ): ApiError {
@@ -39,13 +39,14 @@ function toApiError(
   const message =
     p?.error?.message ||
     (fallbackText ? fallbackText.slice(0, 200) : statusText || 'Request failed');
+  const requestId = typeof p?.error?.requestId === 'string' ? p.error.requestId : null;
 
   return new ApiError({
     code,
     message,
     status,
     retryable: Boolean(p?.error?.retryable),
-    requestId: (p?.error?.requestId as any) ?? null,
+    requestId,
     details: p?.error?.details,
   });
 }
@@ -71,7 +72,7 @@ async function requestRaw(input: RequestInfo, init?: RequestInit): Promise<Fetch
 
     text: async () => cachedText,
 
-    json: async <T = any>() => {
+    json: async <T = unknown>() => {
       // 优先返回可解析 JSON
       if (cachedJson !== null) {
         if (!res.ok) {
@@ -89,26 +90,26 @@ async function requestRaw(input: RequestInfo, init?: RequestInit): Promise<Fetch
       // 成功但不是 JSON：让调用者自己决定怎么处理
       // 这里返回 text，避免很多旧代码直接 await res.json() 崩掉
       //（如果你强制所有成功返回都是 JSON，可以改成 throw new Error）
-      return cachedText as any as T;
+      return cachedText as unknown as T;
     },
   };
 }
 
-function jsonBody(body: any) {
+function jsonBody(body: unknown) {
   return body === undefined ? undefined : JSON.stringify(body);
 }
 
 export const http = {
   get: (url: string) => requestRaw(url, { method: 'GET' }),
 
-  post: (url: string, body?: any) =>
+  post: (url: string, body?: unknown) =>
     requestRaw(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: jsonBody(body),
     }),
 
-  put: (url: string, body?: any) =>
+  put: (url: string, body?: unknown) =>
     requestRaw(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
