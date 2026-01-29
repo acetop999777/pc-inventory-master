@@ -43,7 +43,7 @@ function DraftProvider({ children }: { children: React.ReactNode }) {
   const setDraft = useCallback((id: string, next: DraftSetter) => {
     setDrafts((prev) => {
       const current = prev[id] ?? null;
-      const resolved = typeof next === 'function' ? (next as any)(current) : next;
+      const resolved = typeof next === 'function' ? next(current) : next;
       return { ...prev, [id]: resolved };
     });
   }, []);
@@ -274,7 +274,7 @@ export function ClientDetailRoute() {
       updateClient(clientId, {
         [field]: val,
         ...(shouldAutoPaid
-          ? { paidAmount: Number((fromCache as any)?.totalPrice ?? 0) || 0 }
+          ? { paidAmount: Number(fromCache?.totalPrice ?? 0) || 0 }
           : {}),
       } as Partial<ClientEntity>);
     },
