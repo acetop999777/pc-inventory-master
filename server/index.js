@@ -1107,9 +1107,19 @@ async function waitForDb({ attempts = 30, delayMs = 1000 } = {}) {
   throw new Error('DB not ready after retries');
 }
 
+function shouldInitDb() {
+  const raw = String(process.env.INIT_DB || '').toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
 async function bootstrap() {
   await waitForDb();
-  await initDB();
+  if (shouldInitDb()) {
+    console.log('[bootstrap] INIT_DB enabled: running baseline initDB()');
+    await initDB();
+  } else {
+    console.log('[bootstrap] INIT_DB disabled: skip baseline initDB()');
+  }
   await runMigrations(pool);
   await startupCleanupIfEnabled(); // ✅ 默认不跑（STARTUP_CLEANUP=true 才跑）
   await seedIfEnabled();
