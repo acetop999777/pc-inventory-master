@@ -6,12 +6,23 @@ const { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } = require('.
 
 /* eslint-disable testing-library/no-unnecessary-act */
 
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
 // 让 React 知道我们在测试环境里（消除 “not configured to support act” 警告）
-(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mockClientsData: ClientEntity[] = [];
 let mockAutoCreateDraft = true;
-let mockLastDetailProps: any = null;
+type MockDetailProps = {
+  onUpdateField: <K extends keyof ClientEntity>(field: K, value: ClientEntity[K]) => void;
+};
+let mockLastDetailProps: MockDetailProps | null = null;
+const requireDetailProps = (): MockDetailProps => {
+  if (!mockLastDetailProps) throw new Error('Expected ClientDetailPage props');
+  return mockLastDetailProps;
+};
 
 const mockNavigate = jest.fn();
 const mockUpdateClient = jest.fn();
@@ -46,16 +57,16 @@ jest.mock('../../../app/writeBehind/clientWriteBehind', () => ({
 
 const mockQueue = {
   flushKey: jest.fn(async () => undefined),
-  getSnapshot: () => ({ keys: [] as any[] }),
+  getSnapshot: () => ({ keys: [] as Array<unknown> }),
 };
 
 jest.mock('../../../app/saveQueue/SaveQueueProvider', () => ({
-  useSaveQueue: () => ({ queue: mockQueue, snapshot: { keys: [] as any[] } }),
+  useSaveQueue: () => ({ queue: mockQueue, snapshot: { keys: [] as Array<unknown> } }),
 }));
 
 const mockGuard = {
   setGuard: jest.fn(),
-  run: (fn: any) => fn(),
+  run: <T,>(fn: () => T) => fn(),
 };
 
 jest.mock('../../../app/navigation/NavigationGuard', () => ({
@@ -65,7 +76,7 @@ jest.mock('../../../app/navigation/NavigationGuard', () => ({
 jest.mock('../ClientDetailPage', () => {
   const React = require('react');
   return {
-    ClientDetailPage: (props: any) => {
+    ClientDetailPage: (props: MockDetailProps) => {
       mockLastDetailProps = props;
       return React.createElement('div', { 'data-testid': 'detail' });
     },
@@ -75,7 +86,7 @@ jest.mock('../ClientDetailPage', () => {
 jest.mock('../ClientsListPage', () => {
   const React = require('react');
   return {
-    ClientsListPage: (props: any) => {
+    ClientsListPage: (props: { onNewClient: () => void }) => {
       const { onNewClient } = props;
       React.useEffect(() => {
         if (mockAutoCreateDraft) onNewClient();
@@ -86,7 +97,7 @@ jest.mock('../ClientsListPage', () => {
 });
 
 function makeClient(id: string, overrides: Partial<ClientEntity> = {}): ClientEntity {
-  return {
+  const base: ClientEntity = {
     id,
     wechatName: '',
     wechatId: '',
@@ -96,13 +107,22 @@ function makeClient(id: string, overrides: Partial<ClientEntity> = {}): ClientEn
     orderDate: '',
     deliveryDate: '',
     isShipping: false,
-    tracking: '',
-    status: 'Pending' as any,
+    trackingNumber: '',
+    status: 'Pending',
     specs: {},
     pcppLink: '',
     notes: '',
-    ...(overrides as any),
-  } as ClientEntity;
+    phone: '',
+    rating: 0,
+    photos: [],
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    totalPrice: 0,
+    paidAmount: 0,
+  };
+  return { ...base, ...overrides };
 }
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -156,9 +176,10 @@ describe('Clients draft-only commit behavior', () => {
     );
 
     expect(mockLastDetailProps).toBeTruthy();
+    const detail = requireDetailProps();
 
     await act(async () => {
-      mockLastDetailProps.onUpdateField('realName', 'Alice');
+      detail.onUpdateField('realName', 'Alice');
       await flush();
     });
 
@@ -178,15 +199,16 @@ describe('Clients draft-only commit behavior', () => {
     );
 
     expect(mockLastDetailProps).toBeTruthy();
+    const detail = requireDetailProps();
 
     // 关键：分两次 act + flush，让 draft state 先真正写入 realName
     await act(async () => {
-      mockLastDetailProps.onUpdateField('realName', 'Alice');
+      detail.onUpdateField('realName', 'Alice');
       await flush();
     });
 
     await act(async () => {
-      mockLastDetailProps.onUpdateField('wechatName', '张三');
+      detail.onUpdateField('wechatName', '张三');
       await flush();
     });
 
@@ -215,9 +237,10 @@ describe('Clients draft-only commit behavior', () => {
     );
 
     expect(mockLastDetailProps).toBeTruthy();
+    const detail = requireDetailProps();
 
     await act(async () => {
-      mockLastDetailProps.onUpdateField('realName', 'Bob');
+      detail.onUpdateField('realName', 'Bob');
       await flush();
     });
 
