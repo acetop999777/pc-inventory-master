@@ -12,6 +12,21 @@ type Props = {
   onArchive?: (e: React.MouseEvent) => void; // optional
 };
 
+type ClientLegacyFields = ClientEntity & {
+  amountPaid?: number | string;
+  paid?: number | string;
+  depositPaid?: number | string;
+  deposit?: number | string;
+  orderTotal?: number | string;
+  total?: number | string;
+  order_total?: number | string;
+  totalPrice?: number | string;
+  total_price?: number | string;
+  price?: number | string;
+  orderAmount?: number | string;
+  order_amount?: number | string;
+};
+
 function norm(v: any) {
   return String(v ?? '').trim().toLowerCase();
 }
@@ -68,7 +83,7 @@ function firstNum(...vals: any[]): number | null {
   return null;
 }
 
-function StatusPill({ status }: { status: any }) {
+function StatusPill({ status }: { status?: string }) {
   const s = norm(status);
   const label = String(status ?? '').trim() || '—';
 
@@ -93,39 +108,31 @@ function StatusPill({ status }: { status: any }) {
 }
 
 function computeTotals(client: ClientEntity) {
-  const anyC: any = client as any;
-  const fin: any = (calculateFinancials(client) as any) ?? {};
+  const c = client as ClientLegacyFields;
+  const fin = calculateFinancials(client);
 
-  const due = Number(fin?.balanceDue ?? fin?.due ?? 0);
-  const profit = Number(fin?.profit ?? 0);
+  const due = Number(fin.balanceDue ?? 0);
+  const profit = Number(fin.profit ?? 0);
 
   const paid =
     firstNum(
-      fin?.amountPaid,
-      fin?.paid,
-      fin?.depositPaid,
-      fin?.deposit,
-      anyC?.amountPaid,
-      anyC?.paid,
-      anyC?.depositPaid,
-      anyC?.deposit,
+      c.amountPaid,
+      c.paid,
+      c.depositPaid,
+      c.deposit,
+      c.paidAmount,
     ) ?? 0;
 
   const totalCandidate =
     firstNum(
-      fin?.orderTotal,
-      fin?.total,
-      fin?.revenue,
-      fin?.grossTotal,
-      fin?.grandTotal,
-      anyC?.orderTotal,
-      anyC?.total,
-      anyC?.order_total,
-      anyC?.totalPrice,
-      anyC?.total_price,
-      anyC?.price,
-      anyC?.orderAmount,
-      anyC?.order_amount,
+      c.orderTotal,
+      c.total,
+      c.order_total,
+      c.totalPrice,
+      c.total_price,
+      c.price,
+      c.orderAmount,
+      c.order_amount,
     ) ?? 0;
 
   // Fix: total should never be 0 when due > 0 (your data shows that case)
@@ -145,15 +152,15 @@ export const ClientRow: React.FC<Props> = ({
   onDelete,
   onArchive,
 }) => {
-  const anyC: any = client as any;
+  const c = client as ClientLegacyFields;
 
   // ✅ no realName, no wechatId
-  const name = String(anyC.wechatName ?? '').trim() || String(client.id);
+  const name = String(c.wechatName ?? '').trim() || String(client.id);
 
-  const orderDate = fmtDateYMD(anyC.orderDate);
-  const deliveryDate = fmtDateYMD(anyC.deliveryDate);
+  const orderDate = fmtDateYMD(c.orderDate);
+  const deliveryDate = fmtDateYMD(c.deliveryDate);
 
-  const deliveredShort = archived ? fmtDateShort(anyC.deliveryDate ?? anyC.orderDate) : null;
+  const deliveredShort = archived ? fmtDateShort(c.deliveryDate ?? c.orderDate) : null;
 
   const { total, due, profit } = computeTotals(client);
 
@@ -187,7 +194,7 @@ export const ClientRow: React.FC<Props> = ({
             <div className="mt-1 text-base font-black text-slate-900 truncate">{name}</div>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <StatusPill status={anyC.status} />
+            <StatusPill status={c.status} />
             {deliveredShort ? (
               <span className="text-[10px] font-semibold text-slate-400">
                 Delivered {deliveredShort}
@@ -291,7 +298,7 @@ export const ClientRow: React.FC<Props> = ({
         {/* Status */}
         <div className="col-span-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <StatusPill status={anyC.status} />
+            <StatusPill status={c.status} />
             {deliveredShort ? (
               <span className="text-[11px] font-semibold text-slate-400 truncate">
                 Delivered {deliveredShort}

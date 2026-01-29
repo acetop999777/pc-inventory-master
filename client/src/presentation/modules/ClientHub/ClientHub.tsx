@@ -26,19 +26,16 @@ const STATUS_FILTER_OPTIONS = ['All', 'Pending', 'Deposit', 'Building', 'Ready',
 function norm(v: any) {
   return String(v ?? '').trim().toLowerCase();
 }
-function isDelivered(c: ClientEntity) {
-  return norm((c as any).status) === 'delivered';
+type ClientWithCreated = ClientEntity & { createdAt?: string; created_at?: string };
+function isDelivered(c: ClientWithCreated) {
+  return norm(c.status) === 'delivered';
 }
 function toTime(s: any) {
   const t = Date.parse(String(s ?? ''));
   return Number.isFinite(t) ? t : 0;
 }
-function getFilterTime(c: ClientEntity) {
-  const raw =
-    (c as any).orderDate ??
-    (c as any).deliveryDate ??
-    (c as any).createdAt ??
-    (c as any).created_at;
+function getFilterTime(c: ClientWithCreated) {
+  const raw = c.orderDate ?? c.deliveryDate ?? c.createdAt ?? c.created_at;
   return toTime(raw);
 }
 function parseDateInput(value: string, endOfDay = false) {
@@ -84,27 +81,27 @@ function buildCalendarCells(month: Date): Date[] {
 
 // Active: prefer orderDate
 function sortActive(a: ClientEntity, b: ClientEntity) {
-  const aT = toTime((a as any).orderDate);
-  const bT = toTime((b as any).orderDate);
+  const aT = toTime(a.orderDate);
+  const bT = toTime(b.orderDate);
   if (aT !== bT) return bT - aT;
 
-  const aC = toTime((a as any).createdAt ?? (a as any).created_at);
-  const bC = toTime((b as any).createdAt ?? (b as any).created_at);
+  const aC = toTime((a as ClientWithCreated).createdAt ?? (a as ClientWithCreated).created_at);
+  const bC = toTime((b as ClientWithCreated).createdAt ?? (b as ClientWithCreated).created_at);
   return bC - aC;
 }
 
 // Archived: prefer deliveryDate, fallback orderDate, then createdAt
 function sortArchived(a: ClientEntity, b: ClientEntity) {
-  const aD = toTime((a as any).deliveryDate);
-  const bD = toTime((b as any).deliveryDate);
+  const aD = toTime(a.deliveryDate);
+  const bD = toTime(b.deliveryDate);
   if (aD !== bD) return bD - aD;
 
-  const aO = toTime((a as any).orderDate);
-  const bO = toTime((b as any).orderDate);
+  const aO = toTime(a.orderDate);
+  const bO = toTime(b.orderDate);
   if (aO !== bO) return bO - aO;
 
-  const aC = toTime((a as any).createdAt ?? (a as any).created_at);
-  const bC = toTime((b as any).createdAt ?? (b as any).created_at);
+  const aC = toTime((a as ClientWithCreated).createdAt ?? (a as ClientWithCreated).created_at);
+  const bC = toTime((b as ClientWithCreated).createdAt ?? (b as ClientWithCreated).created_at);
   return bC - aC;
 }
 
@@ -113,7 +110,7 @@ function isTypingTarget(el: EventTarget | null) {
   if (!t) return false;
   const tag = (t.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-  if ((t as any).isContentEditable) return true;
+  if (t.isContentEditable) return true;
   return false;
 }
 
@@ -227,9 +224,9 @@ export default function ClientHub({
   }, [archivedOpen]);
 
   const matches = (c: ClientEntity) => {
-    if (statusFilter !== 'All' && norm((c as any).status) !== norm(statusFilter)) return false;
+    if (statusFilter !== 'All' && norm(c.status) !== norm(statusFilter)) return false;
     if (dateFromTs || dateToTs) {
-      const t = getFilterTime(c);
+      const t = getFilterTime(c as ClientWithCreated);
       if (!t) return false;
       if (dateFromTs && t < dateFromTs) return false;
       if (dateToTs && t > dateToTs) return false;
@@ -237,18 +234,18 @@ export default function ClientHub({
     const q = norm(search);
     if (!q) return true;
     const hay = [
-      (c as any).wechatName,
+      c.wechatName,
       // keep these for search, but UI won't show them:
-      (c as any).wechatId,
-      (c as any).realName,
-      (c as any).xhsName,
-      (c as any).xhsId,
-      (c as any).city,
-      (c as any).state,
-      (c as any).trackingNumber,
-      (c as any).status,
-      (c as any).orderDate,
-      (c as any).deliveryDate,
+      c.wechatId,
+      c.realName,
+      c.xhsName,
+      c.xhsId,
+      c.city,
+      c.state,
+      c.trackingNumber,
+      c.status,
+      c.orderDate,
+      c.deliveryDate,
     ]
       .map(norm)
       .join(' ');
@@ -291,7 +288,7 @@ export default function ClientHub({
         if (e.key === 'Enter') {
           if (topMatch) {
             e.preventDefault();
-            rememberActive(String((topMatch as any).id ?? topMatch.id));
+            rememberActive(String(topMatch.id));
             onSelectClient(topMatch);
           }
         }
@@ -793,13 +790,13 @@ export default function ClientHub({
             }}
             onDelete={(e) => {
               e.stopPropagation();
-              onDeleteClient(c.id, (c as any).wechatName);
+              onDeleteClient(c.id, c.wechatName);
             }}
             onArchive={
               onArchiveClient
                 ? (e) => {
                     e.stopPropagation();
-                    onArchiveClient(c.id, (c as any).wechatName);
+                    onArchiveClient(c.id, c.wechatName);
                   }
                 : undefined
             }
@@ -840,7 +837,7 @@ export default function ClientHub({
                     }}
                     onDelete={(e) => {
                       e.stopPropagation();
-                      onDeleteClient(c.id, (c as any).wechatName);
+                      onDeleteClient(c.id, c.wechatName);
                     }}
                     // archived rows usually won't show archive action unless you wire something
                     onArchive={undefined}
