@@ -28,9 +28,9 @@ export function ClientDetailPage({
 
   const onPhotoRemove = React.useCallback(
     (idx: number) => {
-      const prev = Array.isArray((activeClient as any).photos) ? (activeClient as any).photos : [];
-      const next = prev.filter((_: any, i: number) => i !== idx);
-      onUpdateField('photos' as any, next);
+      const prev = Array.isArray(activeClient.photos) ? activeClient.photos : [];
+      const next = prev.filter((_: string, i: number) => i !== idx);
+      onUpdateField('photos', next);
     },
     [activeClient, onUpdateField],
   );
@@ -40,7 +40,7 @@ export function ClientDetailPage({
       const files = e.target.files;
       if (!files || files.length === 0) return;
 
-      const prev = Array.isArray((activeClient as any).photos) ? (activeClient as any).photos : [];
+      const prev = Array.isArray(activeClient.photos) ? activeClient.photos : [];
       const picked = Array.from(files);
 
       const encoded: string[] = [];
@@ -55,7 +55,7 @@ export function ClientDetailPage({
       }
 
       if (encoded.length > 0) {
-        onUpdateField('photos' as any, [...prev, ...encoded]);
+        onUpdateField('photos', [...prev, ...encoded]);
       }
 
       e.target.value = '';
@@ -63,11 +63,11 @@ export function ClientDetailPage({
     [activeClient, onUpdateField],
   );
 
-  const title = (activeClient as any).wechatName || 'Client';
-  const statusLabel = String((activeClient as any).status || 'Status').trim() || 'Status';
-  const orderDate = String((activeClient as any).orderDate || '').split('T')[0] || '—';
-  const deliveryDate = String((activeClient as any).deliveryDate || '').split('T')[0] || '—';
-  const profitValue = Number((financials as any).profit ?? 0);
+  const title = activeClient.wechatName || 'Client';
+  const statusLabel = String(activeClient.status || 'Status').trim() || 'Status';
+  const orderDate = String(activeClient.orderDate || '').split('T')[0] || '—';
+  const deliveryDate = String(activeClient.deliveryDate || '').split('T')[0] || '—';
+  const profitValue = Number(financials.profit ?? 0);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -113,7 +113,7 @@ export function ClientDetailPage({
                   Balance Due
                 </div>
                 <div className="mt-1 text-lg font-black">
-                  {formatMoney(Number((financials as any).balanceDue ?? 0))}
+                  {formatMoney(Number(financials.balanceDue ?? 0))}
                 </div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
@@ -156,30 +156,30 @@ export function ClientDetailPage({
           {/* Left */}
           <div className="lg:col-span-5 space-y-4 md:space-y-6">
             <IdentityCard
-              data={activeClient as any}
-              update={onUpdateField as any}
+              data={activeClient}
+              update={onUpdateField}
               onPhotoUpload={onPhotoUpload}
               onPhotoRemove={onPhotoRemove}
             />
             <LogisticsCard
-              data={activeClient as any}
-              update={onUpdateField as any}
+              data={activeClient}
+              update={onUpdateField}
               statusOptions={statusSteps}
             />
-            <NotesCard data={activeClient as any} update={onUpdateField as any} />
+            <NotesCard data={activeClient} update={onUpdateField} />
           </div>
 
           {/* Right */}
           <div className="lg:col-span-7 space-y-4 md:space-y-6">
             <FinancialsCard
-              data={activeClient as any}
-              update={onUpdateField as any}
-              financials={financials as any}
+              data={activeClient}
+              update={onUpdateField}
+              financials={financials}
             />
             <SpecsTable
-              data={activeClient as any}
-              update={onUpdateField as any}
-              inventory={inventory as any}
+              data={activeClient}
+              update={onUpdateField}
+              inventory={inventory}
             />
           </div>
         </div>
