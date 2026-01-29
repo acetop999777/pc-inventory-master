@@ -87,27 +87,31 @@ export type ErrorContract = {
   error: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
     retryable?: boolean;
     retryAfterMs?: number;
     requestId?: string;
   };
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
 function extractErrorContract(
   body: unknown,
   headerRequestId?: string | null,
 ): ErrorContract['error'] | null {
-  const anyBody: any = body as any;
-  const e = anyBody?.error;
-  if (!e || typeof e !== 'object') return null;
+  const bodyObj = isRecord(body) ? body : null;
+  const errorValue = bodyObj ? bodyObj.error : null;
+  const e = isRecord(errorValue) ? errorValue : null;
+  if (!e) return null;
 
   const code = typeof e.code === 'string' && e.code ? e.code : 'HTTP_ERROR';
   const message =
     typeof e.message === 'string' && e.message
       ? e.message
-      : typeof anyBody?.message === 'string'
-        ? anyBody.message
+      : typeof bodyObj?.message === 'string'
+        ? bodyObj.message
         : 'Request failed';
 
   const requestId =
@@ -123,6 +127,27 @@ function extractErrorContract(
 
   return { code, message, details, retryable, retryAfterMs, requestId };
 }
+
+type ApiCallErrorInit = {
+  message: string;
+  url: string;
+  method: HttpMethod;
+  kind: ApiErrorKind;
+  status?: number;
+  responseBody?: unknown;
+
+  // contract
+  code?: string;
+  requestId?: string;
+  details?: unknown;
+  retryable?: boolean;
+  retryAfterMs?: number;
+
+  // back-compat
+  retriable?: boolean;
+
+  userMessage: string;
+};
 
 export class ApiCallError extends Error {
   url: string;
@@ -147,29 +172,10 @@ export class ApiCallError extends Error {
   // Back-compat signature (旧代码可能还在用 new ApiCallError(msg, url, status, body))
   constructor(message: string, url: string, status?: number, responseBody?: unknown);
   // New structured signature
-  constructor(init: {
-    message: string;
-    url: string;
-    method: HttpMethod;
-    kind: ApiErrorKind;
-    status?: number;
-    responseBody?: unknown;
-
-    // contract
-    code?: string;
-    requestId?: string;
-    details?: unknown;
-    retryable?: boolean;
-    retryAfterMs?: number;
-
-    // back-compat
-    retriable?: boolean;
-
-    userMessage: string;
-  });
-  constructor(a: any, b?: any, c?: any, d?: any) {
+  constructor(init: ApiCallErrorInit);
+  constructor(a: string | ApiCallErrorInit, b?: string, c?: number, d?: unknown) {
     const legacy = typeof a === 'string';
-    const init = legacy
+    const init: ApiCallErrorInit = legacy
       ? {
           message: a as string,
           url: b as string,
@@ -192,7 +198,7 @@ export class ApiCallError extends Error {
                 ? `Request failed (${c})`
                 : 'Request failed',
         }
-      : (a as any);
+      : (a as ApiCallErrorInit);
 
     const retryable =
       typeof init.retryable === 'boolean'
@@ -241,15 +247,17 @@ function guessRetriableFromStatus(status?: number): boolean {
 }
 
 function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body: unknown): string {
-  const anyBody: any = body as any;
-
-  // New contract: { error: { code, message, details } }
-  const err = anyBody?.error;
+  const bodyObj = isRecord(body) ? body : null;
+  const errorValue = bodyObj ? bodyObj.error : null;
+  const err = isRecord(errorValue) ? errorValue : null;
   const code = typeof err?.code === 'string' ? err.code : undefined;
 
   // Prefer first field message for validation failures (better UX even before inline errors land)
   if (code === 'VALIDATION_FAILED' || code === 'INVALID_ARGUMENT') {
-    const fields = err?.details?.fields;
+    const detailsValue = err ? err.details : null;
+    const details = isRecord(detailsValue) ? detailsValue : null;
+    const fieldsValue = details ? details.fields : null;
+    const fields = Array.isArray(fieldsValue) ? fieldsValue : null;
     if (Array.isArray(fields) && fields.length > 0) {
       const msg = fields[0]?.message;
       if (typeof msg === 'string' && msg) return msg.slice(0, 240);
@@ -259,10 +267,10 @@ function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body
   const m =
     typeof err?.message === 'string' && err.message
       ? err.message
-      : typeof anyBody?.message === 'string' && anyBody.message
-        ? anyBody.message
-        : typeof anyBody === 'string'
-          ? anyBody
+      : typeof bodyObj?.message === 'string' && bodyObj.message
+        ? bodyObj.message
+        : typeof body === 'string'
+          ? body
           : null;
 
   if (m && typeof m === 'string') return m.slice(0, 240);
@@ -280,19 +288,21 @@ function extractUserMessage(kind: ApiErrorKind, status: number | undefined, body
 export async function apiCallOrThrow<T>(
   url: string,
   method: HttpMethod = 'GET',
-  body: any = null,
+  body: unknown = null,
   opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
   const init: RequestInit = { method, headers: { Accept: 'application/json' } };
 
   if (body !== null && body !== undefined) {
-    (init.headers as any)['Content-Type'] = 'application/json';
+    const headers = new Headers(init.headers);
+    headers.set('Content-Type', 'application/json');
+    init.headers = headers;
     init.body = JSON.stringify(body);
   }
 
   const timeoutMs = opts.timeoutMs ?? 12000;
 
-  let timer: any = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let localAbort: AbortController | null = null;
 
   if (opts.signal) {
@@ -335,10 +345,11 @@ export async function apiCallOrThrow<T>(
       });
     }
     return data as T;
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e instanceof ApiCallError) throw e;
 
-    const kind: ApiErrorKind = e?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK';
+    const errName = isRecord(e) && typeof e.name === 'string' ? e.name : undefined;
+    const kind: ApiErrorKind = errName === 'AbortError' ? 'TIMEOUT' : 'NETWORK';
     throw new ApiCallError({
       message: `API ${method} ${url} failed`,
       url,
@@ -361,7 +372,7 @@ export async function apiCallOrThrow<T>(
 export async function apiCall<T>(
   url: string,
   method: HttpMethod = 'GET',
-  body: any = null,
+  body: unknown = null,
   opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T | null> {
   try {
@@ -645,7 +656,8 @@ export function findBestMatch(
     }
 
     // Small bonus: if target contains SKU-like text
-    const sku = (item as any).sku ? String((item as any).sku) : '';
+    const skuValue = (item as { sku?: unknown }).sku;
+    const sku = skuValue != null ? String(skuValue) : '';
     if (sku) {
       const cleanSku = normalizeForMatch(sku);
       if (cleanSku && cleanTarget.includes(cleanSku)) score += 60;

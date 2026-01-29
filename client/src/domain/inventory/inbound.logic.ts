@@ -135,7 +135,7 @@ function findInventoryByNeweggItem(
     inventory.find((it) => {
       const meta = it?.metadata;
       if (!meta || typeof meta !== 'object') return false;
-      const entry = normalizeNeweggItem((meta as any).neweggItem);
+      const entry = normalizeNeweggItem((meta as { neweggItem?: unknown }).neweggItem);
       return entry && entry === target;
     }) || null
   );

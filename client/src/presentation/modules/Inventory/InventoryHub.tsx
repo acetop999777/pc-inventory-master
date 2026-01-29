@@ -170,8 +170,10 @@ export default function InventoryHub() {
   };
 
   const readMetaValue = (item: InventoryItem | null, key: string) => {
-    if (!item?.metadata || typeof item.metadata !== 'object') return '';
-    const val = (item.metadata as any)[key];
+    if (!item?.metadata || typeof item.metadata !== 'object' || Array.isArray(item.metadata))
+      return '';
+    const record = item.metadata as Record<string, unknown>;
+    const val = record[key];
     if (typeof val === 'string') return val;
     if (Array.isArray(val)) return val.map((entry) => String(entry)).join(', ');
     if (val != null && typeof val !== 'object') return String(val);
