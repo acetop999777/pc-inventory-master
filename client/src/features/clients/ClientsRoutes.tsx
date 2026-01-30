@@ -23,6 +23,7 @@ import { useConfirm } from '../../app/confirm/ConfirmProvider';
 
 import { ClientsListPage } from './ClientsListPage';
 import { ClientDetailPage } from './ClientDetailPage';
+import type { UpdateClientField } from './types';
 
 const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'] as const;
 
@@ -221,8 +222,8 @@ export function ClientDetailRoute() {
    * - wechatName 从空 -> 非空：把 draft 当前所有字段一次性 POST 落库
    * - 落库后：恢复“随时填随时存”
    */
-  const onUpdateField = useCallback(
-    (field: keyof ClientEntity, val: any) => {
+  const onUpdateField = useCallback<UpdateClientField>(
+    (field, val) => {
       if (!clientId) return;
 
       const shouldAutoPaid =

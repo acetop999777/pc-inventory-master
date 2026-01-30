@@ -1,21 +1,22 @@
 import React from 'react';
 import { DollarSign, Wallet, HandCoins } from 'lucide-react';
 import { ClientEntity, ClientFinancials } from '../../../../domain/client/client.types';
+import type { UpdateClientField } from '../../types';
 import { FinancialCard } from '../../../../shared/ui/FinancialCard';
 import { formatMoney } from '../../../../utils';
 
 interface Props {
   data: ClientEntity;
   financials: ClientFinancials;
-  update: (field: keyof ClientEntity, val: any) => void;
+  update: UpdateClientField;
 }
 
-function parseMoneyOrNull(raw: string): number | null {
+function parseMoney(raw: string, fallback: number): number {
   const s = String(raw ?? '').trim();
-  if (!s) return null;
+  if (!s) return fallback;
   // allow "45." while typing; finalize on blur only
   const n = Number(s);
-  if (!Number.isFinite(n)) return null;
+  if (!Number.isFinite(n)) return fallback;
   return Math.max(0, n);
 }
 
@@ -60,7 +61,7 @@ export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) =>
             }}
             onBlur={() => {
               focusRef.current = null;
-              update('totalPrice', parseMoneyOrNull(totalText));
+              update('totalPrice', parseMoney(totalText, Number(data.totalPrice ?? 0)));
             }}
             onChange={(e) => setTotalText(e.target.value)}
           />
@@ -84,7 +85,7 @@ export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) =>
             }}
             onBlur={() => {
               focusRef.current = null;
-              update('paidAmount', parseMoneyOrNull(paidText));
+              update('paidAmount', parseMoney(paidText, Number(data.paidAmount ?? 0)));
             }}
             onChange={(e) => setPaidText(e.target.value)}
           />

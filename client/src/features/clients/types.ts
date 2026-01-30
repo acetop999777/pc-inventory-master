@@ -15,6 +15,10 @@ export type StatusStep = string;
 export type StatusSteps = ReadonlyArray<StatusStep>;
 
 export type OnDeleteClient = (id: string, name?: string) => void | Promise<void>;
+export type UpdateClientField = <K extends keyof ClientEntity>(
+  field: K,
+  val: ClientEntity[K],
+) => void;
 
 /**
  * Some code historically split list page props into "base" + "extra".
@@ -71,6 +75,6 @@ export interface ClientDetailPageProps {
   flashSaved?: boolean;
 
   onRetry?: () => void;
-  onUpdateField: (field: keyof ClientEntity, val: any) => void;
+  onUpdateField: UpdateClientField;
   onBack?: () => void;
 }

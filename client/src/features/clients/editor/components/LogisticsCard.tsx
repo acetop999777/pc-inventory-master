@@ -1,11 +1,12 @@
 import React from 'react';
 import { Calendar, Truck } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
+import type { UpdateClientField } from '../../types';
 import { CompactInput } from '../../../../shared/ui/CompactInput';
 
 type Props = {
   data: ClientEntity;
-  update: (field: keyof ClientEntity, val: any) => void;
+  update: UpdateClientField;
 
   // accept both names to avoid future prop-drift
   statusOptions?: readonly string[];

@@ -1,11 +1,12 @@
 import React from 'react';
 import { Camera, X } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
+import type { UpdateClientField } from '../../types';
 import { CompactInput } from '../../../../shared/ui/CompactInput';
 
 interface Props {
   data: ClientEntity;
-  update: (field: keyof ClientEntity, val: any) => void;
+  update: UpdateClientField;
   onPhotoUpload: () => void;
   onPhotoRemove: (idx: number) => void;
 }

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Cpu, ExternalLink, Copy, Check, X } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
+import type { UpdateClientField } from '../../types';
 import { InventoryItem } from '../../../../types';
 import { CORE_CATS } from '../../../../utils';
 import { parsePcppText } from '../pcpp';
@@ -8,7 +9,7 @@ import { parsePcppText } from '../pcpp';
 interface Props {
   data: ClientEntity;
   inventory: InventoryItem[];
-  update: (field: keyof ClientEntity, val: any) => void;
+  update: UpdateClientField;
   onCalculate?: () => void;
 }
 

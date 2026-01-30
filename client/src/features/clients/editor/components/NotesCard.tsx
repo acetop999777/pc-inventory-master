@@ -1,10 +1,11 @@
 import React from 'react';
 import { FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
+import type { UpdateClientField } from '../../types';
 
 interface Props {
   data: ClientEntity;
-  update: (field: keyof ClientEntity, val: any) => void;
+  update: UpdateClientField;
 }
 
 export const NotesCard: React.FC<Props> = ({ data, update }) => {
