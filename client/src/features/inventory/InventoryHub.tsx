@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { History, Minus, Plus, Search, Trash2, X } from 'lucide-react';
-import { ALL_CATS, apiCallOrThrow } from '../../../utils';
-import { InventoryItem } from '../../../types';
-import { useInventoryQuery } from '../../../app/queries/inventory';
-import { useInventoryWriteBehind } from '../../../app/writeBehind/inventoryWriteBehind';
-import { useAlert, useConfirm } from '../../../app/confirm/ConfirmProvider';
+import { ALL_CATS, apiCallOrThrow } from '../../utils';
+import { InventoryItem } from '../../types';
+import { useInventoryQuery } from '../../app/queries/inventory';
+import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBehind';
+import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 
 type InlineEditorProps = {

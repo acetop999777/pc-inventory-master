@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { InventoryItem } from '../../../../types';
+import { InventoryItem } from '../../../types';
 
 type Mode = 'add' | 'remove';
 
