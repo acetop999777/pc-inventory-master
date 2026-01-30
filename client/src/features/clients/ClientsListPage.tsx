@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ClientsListPageExtraProps, ClientsListPageProps } from './types';
-import ClientHub from '../../presentation/modules/ClientHub/ClientHub';
+import ClientHub from './components/ClientHub';
 
 type Props = ClientsListPageProps & ClientsListPageExtraProps;
 
