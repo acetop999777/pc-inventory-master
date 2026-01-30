@@ -1,7 +1,7 @@
 import React from 'react';
 import { DollarSign, Wallet, HandCoins } from 'lucide-react';
 import { ClientEntity, ClientFinancials } from '../../../../domain/client/client.types';
-import { FinancialCard } from '../../../../presentation/components/ui/FinancialCard';
+import { FinancialCard } from '../../../../shared/ui/FinancialCard';
 import { formatMoney } from '../../../../utils';
 
 interface Props {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calendar, Truck } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
-import { CompactInput } from '../../../../presentation/components/ui/CompactInput';
+import { CompactInput } from '../../../../shared/ui/CompactInput';
 
 type Props = {
   data: ClientEntity;

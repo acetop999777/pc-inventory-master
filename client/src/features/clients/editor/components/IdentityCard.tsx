@@ -1,7 +1,7 @@
 import React from 'react';
 import { Camera, X } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
-import { CompactInput } from '../../../../presentation/components/ui/CompactInput';
+import { CompactInput } from '../../../../shared/ui/CompactInput';
 
 interface Props {
   data: ClientEntity;

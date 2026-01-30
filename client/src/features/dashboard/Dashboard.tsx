@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { apiCall, formatMoney } from '../../utils';
-import { FinancialCard } from '../../presentation/components/ui/FinancialCard';
+import { FinancialCard } from '../../shared/ui/FinancialCard';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
