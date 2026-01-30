@@ -2,9 +2,9 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useReceiptsQuery, receiptsQueryKey } from '../../../app/queries/receipts';
-import { apiCallOrThrow } from '../../../utils';
-import { useAlert, useConfirm } from '../../../app/confirm/ConfirmProvider';
+import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
+import { apiCallOrThrow } from '../../utils';
+import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 
 function formatDate(ts?: string) {
   if (!ts) return '';

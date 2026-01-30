@@ -4,7 +4,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'r
 import { MainLayout } from './presentation/layouts/MainLayout';
 import Dashboard from './presentation/modules/Dashboard/Dashboard';
 import InventoryHub from './presentation/modules/Inventory/InventoryHub';
-import InboundHub from './presentation/modules/Inbound/InboundHub';
+import InboundHub from './features/inbound/InboundHub';
 
 import { NavigationGuardProvider, useNavigationGuard } from './app/navigation/NavigationGuard';
 import {

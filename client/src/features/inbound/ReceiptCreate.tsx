@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useInventoryQuery } from '../../../app/queries/inventory';
-import { useInventoryWriteBehind } from '../../../app/writeBehind/inventoryWriteBehind';
-import { useReceiptWriteBehind } from '../../../app/writeBehind/receiptWriteBehind';
-import { useAlert } from '../../../app/confirm/ConfirmProvider';
+import { useInventoryQuery } from '../../app/queries/inventory';
+import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBehind';
+import { useReceiptWriteBehind } from '../../app/writeBehind/receiptWriteBehind';
+import { useAlert } from '../../app/confirm/ConfirmProvider';
 import {
   normalizeNeweggItem,
   normalizeSerialNumber,
@@ -11,8 +11,8 @@ import {
   parseNeweggText,
   processScan,
   StagedItem,
-} from '../../../domain/inventory/inbound.logic';
-import { ALL_CATS, apiCallOrThrow, compressImage, generateId, guessCategory } from '../../../utils';
+} from '../../domain/inventory/inbound.logic';
+import { ALL_CATS, apiCallOrThrow, compressImage, generateId, guessCategory } from '../../utils';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 
