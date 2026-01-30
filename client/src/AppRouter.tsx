@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { MainLayout } from './presentation/layouts/MainLayout';
+import { MainLayout } from './shared/layouts/MainLayout';
 import Dashboard from './features/dashboard/Dashboard';
 import InventoryHub from './features/inventory/InventoryHub';
 import InboundHub from './features/inbound/InboundHub';
