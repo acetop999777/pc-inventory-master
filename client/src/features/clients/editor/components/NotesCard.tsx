@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
+import { Button } from '../../../../shared/ui/Button';
 
 interface Props {
   data: ClientEntity;
@@ -17,19 +18,25 @@ export const NotesCard: React.FC<Props> = ({ data, update }) => {
         </h3>
         {/* 评分箭头移到这里，解决对齐难题 */}
         <div className="flex items-center bg-slate-50 rounded-lg p-0.5 border border-slate-100">
-          <button
+          <Button
+            type="button"
             onClick={() => update('rating', data.rating === 1 ? 0 : 1)}
-            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${data.rating === 1 ? 'bg-white shadow-sm text-yellow-400' : 'text-slate-300 hover:text-yellow-400 hover:bg-slate-100'}`}
+            variant="ghost"
+            size="icon"
+            className={`w-6 h-6 rounded-md transition-all ${data.rating === 1 ? 'bg-white shadow-sm text-yellow-400' : 'text-slate-300 hover:text-yellow-400 hover:bg-slate-100'}`}
           >
             <ChevronUp size={14} strokeWidth={3} />
-          </button>
+          </Button>
           <div className="w-px h-3 bg-slate-200 mx-0.5" />
-          <button
+          <Button
+            type="button"
             onClick={() => update('rating', data.rating === -1 ? 0 : -1)}
-            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${data.rating === -1 ? 'bg-white shadow-sm text-red-500' : 'text-slate-300 hover:text-red-500 hover:bg-slate-100'}`}
+            variant="ghost"
+            size="icon"
+            className={`w-6 h-6 rounded-md transition-all ${data.rating === -1 ? 'bg-white shadow-sm text-red-500' : 'text-slate-300 hover:text-red-500 hover:bg-slate-100'}`}
           >
             <ChevronDown size={14} strokeWidth={3} />
-          </button>
+          </Button>
         </div>
       </div>
       <textarea
