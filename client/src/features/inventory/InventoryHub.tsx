@@ -8,6 +8,7 @@ import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBeh
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
+import { Button } from '../../shared/ui/Button';
 
 type InlineEditorProps = {
   value: any;
@@ -376,10 +377,12 @@ export default function InventoryHub() {
               {catTabs.map((c) => {
                 const active = activeCat === c;
                 return (
-                  <button
+                  <Button
                     key={c}
                     type="button"
                     onClick={() => setActiveCat(c)}
+                    variant="ghost"
+                    size="xs"
                     className={[
                       'whitespace-nowrap px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest border transition',
                       active
@@ -388,7 +391,7 @@ export default function InventoryHub() {
                     ].join(' ')}
                   >
                     {c}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -478,49 +481,59 @@ export default function InventoryHub() {
                         In Stock
                       </div>
                       <div className="mt-2 grid grid-cols-3 gap-2 items-center">
-                        <button
+                        <Button
                           onClick={() => openModal(i, 'remove')}
+                          size="icon"
+                          variant="ghost"
                           className="h-10 rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-red-50 hover:text-red-600"
                           title="Remove stock"
                         >
                           <Minus size={16} strokeWidth={3} className="mx-auto" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => openModal(i, 'add')}
+                          size="xs"
+                          variant="ghost"
                           className="h-10 rounded-xl border border-slate-200 bg-white font-mono text-sm font-black text-slate-700 shadow-sm"
                           title="Open stock dialog"
                         >
                           {Number(i.quantity ?? 0)}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => openModal(i, 'add')}
+                          size="icon"
+                          variant="ghost"
                           className="h-10 rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-emerald-50 hover:text-emerald-600"
                           title="Add stock"
                         >
                           <Plus size={16} strokeWidth={3} className="mx-auto" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-end border-t border-slate-100 pt-3">
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button
                         onClick={() => openLog(i)}
-                        className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"
+                        size="xs"
+                        variant="ghost"
+                        className="inline-flex items-center gap-2 px-0 py-0 rounded-none text-[11px] font-black uppercase tracking-widest text-slate-500"
                         title="Logs"
                       >
                         <History size={14} />
                         Logs
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => confirmDelete(i)}
-                        className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-red-500"
+                        size="xs"
+                        variant="ghost"
+                        className="inline-flex items-center gap-2 px-0 py-0 rounded-none text-[11px] font-black uppercase tracking-widest text-red-500"
                         title="Delete"
                       >
                         <Trash2 size={14} />
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -542,10 +555,12 @@ export default function InventoryHub() {
             {catTabs.map((c) => {
               const active = activeCat === c;
               return (
-                <button
+                <Button
                   key={c}
                   type="button"
                   onClick={() => setActiveCat(c)}
+                  variant="ghost"
+                  size="xs"
                   className={[
                     'px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition',
                     active
@@ -554,7 +569,7 @@ export default function InventoryHub() {
                   ].join(' ')}
                 >
                   {c}
-                </button>
+                </Button>
               );
             })}
 
@@ -622,29 +637,35 @@ export default function InventoryHub() {
               </div>
 
               <div className="col-span-2 flex items-center justify-center gap-3">
-                <button
+                <Button
                   onClick={() => openModal(i, 'remove')}
+                  size="icon"
+                  variant="ghost"
                   className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 border border-slate-200"
                   title="Remove stock"
                 >
                   <Minus size={14} strokeWidth={3} />
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={() => openModal(i, 'add')}
+                  size="xs"
+                  variant="ghost"
                   className="px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:bg-slate-50 font-mono font-black text-slate-700 min-w-[64px]"
                   title="Open stock dialog"
                 >
                   {Number(i.quantity ?? 0)}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={() => openModal(i, 'add')}
+                  size="icon"
+                  variant="ghost"
                   className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 border border-slate-200"
                   title="Add stock"
                 >
                   <Plus size={14} strokeWidth={3} />
-                </button>
+                </Button>
               </div>
 
               <div className="col-span-1 text-right font-mono text-slate-600 font-bold">
@@ -660,22 +681,26 @@ export default function InventoryHub() {
                 </div>
               </div>
 
-            <div className="col-span-1 flex justify-end gap-2">
-              <button
-                onClick={() => openLog(i)}
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-300 hover:text-slate-600 hover:bg-slate-50"
-                title="Logs"
-              >
-                <History size={14} />
-              </button>
-              <button
-                onClick={() => confirmDelete(i)}
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-200 hover:text-red-400 hover:bg-red-50"
-                title="Delete"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
+              <div className="col-span-1 flex justify-end gap-2">
+                <Button
+                  onClick={() => openLog(i)}
+                  size="icon"
+                  variant="ghost"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-300 hover:text-slate-600 hover:bg-slate-50"
+                  title="Logs"
+                >
+                  <History size={14} />
+                </Button>
+                <Button
+                  onClick={() => confirmDelete(i)}
+                  size="icon"
+                  variant="ghost"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-200 hover:text-red-400 hover:bg-red-50"
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
             </div>
           ))}
 
@@ -698,13 +723,15 @@ export default function InventoryHub() {
                 </div>
                 <div className="text-xl font-black text-slate-900">{logItem.name}</div>
               </div>
-              <button
+              <Button
                 onClick={closeLog}
+                size="icon"
+                variant="ghost"
                 className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 flex items-center justify-center"
                 title="Close"
               >
                 <X size={16} />
-              </button>
+              </Button>
             </div>
 
             {logLoading ? (

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
+import { Button } from '../../../shared/ui/Button';
 
 type Mode = 'add' | 'remove';
 
@@ -79,13 +80,15 @@ export function StockAdjustModal(props: {
                 {item.name} <span className="text-slate-300">·</span> {item.category}
               </div>
             </div>
-            <button
+            <Button
               className="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-500"
               onClick={onClose}
               aria-label="Close"
+              variant="ghost"
+              size="icon"
             >
               <X size={18} />
-            </button>
+            </Button>
           </div>
 
           <div className="p-6 grid grid-cols-12 gap-6">
@@ -120,8 +123,10 @@ export function StockAdjustModal(props: {
                   Action
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     onClick={() => setMode('add')}
+                    variant="ghost"
+                    size="xs"
                     className={`px-3 py-2 rounded-xl border text-xs font-black uppercase tracking-wider ${
                       mode === 'add'
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
@@ -129,9 +134,11 @@ export function StockAdjustModal(props: {
                     }`}
                   >
                     Add Stock
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setMode('remove')}
+                    variant="ghost"
+                    size="xs"
                     className={`px-3 py-2 rounded-xl border text-xs font-black uppercase tracking-wider ${
                       mode === 'remove'
                         ? 'bg-red-50 border-red-200 text-red-700'
@@ -139,7 +146,7 @@ export function StockAdjustModal(props: {
                     }`}
                   >
                     Remove Stock
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -213,15 +220,19 @@ export function StockAdjustModal(props: {
                 </div>
 
                 <div className="mt-5 flex gap-2">
-                  <button
+                  <Button
                     onClick={onClose}
+                    variant="ghost"
+                    size="xs"
                     className="flex-1 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={apply}
                     disabled={!canApply}
+                    variant="ghost"
+                    size="xs"
                     className={`flex-1 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${
                       canApply
                         ? 'bg-slate-900 text-white hover:bg-slate-800'
@@ -229,7 +240,7 @@ export function StockAdjustModal(props: {
                     }`}
                   >
                     Apply
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="mt-3 text-[10px] text-slate-400 font-bold">
