@@ -431,16 +431,18 @@ export default function ClientHub({
     const inner = !collapsible ? (
       <div className="flex items-center justify-between px-1">{label}</div>
     ) : (
-      <button
+      <Button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-1 group select-none"
+        variant="ghost"
+        size="xs"
+        className="w-full flex items-center justify-between px-1 py-0 group select-none rounded-none"
         aria-expanded={isOpen}
         title={isOpen ? 'Collapse archived' : 'Expand archived'}
       >
         {label}
         {right}
-      </button>
+      </Button>
     );
 
     if (!sticky) return <div className="mb-2">{inner}</div>;
@@ -542,13 +544,15 @@ export default function ClientHub({
             </div>
           </div>
 
-          <button
+          <Button
             onClick={onNewClient}
+            variant="ghost"
+            size="xs"
             className="mt-4 w-full rounded-2xl bg-white text-slate-900 py-2.5 text-[11px] font-black uppercase tracking-widest shadow-lg"
             title="New client (n)"
           >
             + New Client
-          </button>
+          </Button>
 
           <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-blue-500/30 blur-3xl" />
           <div className="pointer-events-none absolute -left-8 -bottom-10 h-28 w-28 rounded-full bg-emerald-400/20 blur-3xl" />
@@ -598,16 +602,18 @@ export default function ClientHub({
               </select>
             </div>
             <div className="relative" ref={datePickerRef}>
-              <button
+              <Button
                 type="button"
                 onClick={() => setDatePickerOpen((v) => !v)}
+                variant="outline"
+                size="xs"
                 className={[
                   'flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] font-semibold text-slate-700',
                   dateActive ? 'border-slate-300 bg-slate-200' : 'border-slate-200 bg-white',
                 ].join(' ')}
               >
                 <span>Date Range</span>
-              </button>
+              </Button>
               {datePickerOpen ? (
                 <div className="absolute left-0 top-full mt-2 z-30 w-[36rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
                   <div className="flex items-center justify-between">
@@ -688,9 +694,11 @@ export default function ClientHub({
                               .join(' ');
 
                             return (
-                              <button
+                              <Button
                                 key={cellIso}
                                 type="button"
+                                variant="ghost"
+                                size="icon"
                                 className={cls}
                                 onClick={() => {
                                   const picked = toISODate(d);
@@ -717,7 +725,7 @@ export default function ClientHub({
                                 }}
                               >
                                 {d.getDate()}
-                              </button>
+                              </Button>
                             );
                           })}
                         </div>
@@ -726,8 +734,10 @@ export default function ClientHub({
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       onClick={() => {
                         setDateFrom('');
                         setDateTo('');
@@ -735,14 +745,16 @@ export default function ClientHub({
                       className="text-[11px] font-bold text-slate-500 hover:text-slate-700"
                     >
                       Clear
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       onClick={() => setDatePickerOpen(false)}
                       className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-bold text-white"
                     >
                       Done
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : null}
@@ -764,14 +776,16 @@ export default function ClientHub({
               <span className="text-sm font-black text-slate-800">{formatMoney(totals.profit)}</span>
             </div>
           </div>
-          <button
+          <Button
             onClick={onNewClient}
+            variant="ghost"
+            size="xs"
             className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-lg hover:shadow-xl active:scale-[0.99] transition"
             title="New client (n)"
           >
             <Plus size={16} />
             <span className="text-[11px] font-bold uppercase tracking-wider">New Client</span>
-          </button>
+          </Button>
         </div>
       </div>
 
