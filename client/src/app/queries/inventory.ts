@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../utils';
+import { apiCallOrThrow } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 
 export const inventoryQueryKey = ['inventory'] as const;

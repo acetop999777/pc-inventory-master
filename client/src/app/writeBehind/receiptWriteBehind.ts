@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../utils';
+import { apiCallOrThrow } from '../../shared/api/http';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 import { receiptsQueryKey, ReceiptDetail } from '../queries/receipts';
 

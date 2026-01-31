@@ -13,7 +13,8 @@ import {
   StagedItem,
 } from '../../domain/inventory/inbound.logic';
 import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils';
-import { apiCallOrThrow, compressImage, generateId } from '../../utils';
+import { apiCallOrThrow } from '../../shared/api/http';
+import { compressImage, generateId } from '../../utils';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 

@@ -1,4 +1,4 @@
-import { apiCall } from '../../utils';
+import { apiCall } from '../../shared/api/http';
 import { InventoryItem } from './inventory.types';
 
 export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];

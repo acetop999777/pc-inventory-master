@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../utils';
+import { apiCallOrThrow } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 import { inventoryQueryKey, normalizeInventoryRow } from '../queries/inventory';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';

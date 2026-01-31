@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { History, Minus, Plus, Search, Trash2, X } from 'lucide-react';
 import { ALL_CATS } from '../../domain/inventory/inventory.utils';
-import { apiCallOrThrow } from '../../utils';
+import { apiCallOrThrow } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 import { useInventoryQuery } from '../../app/queries/inventory';
 import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBehind';
