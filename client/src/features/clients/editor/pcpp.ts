@@ -1,4 +1,4 @@
-import { InventoryItem } from '../../../types';
+import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../utils';
 
 export type SpecRow = { name: string; sku: string; cost: number; qty: number; needsPurchase?: boolean };

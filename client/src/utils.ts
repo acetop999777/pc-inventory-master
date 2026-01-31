@@ -1,4 +1,4 @@
-import { InventoryItem } from './types';
+import { InventoryItem } from './domain/inventory/inventory.types';
 import { apiFetch } from './lib/api';
 
 export const API_BASE = '/api';

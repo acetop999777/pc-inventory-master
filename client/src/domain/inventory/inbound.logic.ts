@@ -1,4 +1,4 @@
-import { InventoryItem } from '../../types';
+import { InventoryItem } from './inventory.types';
 import { generateId, findBestMatch, guessCategory, lookupBarcode } from '../../utils';
 
 export interface StagedItem extends InventoryItem {
