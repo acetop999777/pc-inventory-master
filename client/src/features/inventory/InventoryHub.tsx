@@ -7,6 +7,7 @@ import { useInventoryQuery } from '../../app/queries/inventory';
 import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBehind';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
+import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
 
 type InlineEditorProps = {
   value: any;
@@ -133,36 +134,11 @@ export default function InventoryHub() {
     [filtered],
   );
 
-  const formatMoney = (n: number) =>
-    n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-
   const formatUnitMoney = (n: number) =>
-    n.toLocaleString(undefined, {
-      style: 'currency',
-      currency: 'USD',
+    formatMoney(n, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-
-  const formatDate = (iso?: string | null) => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-  };
-
-  const formatDateTime = (iso?: string | null) => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   const catTabs = ['ALL', ...ALL_CATS];
 
@@ -383,7 +359,9 @@ export default function InventoryHub() {
                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   {activeCat === 'ALL' ? 'Total value' : `${activeCat} value`}
                 </div>
-                <div className="mt-1 text-xl font-black">{formatMoney(totalValue)}</div>
+                <div className="mt-1 text-xl font-black">
+                  {formatMoney(totalValue, { maximumFractionDigits: 0 })}
+                </div>
               </div>
             </div>
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-200">
@@ -583,7 +561,9 @@ export default function InventoryHub() {
             <div className="ml-auto text-[11px] font-black uppercase tracking-widest text-slate-400">
               {activeCat === 'ALL' ? 'All inventory value' : `${activeCat} value`}
               <span className="mx-2 text-slate-300">•</span>
-              <span className="text-slate-700">{formatMoney(totalValue)}</span>
+              <span className="text-slate-700">
+                {formatMoney(totalValue, { maximumFractionDigits: 0 })}
+              </span>
             </div>
           </div>
 
@@ -795,10 +775,10 @@ export default function InventoryHub() {
                               Date
                             </div>
                             <div className="text-xs font-bold text-slate-600">
-                              {formatDate(m.receiptReceivedAt || m.occurredAt)}
+                              {formatDate(m.receiptReceivedAt || m.occurredAt) || '—'}
                             </div>
                             <div className="text-[10px] font-medium text-slate-400">
-                              {formatDateTime(m.occurredAt)}
+                              {formatDateTime(m.occurredAt) || '—'}
                             </div>
                           </div>
                         </div>

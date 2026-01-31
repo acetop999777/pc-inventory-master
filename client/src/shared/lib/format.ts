@@ -1,5 +1,12 @@
-export const formatMoney = (n: number | undefined): string =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+export const formatMoney = (
+  n: number | undefined,
+  options: Intl.NumberFormatOptions = {},
+): string =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    ...options,
+  }).format(n || 0);
 
 // --- date helpers ---
 export function formatDate(input?: string | Date | null): string {
@@ -26,6 +33,19 @@ export function formatDate(input?: string | Date | null): string {
 
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+}
+
+export function formatDateTime(input?: string | Date | null): string {
+  if (!input) return '';
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export function formatDateYMD(input?: string | Date | null): string {
