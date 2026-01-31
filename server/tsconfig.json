@@ -13,6 +13,13 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["errors/**/*.js", "errors/**/*.ts", "errors/**/*.d.ts"],
+  "include": [
+    "errors/**/*.js",
+    "errors/**/*.ts",
+    "errors/**/*.d.ts",
+    "validators/**/*.js",
+    "validators/**/*.ts",
+    "validators/**/*.d.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

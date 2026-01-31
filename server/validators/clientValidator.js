@@ -1,9 +1,32 @@
 const AppError = require('../errors/AppError');
 
+/**
+ * @typedef {{
+ *   [key: string]: unknown,
+ *   id: unknown,
+ *   wechatName: unknown,
+ *   orderDate: unknown,
+ *   deliveryDate: unknown,
+ *   totalPrice: unknown,
+ *   actualCost: unknown,
+ *   profit: unknown,
+ *   paidAmount: unknown,
+ *   rating: unknown
+ * }} ClientInput
+ */
+
+/**
+ * @param {unknown} v
+ * @returns {string | null}
+ */
 function asNonEmptyString(v) {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+/**
+ * @param {unknown} v
+ * @returns {string | null}
+ */
 function normalizeDateOnly(v) {
   if (!v) return null;
   if (typeof v !== 'string') return null;
@@ -12,6 +35,10 @@ function normalizeDateOnly(v) {
   return s;
 }
 
+/**
+ * @param {ClientInput} c
+ * @returns {{ id: string, wechatName: string, orderDate: string, deliveryDate: string | null }}
+ */
 function assertClientInput(c) {
   const fields = [];
 
@@ -44,7 +71,12 @@ function assertClientInput(c) {
     });
   }
 
-  return { id, wechatName, orderDate, deliveryDate };
+  return {
+    id: /** @type {string} */ (id),
+    wechatName: /** @type {string} */ (wechatName),
+    orderDate: /** @type {string} */ (orderDate),
+    deliveryDate,
+  };
 }
 
 module.exports = {
