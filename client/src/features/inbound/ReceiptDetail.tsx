@@ -6,6 +6,7 @@ import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '../../shared/ui/Button';
 
 export default function ReceiptDetail() {
   const nav = useNavigate();
@@ -147,12 +148,14 @@ export default function ReceiptDetail() {
     <div className="p-8 max-w-[1600px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <button
+          <Button
             onClick={() => nav('/inbound/receipts')}
+            size="xs"
+            variant="ghost"
             className="text-[10px] font-black uppercase tracking-widest text-slate-400"
           >
             Back
-          </button>
+          </Button>
           <h1 className="text-2xl font-black text-slate-900 mt-1">Receipt #{receipt.id}</h1>
         </div>
         <div className="text-right">
@@ -208,13 +211,15 @@ export default function ReceiptDetail() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
         <div className="flex items-center justify-between">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Receipt Photos</div>
-          <button
+          <Button
             onClick={() => uploadRef.current?.click()}
+            size="xs"
+            variant="ghost"
             className="text-[10px] font-black uppercase tracking-wider text-slate-600 hover:text-slate-800"
             disabled={saving}
           >
             {saving ? 'Saving...' : 'Upload'}
-          </button>
+          </Button>
         </div>
 
         <input
@@ -264,7 +269,7 @@ export default function ReceiptDetail() {
                   }}
                 >
                   <img src={img} alt="" className="h-20 w-full object-cover" />
-                  <button
+                  <Button
                     type="button"
                     onClick={async (e) => {
                       e.stopPropagation();
@@ -272,11 +277,13 @@ export default function ReceiptDetail() {
                       setImages(next);
                       await saveImages(next);
                     }}
+                    size="icon"
+                    variant="ghost"
                     className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-[10px] opacity-0 group-hover:opacity-100"
                     title="Remove"
                   >
                     ×
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -339,7 +346,7 @@ export default function ReceiptDetail() {
                 ${lineTotal.toFixed(2)}
               </div>
               <div className="col-span-1 flex justify-end">
-                <button
+                <Button
                   type="button"
                   onClick={() => {
                     setItemsDraft((prev) =>
@@ -348,12 +355,14 @@ export default function ReceiptDetail() {
                       ),
                     );
                   }}
+                  size="icon"
+                  variant="ghost"
                   className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50"
                   title="Remove"
                   aria-label="Remove"
                 >
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -364,13 +373,15 @@ export default function ReceiptDetail() {
       </div>
 
       <div className="flex justify-end mt-4">
-        <button
+        <Button
           onClick={saveReceipt}
           disabled={saving}
+          size="xs"
+          variant="ghost"
           className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition text-[11px] font-black uppercase tracking-wider disabled:opacity-60"
         >
           {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        </Button>
       </div>
 
       {previewSrc ? (
@@ -380,13 +391,15 @@ export default function ReceiptDetail() {
             onClick={() => setPreviewSrc(null)}
           />
           <div className="relative max-w-4xl w-full">
-            <button
+            <Button
               type="button"
               onClick={() => setPreviewSrc(null)}
+              size="xs"
+              variant="ghost"
               className="absolute -top-10 right-0 text-white text-sm font-bold"
             >
               Close
-            </button>
+            </Button>
             <img
               src={previewSrc}
               alt="Receipt"

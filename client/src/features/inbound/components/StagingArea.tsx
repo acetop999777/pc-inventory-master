@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { StagedItem } from '../../../domain/inventory/inbound.logic';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import { ALL_CATS } from '../../../domain/inventory/inventory.utils';
+import { Button } from '../../../shared/ui/Button';
 
 interface Props {
   batch: StagedItem[];
@@ -52,12 +53,14 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
           Staging ({batch.length})
         </h3>
         {batch.length > 0 && (
-          <button
+          <Button
             onClick={onCommit}
+            size="xs"
+            variant="ghost"
             className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase shadow-lg active:scale-95 transition-all hover:bg-slate-800"
           >
             Commit All
-          </button>
+          </Button>
         )}
       </div>
 
@@ -114,12 +117,14 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
                     </div>
                   )}
                 </div>
-                <button
+                <Button
                   onClick={() => setBatch(batch.filter((_, idx) => idx !== i))}
+                  size="icon"
+                  variant="ghost"
                   className="ml-2 text-slate-300 hover:text-red-500 transition-colors"
                 >
                   <Trash2 size={16} />
-                </button>
+                </Button>
               </div>
 
               {/* Row 2: Tags & Category */}

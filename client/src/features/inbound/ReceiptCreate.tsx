@@ -16,6 +16,7 @@ import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils'
 import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
+import { Button } from '../../shared/ui/Button';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 
@@ -370,12 +371,14 @@ export default function ReceiptCreate() {
     <div className="p-8 max-w-[1600px] mx-auto" onClick={() => setActiveSuggest(null)}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <button
+          <Button
             onClick={() => nav('/inbound/receipts')}
+            size="xs"
+            variant="ghost"
             className="text-[10px] font-black uppercase tracking-widest text-slate-400"
           >
             Back
-          </button>
+          </Button>
           <h1 className="text-2xl font-black text-slate-900 mt-1">New Receipt</h1>
         </div>
         <div className="text-right">
@@ -437,13 +440,15 @@ export default function ReceiptCreate() {
               placeholder="Paste Newegg order summary or scan codes (one per line)"
               className="flex-1 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 h-24 resize-none"
             />
-            <button
+            <Button
               onClick={parseInput}
               disabled={scanBusy}
+              size="xs"
+              variant="ghost"
               className="self-start inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition text-[11px] font-black uppercase tracking-wider"
             >
               {scanBusy ? 'Parsing...' : 'Parse'}
-            </button>
+            </Button>
           </div>
           <div className="mt-2 text-[10px] font-bold text-slate-400">
             Summary mode auto-fills Ordered At. Scan mode uses DB + UPC lookup.
@@ -455,12 +460,14 @@ export default function ReceiptCreate() {
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Receipt Photos
             </div>
-            <button
+            <Button
               onClick={() => uploadRef.current?.click()}
+              size="xs"
+              variant="ghost"
               className="text-[10px] font-black uppercase tracking-wider text-slate-600 hover:text-slate-800"
             >
               Upload
-            </button>
+            </Button>
           </div>
 
           <input
@@ -510,17 +517,19 @@ export default function ReceiptCreate() {
                     }}
                   >
                     <img src={img} alt="" className="h-20 w-full object-cover" />
-                    <button
+                    <Button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setImages((prev) => prev.filter((_, i) => i !== idx));
                       }}
+                      size="icon"
+                      variant="ghost"
                       className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-[10px] opacity-0 group-hover:opacity-100"
                       title="Remove"
                     >
                       ×
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -682,12 +691,14 @@ export default function ReceiptCreate() {
                 ${Number.isFinite(lineTotal) ? lineTotal.toFixed(2) : '0.00'}
               </div>
               <div className="md:col-span-1 text-right">
-                <button
+                <Button
                   onClick={() => removeLine(line.id)}
+                  size="xs"
+                  variant="ghost"
                   className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-red-500"
                 >
                   Remove
-                </button>
+                </Button>
               </div>
               {!line.inventoryId ? (
                 <div className="md:col-span-12 text-[10px] font-black uppercase tracking-widest text-amber-600">
@@ -699,18 +710,22 @@ export default function ReceiptCreate() {
         })}
 
         <div className="px-5 py-3 flex items-center justify-between">
-          <button
+          <Button
             onClick={addLine}
+            size="xs"
+            variant="ghost"
             className="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-700"
           >
             + Add line
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={submit}
+            size="xs"
+            variant="ghost"
             className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition text-[11px] font-black uppercase tracking-wider"
           >
             Submit Receipt
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -721,13 +736,15 @@ export default function ReceiptCreate() {
             onClick={() => setPreviewSrc(null)}
           />
           <div className="relative max-w-4xl w-full">
-            <button
+            <Button
               type="button"
               onClick={() => setPreviewSrc(null)}
+              size="xs"
+              variant="ghost"
               className="absolute -top-10 right-0 text-white text-sm font-bold"
             >
               Close
-            </button>
+            </Button>
             <img
               src={previewSrc}
               alt="Receipt"

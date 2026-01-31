@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Scan, Box, Loader2 } from 'lucide-react';
+import { Button } from '../../../shared/ui/Button';
 
 interface Props {
   onScan: (code: string) => Promise<void>;
@@ -53,15 +54,17 @@ export const InboundScanner: React.FC<Props> = ({ onScan, onParse, loading }) =>
           value={textVal}
           onChange={(e) => setTextVal(e.target.value)}
         />
-        <button
+        <Button
           onClick={() => {
             onParse(textVal);
             setTextVal('');
           }}
+          size="xs"
+          variant="ghost"
           className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors flex-shrink-0"
         >
           Analyze & Extract
-        </button>
+        </Button>
       </div>
     </div>
   );

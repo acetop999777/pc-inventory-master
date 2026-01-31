@@ -6,6 +6,7 @@ import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
+import { Button } from '../../shared/ui/Button';
 
 function toDateStart(value?: string) {
   if (!value) return null;
@@ -74,12 +75,14 @@ export default function ReceiptsList() {
           <div className="text-xs font-black uppercase tracking-widest text-slate-400">Inbound</div>
           <h1 className="text-2xl font-black text-slate-900">Receipts</h1>
         </div>
-        <button
+        <Button
           onClick={() => nav('/inbound/receipts/new')}
+          size="xs"
+          variant="ghost"
           className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition text-[11px] font-black uppercase tracking-wider"
         >
           New Receipt
-        </button>
+        </Button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
@@ -152,18 +155,20 @@ export default function ReceiptsList() {
               {formatMoney(r.totalAmount || 0)}
             </div>
             <div className="col-span-1 flex justify-end">
-              <button
+              <Button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   void deleteReceipt(r.id, formatDateYMD(r.receivedAt) || String(r.id));
                 }}
+                size="icon"
+                variant="ghost"
                 className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50"
                 title="Delete"
                 aria-label="Delete"
               >
                 <Trash2 size={14} />
-              </button>
+              </Button>
             </div>
           </div>
         ))}
