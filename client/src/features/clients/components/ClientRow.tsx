@@ -3,6 +3,7 @@ import { Trash2, Archive } from 'lucide-react';
 import type { ClientEntity } from '../../../domain/client/client.types';
 import { calculateFinancials } from '../../../domain/client/client.logic';
 import { formatDateShort, formatDateYMD, formatMoney } from '../../../shared/lib/format';
+import { Button } from '../../../shared/ui/Button';
 
 type Props = {
   client: ClientEntity;
@@ -228,32 +229,34 @@ export const ClientRow: React.FC<Props> = ({
             </span>
             <div className="flex items-center gap-2">
               {onArchive ? (
-                <button
+                <Button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onArchive(e);
                   }}
                   title="Archive"
+                  size="icon"
                   className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm"
                 >
                   <Archive size={15} className="mx-auto" />
                   <span className="sr-only">Archive</span>
-                </button>
+                </Button>
               ) : null}
               {onDelete ? (
-                <button
+                <Button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete(e);
                   }}
                   title="Delete"
+                  size="icon"
                   className="h-9 w-9 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm"
                 >
                   <Trash2 size={15} className="mx-auto" />
                   <span className="sr-only">Delete</span>
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -329,27 +332,29 @@ export const ClientRow: React.FC<Props> = ({
             ].join(' ')}
           >
             {onArchive ? (
-              <button
+              <Button
                 type="button"
                 onClick={onArchive}
                 title="Archive"
-                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center"
+                size="icon"
+                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600"
               >
                 <Archive size={15} />
                 <span className="sr-only">Archive</span>
-              </button>
+              </Button>
             ) : null}
 
             {onDelete ? (
-              <button
+              <Button
                 type="button"
                 onClick={onDelete}
                 title="Delete"
-                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-700 flex items-center justify-center"
+                size="icon"
+                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-700"
               >
                 <Trash2 size={15} />
                 <span className="sr-only">Delete</span>
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
