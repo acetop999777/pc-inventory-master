@@ -2,6 +2,7 @@ import React from 'react';
 import type { ClientDetailPageProps } from './types';
 import { IdentityCard, LogisticsCard, FinancialsCard, NotesCard, SpecsTable } from './editor';
 import { formatMoney } from '../../shared/lib/format';
+import { Button } from '../../shared/ui/Button';
 
 async function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -82,12 +83,13 @@ export function ClientDetailPage({
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         <div className="md:hidden mb-6">
-          <button
+          <Button
             onClick={onBack}
-            className="h-9 px-3 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-black uppercase tracking-wider"
+            size="lg"
+            className="h-9 px-3 bg-white text-xs font-black uppercase tracking-wider"
           >
             Back
-          </button>
+          </Button>
 
           <div className="mt-4 relative overflow-hidden rounded-[28px] bg-slate-900 p-5 text-white shadow-xl">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -138,12 +140,13 @@ export function ClientDetailPage({
 
         {/* Header: keep clean; global SyncStatusPill already exists */}
         <div className="hidden md:flex items-center justify-between mb-6">
-          <button
+          <Button
             onClick={onBack}
-            className="h-9 px-3 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-black uppercase tracking-wider"
+            size="lg"
+            className="h-9 px-3 bg-white text-xs font-black uppercase tracking-wider"
           >
             Back
-          </button>
+          </Button>
 
           <div className="text-sm font-black text-slate-800 truncate max-w-[65%]" title={title}>
             {title}
