@@ -4,6 +4,7 @@ import { ClientRow } from './ClientRow';
 import { ClientEntity } from '../../../domain/client/client.types';
 import { calculateFinancials } from '../../../domain/client/client.logic';
 import { formatMoney } from '../../../shared/lib/format';
+import { Button } from '../../../shared/ui/Button';
 
 interface Props {
   clients: ClientEntity[];
@@ -610,38 +611,38 @@ export default function ClientHub({
               {datePickerOpen ? (
                 <div className="absolute left-0 top-full mt-2 z-30 w-[36rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
                   <div className="flex items-center justify-between">
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
-                      className="h-7 w-7 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+                      size="icon"
+                      variant="outline"
                       aria-label="Previous month"
                     >
                       ‹
-                    </button>
+                    </Button>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <Button
                         onClick={() => setCalendarMonth(startOfMonth(new Date()))}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-50"
+                        size="xs"
+                        variant="outline"
                       >
                         This Month
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
                         onClick={() => setCalendarMonth(startOfMonth(addMonths(new Date(), 1)))}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-50"
+                        size="xs"
+                        variant="outline"
                       >
                         Next Month
-                      </button>
+                      </Button>
                     </div>
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
-                      className="h-7 w-7 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+                      size="icon"
+                      variant="outline"
                       aria-label="Next month"
                     >
                       ›
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-4">
