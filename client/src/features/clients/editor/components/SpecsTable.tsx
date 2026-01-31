@@ -5,6 +5,7 @@ import type { UpdateClientField } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
 import { parsePcppText } from '../pcpp';
+import { Button } from '../../../../shared/ui/Button';
 
 interface Props {
   data: ClientEntity;
@@ -200,13 +201,14 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
             <Cpu size={14} /> Specifications
           </h3>
           {pcppLink ? (
-            <button
+            <Button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 void copyLink();
               }}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100"
+              size="icon"
+              className="w-8 h-8 bg-white hover:bg-slate-100"
               title={copied ? 'Copied' : 'Copy link'}
             >
               {copied ? (
@@ -214,7 +216,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
               ) : (
                 <Copy size={16} className="text-slate-500" />
               )}
-            </button>
+            </Button>
           ) : null}
         </div>
 
@@ -258,13 +260,14 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                 pcpartpicker
               </a>
 
-              <button
+              <Button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   void copyLink();
                 }}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100"
+                size="icon"
+                className="w-8 h-8 bg-white hover:bg-slate-100"
                 title={copied ? 'Copied' : 'Copy link'}
               >
                 {copied ? (
@@ -272,7 +275,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                 ) : (
                   <Copy size={16} className="text-slate-500" />
                 )}
-              </button>
+              </Button>
             </div>
           ) : null}
         </div>
