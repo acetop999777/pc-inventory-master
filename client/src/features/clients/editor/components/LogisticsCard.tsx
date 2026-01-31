@@ -3,6 +3,7 @@ import { Calendar, Truck } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { CompactInput } from '../../../../shared/ui/CompactInput';
+import { Button } from '../../../../shared/ui/Button';
 
 type Props = {
   data: ClientEntity;
@@ -33,19 +34,20 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
         {options.map((s) => {
           const active = data.status === s;
           return (
-            <button
+            <Button
               key={s}
               type="button"
               onClick={() => update('status', s)}
+              size="xs"
               className={[
-                'whitespace-nowrap rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition',
+                'whitespace-nowrap px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition',
                 active
                   ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-white text-slate-500 border-slate-200',
               ].join(' ')}
             >
               {s}
-            </button>
+            </Button>
           );
         })}
       </div>
