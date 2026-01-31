@@ -1,15 +1,11 @@
 import type React from 'react';
-import type { ClientEntity } from '../../domain/client/client.types';
+import type { ClientEntity, ClientFinancials } from '../../domain/client/client.types';
 import type { InventoryItem } from '../../types';
 
 /**
  * Centralized props/types for Clients feature.
  * Goal: stop “改一处炸一片” due to props drift.
  */
-
-export type ClientFinancials = ReturnType<
-  typeof import('../../domain/client/client.logic').calculateFinancials
->;
 
 export type StatusStep = string;
 export type StatusSteps = ReadonlyArray<StatusStep>;
