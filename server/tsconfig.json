@@ -8,11 +8,11 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["**/*.js", "**/*.ts", "**/*.d.ts"],
+  "include": ["errors/**/*.js", "errors/**/*.ts", "errors/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
