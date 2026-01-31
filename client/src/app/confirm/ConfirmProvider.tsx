@@ -138,9 +138,11 @@ function ConfirmDialog({
               {cancelText}
             </Button>
           ) : null}
-          <button
+          <Button
             type="button"
             onClick={() => onClose(true)}
+            size="lg"
+            variant="ghost"
             className={[
               'h-10 px-5 rounded-full text-[12px] font-black',
               'shadow-[0_8px_20px_rgba(15,23,42,0.16)]',
@@ -148,7 +150,7 @@ function ConfirmDialog({
             ].join(' ')}
           >
             {confirmText}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

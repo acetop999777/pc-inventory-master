@@ -187,26 +187,30 @@ export function SyncStatusPill() {
               <span>Needs Sync ({failureCount})</span>
 
               {canRetry ? (
-                <button
+                <Button
                   onClick={retryAll}
+                  size="xs"
+                  variant="ghost"
                   className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
                   title="Apply pending changes"
                 >
                   Fix & retry
-                </button>
+                </Button>
               ) : (
                 <span className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200">
                   Fix inputs
                 </span>
               )}
 
-              <button
+              <Button
                 onClick={() => setDetailsOpen(true)}
+                size="xs"
+                variant="ghost"
                 className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
                 title="Show error details"
               >
                 Details
-              </button>
+              </Button>
             </>
           ) : busy ? (
             <>

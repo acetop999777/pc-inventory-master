@@ -1,6 +1,7 @@
 import React from 'react';
 import { LayoutDashboard, Users, Package, LogOut, PackagePlus } from 'lucide-react';
 import { SyncStatusPill } from '../../app/saveQueue/SyncStatusPill';
+import { Button } from '../ui/Button';
 
 interface Props {
   currentView: string;
@@ -30,10 +31,12 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
 
         <nav className="flex-1 px-4 space-y-2">
           {navItems.map((item) => (
-            <button
+            <Button
               key={item.id}
               onClick={() => onChangeView(item.id)}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
+              variant="ghost"
+              size="xs"
+              className={`w-full flex items-center justify-start gap-4 px-4 py-3.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
                 currentView === item.id
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -41,14 +44,18 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
             >
               <item.icon size={18} />
               {item.label}
-            </button>
+            </Button>
           ))}
         </nav>
 
         <div className="p-4 mt-auto">
-          <button className="w-full flex items-center gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-red-400 transition-colors">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="w-full flex items-center justify-start gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-red-400 transition-colors"
+          >
             <LogOut size={18} /> Logout
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -64,9 +71,11 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
               {navItems.map((item) => {
                 const active = currentView === item.id;
                 return (
-                  <button
+                  <Button
                     key={item.id}
                     onClick={() => onChangeView(item.id)}
+                    variant="ghost"
+                    size="xs"
                     className={[
                       'flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[9px] font-black uppercase tracking-widest transition',
                       active ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50',
@@ -74,7 +83,7 @@ export const MainLayout: React.FC<Props> = ({ currentView, onChangeView, childre
                   >
                     <item.icon size={16} />
                     {item.label}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
