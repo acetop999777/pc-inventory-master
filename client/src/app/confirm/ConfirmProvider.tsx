@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '../../shared/ui/Button';
 
 export type ConfirmOptions = {
   title?: string;
@@ -127,14 +128,15 @@ function ConfirmDialog({
 
         <div className="px-6 pb-6 flex items-center justify-end gap-3">
           {hasCancel ? (
-            <button
+            <Button
               ref={cancelRef}
-              type="button"
               onClick={() => onClose(false)}
-              className="h-10 px-5 rounded-full bg-white border border-slate-200 text-[12px] font-black text-slate-700 hover:bg-slate-50"
+              size="lg"
+              variant="outline"
+              className="text-slate-700"
             >
               {cancelText}
-            </button>
+            </Button>
           ) : null}
           <button
             type="button"

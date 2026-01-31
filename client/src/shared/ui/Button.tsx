@@ -1,7 +1,7 @@
 import React from 'react';
 
 type ButtonVariant = 'outline';
-type ButtonSize = 'xs' | 'icon';
+type ButtonSize = 'xs' | 'icon' | 'lg';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -18,24 +18,23 @@ const variants: Record<ButtonVariant, string> = {
 const sizes: Record<ButtonSize, string> = {
   xs: 'rounded-full px-2 py-1 text-[10px]',
   icon: 'h-7 w-7 rounded-full',
+  lg: 'h-10 px-5 rounded-full text-[12px]',
 };
 
 function cx(...parts: Array<string | undefined>) {
   return parts.filter(Boolean).join(' ');
 }
 
-export function Button({
-  className,
-  variant = 'outline',
-  size = 'xs',
-  type = 'button',
-  ...props
-}: ButtonProps) {
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant = 'outline', size = 'xs', type = 'button', ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={cx(base, variants[variant], sizes[size], className)}
       {...props}
     />
   );
-}
+});
