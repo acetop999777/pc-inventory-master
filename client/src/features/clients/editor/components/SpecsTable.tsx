@@ -385,18 +385,20 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                 </div>
                 <div className="mt-1 flex items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
                   {canRemove ? (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
                         removeSpec(cat);
                       }}
-                      className="mr-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-slate-400 opacity-20 group-hover:opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                      className="mr-2 w-4 h-4 rounded-full text-slate-400 opacity-20 group-hover:opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                       title="Remove"
                       aria-label="Remove"
                     >
                       <X size={10} />
-                    </button>
+                    </Button>
                   ) : null}
                   <span className="text-[11px] text-slate-400 mr-1">$</span>
                   <input
@@ -522,18 +524,20 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
 
               <div className="col-span-3 flex justify-end items-center gap-2">
                 {canRemove ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeSpec(cat);
                     }}
-                    className="inline-flex items-center justify-center w-4 h-4 rounded-full text-slate-400 opacity-20 group-hover:opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    className="w-4 h-4 rounded-full text-slate-400 opacity-20 group-hover:opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                     title="Remove"
                     aria-label="Remove"
                   >
                     <X size={10} />
-                  </button>
+                  </Button>
                 ) : null}
                 <div className="flex items-center bg-slate-50 rounded px-2 py-1 border border-slate-100">
                   <span className="text-[10px] text-slate-400 mr-1">$</span>

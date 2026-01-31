@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ButtonVariant = 'outline';
+type ButtonVariant = 'outline' | 'ghost';
 type ButtonSize = 'xs' | 'icon' | 'lg';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -13,6 +13,7 @@ const base =
 
 const variants: Record<ButtonVariant, string> = {
   outline: 'border border-slate-200 text-slate-500 hover:bg-slate-50',
+  ghost: 'text-slate-500',
 };
 
 const sizes: Record<ButtonSize, string> = {
