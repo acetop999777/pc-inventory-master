@@ -2,6 +2,7 @@ import React from 'react';
 import { Trash2, Archive } from 'lucide-react';
 import type { ClientEntity } from '../../../domain/client/client.types';
 import { calculateFinancials } from '../../../domain/client/client.logic';
+import { formatDateShort, formatDateYMD, formatMoney } from '../../../shared/lib/format';
 
 type Props = {
   client: ClientEntity;
@@ -31,42 +32,8 @@ function norm(v: any) {
   return String(v ?? '').trim().toLowerCase();
 }
 
-function fmtDateYMD(v: any): string {
-  const s = String(v ?? '').trim();
-  if (!s) return '—';
-  const t = Date.parse(s);
-  if (!Number.isFinite(t)) return s;
-  const d = new Date(t);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function fmtDateShort(v: any): string | null {
-  const s = String(v ?? '').trim();
-  if (!s) return null;
-  const t = Date.parse(s);
-  if (!Number.isFinite(t)) return null;
-  const d = new Date(t);
-  try {
-    return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit' }).format(d);
-  } catch {
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${mm}-${dd}`;
-  }
-}
-
-function money(n: any): string {
-  const v = Number(n ?? 0);
-  if (!Number.isFinite(v)) return '$0';
-  return v.toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  });
-}
+const formatMoneyRounded = (n: number | undefined) =>
+  formatMoney(n, { maximumFractionDigits: 0 });
 
 function toNum(v: any): number | null {
   if (v === null || v === undefined) return null;
@@ -157,10 +124,12 @@ export const ClientRow: React.FC<Props> = ({
   // ✅ no realName, no wechatId
   const name = String(c.wechatName ?? '').trim() || String(client.id);
 
-  const orderDate = fmtDateYMD(c.orderDate);
-  const deliveryDate = fmtDateYMD(c.deliveryDate);
+  const orderDate = formatDateYMD(c.orderDate) || '—';
+  const deliveryDate = formatDateYMD(c.deliveryDate) || '—';
 
-  const deliveredShort = archived ? fmtDateShort(c.deliveryDate ?? c.orderDate) : null;
+  const deliveredShort = archived
+    ? formatDateShort(c.deliveryDate ?? c.orderDate) || null
+    : null;
 
   const { total, due, profit } = computeTotals(client);
 
@@ -227,13 +196,17 @@ export const ClientRow: React.FC<Props> = ({
             <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
               Total
             </div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">{money(total)}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {formatMoneyRounded(total)}
+            </div>
           </div>
           <div className="rounded-xl border border-sky-200/70 bg-sky-50 px-3 py-2">
             <div className="text-[9px] font-black uppercase tracking-widest text-sky-400">
               Due
             </div>
-            <div className="mt-1 text-sm font-semibold text-sky-700">{money(due)}</div>
+            <div className="mt-1 text-sm font-semibold text-sky-700">
+              {formatMoneyRounded(due)}
+            </div>
           </div>
           <div
             className={[
@@ -244,7 +217,7 @@ export const ClientRow: React.FC<Props> = ({
             ].join(' ')}
           >
             <div className="text-[9px] font-black uppercase tracking-widest">Profit</div>
-            <div className="mt-1 text-sm font-semibold">{money(profit)}</div>
+            <div className="mt-1 text-sm font-semibold">{formatMoneyRounded(profit)}</div>
           </div>
         </div>
 
@@ -320,13 +293,17 @@ export const ClientRow: React.FC<Props> = ({
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
                 Total
               </span>
-              <span className="text-[12px] font-semibold text-slate-900">{money(total)}</span>
+              <span className="text-[12px] font-semibold text-slate-900">
+                {formatMoneyRounded(total)}
+              </span>
             </span>
             <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-sky-50 border border-sky-200/60">
               <span className="text-[9px] font-black uppercase tracking-widest text-sky-400">
                 Due
               </span>
-              <span className="text-[12px] font-semibold text-sky-700">{money(due)}</span>
+              <span className="text-[12px] font-semibold text-sky-700">
+                {formatMoneyRounded(due)}
+              </span>
             </span>
             <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-emerald-50/60 border border-emerald-200/50">
               <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">
@@ -338,7 +315,7 @@ export const ClientRow: React.FC<Props> = ({
                   profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
                 ].join(' ')}
               >
-                {money(profit)}
+                {formatMoneyRounded(profit)}
               </span>
             </span>
           </div>
