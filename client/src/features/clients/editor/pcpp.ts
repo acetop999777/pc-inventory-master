@@ -1,5 +1,5 @@
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
-import { CORE_CATS } from '../../../utils';
+import { CORE_CATS } from '../../../domain/inventory/inventory.utils';
 
 export type SpecRow = { name: string; sku: string; cost: number; qty: number; needsPurchase?: boolean };
 export type ParsedPcpp = { specs: Record<string, SpecRow>; link: string };

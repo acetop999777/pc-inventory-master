@@ -3,7 +3,7 @@ import { Cpu, ExternalLink, Copy, Check, X } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
-import { CORE_CATS } from '../../../../utils';
+import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
 import { parsePcppText } from '../pcpp';
 
 interface Props {

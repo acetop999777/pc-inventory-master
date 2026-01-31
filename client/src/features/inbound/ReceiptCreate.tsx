@@ -12,7 +12,8 @@ import {
   processScan,
   StagedItem,
 } from '../../domain/inventory/inbound.logic';
-import { ALL_CATS, apiCallOrThrow, compressImage, generateId, guessCategory } from '../../utils';
+import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils';
+import { apiCallOrThrow, compressImage, generateId } from '../../utils';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 

@@ -1,5 +1,6 @@
 import { InventoryItem } from './inventory.types';
-import { generateId, findBestMatch, guessCategory, lookupBarcode } from '../../utils';
+import { generateId } from '../../utils';
+import { findBestMatch, guessCategory, lookupBarcode } from './inventory.utils';
 
 export interface StagedItem extends InventoryItem {
   qtyInput: number;

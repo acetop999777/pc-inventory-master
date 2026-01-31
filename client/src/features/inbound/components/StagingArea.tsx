@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { StagedItem } from '../../../domain/inventory/inbound.logic';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
-import { ALL_CATS } from '../../../utils';
+import { ALL_CATS } from '../../../domain/inventory/inventory.utils';
 
 interface Props {
   batch: StagedItem[];
