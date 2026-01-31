@@ -4,19 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
 import { apiCallOrThrow } from '../../shared/api/http';
+import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
-
-function formatDate(ts?: string) {
-  if (!ts) return '';
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function formatMoney(n: number) {
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
-}
 
 function toDateStart(value?: string) {
   if (!value) return null;
@@ -150,7 +139,7 @@ export default function ReceiptsList() {
             className="w-full grid grid-cols-12 items-center gap-4 px-5 py-3 border-b border-slate-100 text-left hover:bg-slate-50/70 cursor-pointer"
           >
             <div className="col-span-2 text-xs font-bold text-slate-700">
-              {formatDate(r.receivedAt)}
+              {formatDateYMD(r.receivedAt)}
             </div>
             <div className="col-span-3 text-xs font-bold text-slate-700 truncate">
               {r.vendor || '-'}
@@ -167,7 +156,7 @@ export default function ReceiptsList() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void deleteReceipt(r.id, formatDate(r.receivedAt) || String(r.id));
+                  void deleteReceipt(r.id, formatDateYMD(r.receivedAt) || String(r.id));
                 }}
                 className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50"
                 title="Delete"
