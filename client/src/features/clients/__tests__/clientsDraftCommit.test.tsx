@@ -32,13 +32,9 @@ jest.mock('react-router-dom', () => ({
   useParams: () => ({ id: 'draft1' }),
 }));
 
-jest.mock('../../../utils', () => {
-  const actual = jest.requireActual('../../../utils');
-  return {
-    ...actual,
-    generateId: () => 'draft1',
-  };
-});
+jest.mock('../../../shared/lib/id', () => ({
+  generateId: () => 'draft1',
+}));
 
 jest.mock('../../../app/queries/clients', () => ({
   useClientsQuery: () => ({ data: mockClientsData }),

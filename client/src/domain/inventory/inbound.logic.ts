@@ -1,5 +1,5 @@
 import { InventoryItem } from './inventory.types';
-import { generateId } from '../../utils';
+import { generateId } from '../../shared/lib/id';
 import { findBestMatch, guessCategory, lookupBarcode } from './inventory.utils';
 
 export interface StagedItem extends InventoryItem {

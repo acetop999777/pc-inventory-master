@@ -3,7 +3,7 @@ import { Search, Plus, ChevronDown, Archive } from 'lucide-react';
 import { ClientRow } from './ClientRow';
 import { ClientEntity } from '../../../domain/client/client.types';
 import { calculateFinancials } from '../../../domain/client/client.logic';
-import { formatMoney } from '../../../utils';
+import { formatMoney } from '../../../shared/lib/format';
 
 interface Props {
   clients: ClientEntity[];

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { ClientDetailPageProps } from './types';
 import { IdentityCard, LogisticsCard, FinancialsCard, NotesCard, SpecsTable } from './editor';
-import { formatMoney } from '../../utils';
+import { formatMoney } from '../../shared/lib/format';
 
 async function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

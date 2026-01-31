@@ -14,7 +14,8 @@ import {
 } from '../../domain/inventory/inbound.logic';
 import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils';
 import { apiCallOrThrow } from '../../shared/api/http';
-import { compressImage, generateId } from '../../utils';
+import { compressImage } from '../../shared/lib/image';
+import { generateId } from '../../shared/lib/id';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 

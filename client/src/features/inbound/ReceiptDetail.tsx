@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useReceiptDetailQuery } from '../../app/queries/receipts';
 import { apiCallOrThrow } from '../../shared/api/http';
-import { compressImage } from '../../utils';
+import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
 

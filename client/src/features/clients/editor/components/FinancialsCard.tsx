@@ -3,7 +3,7 @@ import { DollarSign, Wallet, HandCoins } from 'lucide-react';
 import { ClientEntity, ClientFinancials } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { FinancialCard } from '../../../../shared/ui/FinancialCard';
-import { formatMoney } from '../../../../utils';
+import { formatMoney } from '../../../../shared/lib/format';
 
 interface Props {
   data: ClientEntity;

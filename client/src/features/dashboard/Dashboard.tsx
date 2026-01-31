@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { apiCall } from '../../shared/api/http';
-import { formatMoney } from '../../utils';
+import { formatMoney } from '../../shared/lib/format';
 import { FinancialCard } from '../../shared/ui/FinancialCard';
 
 export default function Dashboard() {
