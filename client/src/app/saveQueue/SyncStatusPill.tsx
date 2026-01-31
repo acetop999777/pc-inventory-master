@@ -1,6 +1,7 @@
 import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle, X, Copy } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
+import { Button } from '../../shared/ui/Button';
 
 type ErrShape = {
   name?: unknown;
@@ -251,23 +252,27 @@ export function SyncStatusPill() {
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       {retryable ? (
-                        <button
+                        <Button
                           onClick={() => queue.retryKey(k.key)}
-                          className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200 hover:bg-slate-50"
+                          size="xs"
+                          variant="outline"
+                          className="font-black uppercase tracking-wider"
                         >
                           Retry
-                        </button>
+                        </Button>
                       ) : (
                         <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
                           Needs Fix
                         </span>
                       )}
-                      <button
+                      <Button
                         onClick={() => queue.dismissKey(k.key)}
-                        className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200 hover:bg-slate-50"
+                        size="xs"
+                        variant="outline"
+                        className="font-black uppercase tracking-wider"
                       >
                         Dismiss
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );
@@ -291,21 +296,25 @@ export function SyncStatusPill() {
                 Save Error Details
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={copyDetails}
-                  className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border border-slate-200 hover:bg-slate-50 flex items-center gap-2"
+                  size="xs"
+                  variant="outline"
+                  className="rounded-xl font-black uppercase tracking-wider flex items-center gap-2"
                   title="Copy JSON"
                 >
                   <Copy size={14} />
                   {copied ? 'Copied' : 'Copy'}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setDetailsOpen(false)}
-                  className="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center"
+                  size="icon"
+                  variant="outline"
+                  className="rounded-xl"
                   title="Close"
                 >
                   <X size={16} />
-                </button>
+                </Button>
               </div>
             </div>
 
