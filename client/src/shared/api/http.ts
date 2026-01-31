@@ -1,4 +1,4 @@
-import { apiFetch } from '../../lib/api';
+import { apiFetch } from './fetch';
 
 export const API_BASE = '/api';
 
