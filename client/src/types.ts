@@ -17,8 +17,6 @@ export interface InventoryItem {
   photos?: string[];
 }
 
-export type Client = ClientEntity;
-
 // 补全这个漏掉的接口
 export interface AuditLog {
   id: string;
@@ -35,6 +33,6 @@ export interface AuditLog {
 
 export interface AppData {
   inv: InventoryItem[];
-  clients: Client[];
+  clients: ClientEntity[];
   logs: any[];
 }
