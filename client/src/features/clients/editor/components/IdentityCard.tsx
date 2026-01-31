@@ -3,6 +3,7 @@ import { Camera, X } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { CompactInput } from '../../../../shared/ui/CompactInput';
+import { Button } from '../../../../shared/ui/Button';
 
 interface Props {
   data: ClientEntity;
@@ -25,12 +26,16 @@ export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onP
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          <div
-            className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group"
+          <Button
+            type="button"
+            variant="ghost"
             onClick={onPhotoUpload}
+            title="Add photo"
+            aria-label="Add photo"
+            className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex-shrink-0 hover:bg-slate-100 transition-all group"
           >
             <Camera size={20} className="text-slate-300 group-hover:text-slate-400" />
-          </div>
+          </Button>
           {data.photos &&
             data.photos.map((p, idx) => (
               <div
@@ -38,12 +43,16 @@ export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onP
                 className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 relative group border border-slate-100"
               >
                 <img src={p} alt="" className="w-full h-full object-cover" />
-                <button
-                  className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/50 text-white p-0.5 opacity-0 group-hover:opacity-100"
                   onClick={() => onPhotoRemove(idx)}
+                  aria-label="Remove photo"
                 >
                   <X size={8} />
-                </button>
+                </Button>
               </div>
             ))}
         </div>
