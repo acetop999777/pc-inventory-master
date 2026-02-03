@@ -1,3 +1,15 @@
+/**
+ * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {{ operationId: string, endpoint?: string | null }} BeginOperationInput
+ * @typedef {{ state: 'NEW' | 'DONE' | 'IN_PROGRESS', response?: unknown }} BeginOperationResult
+ * @typedef {{ operationId: string, response: unknown }} MarkDoneInput
+ */
+
+/**
+ * @param {DbClient} tx
+ * @param {BeginOperationInput} params
+ * @returns {Promise<BeginOperationResult>}
+ */
 async function beginOperation(tx, { operationId, endpoint }) {
   const insertRes = await tx.query(
     `INSERT INTO idempotency_keys (operation_id, endpoint, status)
@@ -25,6 +37,11 @@ async function beginOperation(tx, { operationId, endpoint }) {
   return { state: 'IN_PROGRESS' };
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {MarkDoneInput} params
+ * @returns {Promise<void>}
+ */
 async function markDone(tx, { operationId, response }) {
   await tx.query(
     `UPDATE idempotency_keys

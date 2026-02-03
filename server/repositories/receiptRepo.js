@@ -1,3 +1,35 @@
+/**
+ * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {{
+ *   receivedAt?: unknown,
+ *   vendor?: unknown,
+ *   mode?: unknown,
+ *   notes?: unknown,
+ *   requestId?: unknown,
+ *   operationId?: unknown,
+ *   images?: unknown
+ * }} ReceiptInput
+ * @typedef {{
+ *   receiptId: string,
+ *   inventoryId: string,
+ *   qtyReceived?: unknown,
+ *   unitCost?: unknown
+ * }} ReceiptItemInput
+ * @typedef {{
+ *   [key: string]: unknown,
+ *   receivedAt?: unknown,
+ *   vendor?: unknown,
+ *   mode?: unknown,
+ *   notes?: unknown,
+ *   images?: unknown
+ * }} ReceiptUpdateInput
+ */
+
+/**
+ * @param {DbClient} tx
+ * @param {ReceiptInput} receipt
+ * @returns {Promise<unknown>}
+ */
 async function insertReceipt(tx, receipt) {
   const { receivedAt, vendor, mode, notes, requestId, operationId, images } = receipt;
   const imagesJson = JSON.stringify(Array.isArray(images) ? images : []);
@@ -19,6 +51,11 @@ async function insertReceipt(tx, receipt) {
   return rows[0];
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {ReceiptItemInput} item
+ * @returns {Promise<unknown>}
+ */
 async function insertReceiptItem(tx, item) {
   const { receiptId, inventoryId, qtyReceived, unitCost } = item;
   const { rows } = await tx.query(
@@ -31,6 +68,11 @@ async function insertReceiptItem(tx, item) {
   return rows[0];
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {unknown} limit
+ * @returns {Promise<unknown[]>}
+ */
 async function listReceipts(tx, limit) {
   const lim = Number(limit || 50);
   const { rows } = await tx.query(
@@ -45,16 +87,31 @@ async function listReceipts(tx, limit) {
   return rows;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} id
+ * @returns {Promise<unknown | null>}
+ */
 async function getReceipt(tx, id) {
   const { rows } = await tx.query('SELECT * FROM inbound_receipts WHERE id = $1', [id]);
   return rows[0] || null;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} operationId
+ * @returns {Promise<unknown | null>}
+ */
 async function getReceiptByOperationId(tx, operationId) {
   const { rows } = await tx.query('SELECT * FROM inbound_receipts WHERE operation_id = $1', [operationId]);
   return rows[0] || null;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} receiptId
+ * @returns {Promise<unknown[]>}
+ */
 async function getReceiptItems(tx, receiptId) {
   const { rows } = await tx.query(
     `SELECT i.*, inv.name as inventory_name, inv.sku as inventory_sku
@@ -67,14 +124,27 @@ async function getReceiptItems(tx, receiptId) {
   return rows;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} receiptId
+ * @param {ReceiptUpdateInput} fields
+ * @returns {Promise<unknown | null>}
+ */
 async function updateReceipt(tx, receiptId, fields) {
   const sets = [];
   const values = [];
   let idx = 1;
 
   if (Object.prototype.hasOwnProperty.call(fields, 'receivedAt')) {
+    const receivedAtRaw = fields.receivedAt;
+    let receivedAt = null;
+    if (receivedAtRaw instanceof Date) {
+      receivedAt = receivedAtRaw;
+    } else if (typeof receivedAtRaw === 'string' || typeof receivedAtRaw === 'number') {
+      receivedAt = new Date(receivedAtRaw);
+    }
     sets.push(`received_at = $${idx++}`);
-    values.push(fields.receivedAt ? new Date(fields.receivedAt) : null);
+    values.push(receivedAt);
   }
   if (Object.prototype.hasOwnProperty.call(fields, 'vendor')) {
     const vendor = fields.vendor;
@@ -110,6 +180,13 @@ async function updateReceipt(tx, receiptId, fields) {
   return rows[0] || null;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} itemId
+ * @param {unknown} qtyReceived
+ * @param {unknown} unitCost
+ * @returns {Promise<unknown | null>}
+ */
 async function updateReceiptItem(tx, itemId, qtyReceived, unitCost) {
   const { rows } = await tx.query(
     `UPDATE inbound_receipt_items
@@ -121,6 +198,11 @@ async function updateReceiptItem(tx, itemId, qtyReceived, unitCost) {
   return rows[0] || null;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} itemId
+ * @returns {Promise<unknown | null>}
+ */
 async function deleteReceiptItem(tx, itemId) {
   const { rows } = await tx.query(
     'DELETE FROM inbound_receipt_items WHERE id = $1 RETURNING *',
@@ -129,6 +211,12 @@ async function deleteReceiptItem(tx, itemId) {
   return rows[0] || null;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} receiptId
+ * @param {unknown} images
+ * @returns {Promise<unknown | null>}
+ */
 async function updateReceiptImages(tx, receiptId, images) {
   const imagesJson = JSON.stringify(Array.isArray(images) ? images : []);
   const { rows } = await tx.query(

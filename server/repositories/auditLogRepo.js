@@ -1,3 +1,23 @@
+/**
+ * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {{
+ *   id: string,
+ *   sku?: unknown,
+ *   name?: unknown,
+ *   type?: unknown,
+ *   qtyChange?: unknown,
+ *   unitCost?: unknown,
+ *   totalValue?: unknown,
+ *   refId?: unknown,
+ *   operator?: unknown
+ * }} AuditLogInput
+ */
+
+/**
+ * @param {DbClient} tx
+ * @param {AuditLogInput} log
+ * @returns {Promise<void>}
+ */
 async function insert(tx, log) {
   const {
     id,

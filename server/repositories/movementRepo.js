@@ -1,3 +1,26 @@
+/**
+ * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {{
+ *   inventoryId: string,
+ *   qtyDelta?: unknown,
+ *   reason?: unknown,
+ *   unitCost?: unknown,
+ *   unitCostUsed?: unknown,
+ *   refType?: unknown,
+ *   refId?: unknown,
+ *   onHandAfter?: unknown,
+ *   avgCostAfter?: unknown,
+ *   requestId?: unknown,
+ *   operationId?: unknown,
+ *   occurredAt?: unknown
+ * }} MovementInput
+ */
+
+/**
+ * @param {DbClient} tx
+ * @param {MovementInput} movement
+ * @returns {Promise<unknown>}
+ */
 async function insert(tx, movement) {
   const {
     inventoryId,
@@ -39,6 +62,11 @@ async function insert(tx, movement) {
   return rows[0];
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} operationId
+ * @returns {Promise<unknown | null>}
+ */
 async function getByOperationId(tx, operationId) {
   const { rows } = await tx.query(
     'SELECT * FROM inventory_movements WHERE operation_id = $1',

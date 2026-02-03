@@ -1,12 +1,45 @@
+/**
+ * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {{
+ *   id: string,
+ *   category?: unknown,
+ *   name?: unknown,
+ *   keyword?: unknown,
+ *   sku?: unknown,
+ *   quantity?: unknown,
+ *   cost?: unknown,
+ *   price?: unknown,
+ *   location?: unknown,
+ *   status?: unknown,
+ *   notes?: unknown,
+ *   metadata?: unknown
+ * }} InventoryInput
+ * @typedef {Record<string, unknown>} InventoryUpdate
+ */
+
+/**
+ * @param {unknown} row
+ * @returns {unknown | null}
+ */
 function mapRow(row) {
   return row || null;
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} id
+ * @returns {Promise<unknown | null>}
+ */
 async function getForUpdateById(tx, id) {
   const { rows } = await tx.query('SELECT * FROM inventory WHERE id = $1 FOR UPDATE', [id]);
   return mapRow(rows[0]);
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {InventoryInput} item
+ * @returns {Promise<unknown | null>}
+ */
 async function insert(tx, item) {
   const {
     id,
@@ -48,6 +81,12 @@ async function insert(tx, item) {
   return mapRow(rows[0]);
 }
 
+/**
+ * @param {DbClient} tx
+ * @param {string} id
+ * @param {InventoryUpdate} fields
+ * @returns {Promise<unknown | null>}
+ */
 async function update(tx, id, fields) {
   const allowed = [
     'category',

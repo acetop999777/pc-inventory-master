@@ -19,7 +19,10 @@
     "errors/**/*.d.ts",
     "validators/**/*.js",
     "validators/**/*.ts",
-    "validators/**/*.d.ts"
+    "validators/**/*.d.ts",
+    "repositories/**/*.js",
+    "repositories/**/*.ts",
+    "repositories/**/*.d.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }
