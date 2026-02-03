@@ -1,9 +1,18 @@
 const { mapPostgresError } = require('../errors/pg');
 
+/** @typedef {import('express').Request & { requestId?: string }} RequestWithId */
+
+/**
+ * @param {number} status
+ */
 function isRetryableStatus(status) {
   return status === 502 || status === 503 || status === 504;
 }
 
+/**
+ * @param {number} status
+ * @returns {string}
+ */
 function inferCodeFromStatus(status) {
   if (status === 400) return 'INVALID_ARGUMENT';
   if (status === 404) return 'NOT_FOUND';
@@ -13,10 +22,16 @@ function inferCodeFromStatus(status) {
   return 'INTERNAL';
 }
 
-module.exports = function errorHandler(err, req, res, next) {
+/**
+ * @param {unknown} err
+ * @param {RequestWithId} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+function errorHandler(err, req, res, next) {
   // 1) 尝试把常见 PG 错误收口成业务 code
   const mapped = mapPostgresError(err);
-  const e = mapped || err;
+  const e = /** @type {any} */ (mapped || err);
 
   // 2) 统一读 status：兼容 AppError.httpStatus / express err.status
   const status = Number(e?.httpStatus || e?.status || e?.statusCode || 500) || 500;
@@ -44,6 +59,7 @@ module.exports = function errorHandler(err, req, res, next) {
   // 如果 headers 已经发出，交给 express 默认处理
   if (res.headersSent) return next(e);
 
+  /** @type {{ error: { code: string, message: string, retryable: boolean, requestId: string | null, details?: Record<string, any>, retryAfterMs?: number } }} */
   const payload = {
     error: {
       code,
@@ -62,4 +78,6 @@ module.exports = function errorHandler(err, req, res, next) {
   }
 
   res.status(status).json(payload);
-};
+}
+
+module.exports = errorHandler;

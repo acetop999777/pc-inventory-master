@@ -1,5 +1,12 @@
 const crypto = require('crypto');
 
+/** @typedef {import('express').Request & { requestId?: string }} RequestWithId */
+
+/**
+ * @param {RequestWithId} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 function requestId(req, res, next) {
   const incoming = req.get('x-request-id');
   const id =

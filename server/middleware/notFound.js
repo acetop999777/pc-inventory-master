@@ -1,4 +1,11 @@
-module.exports = function notFound(req, res, next) {
+/** @typedef {import('express').Request & { requestId?: string }} RequestWithId */
+
+/**
+ * @param {RequestWithId} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+function notFound(req, res, next) {
   res.status(404).json({
     error: {
       code: 'NOT_FOUND',
@@ -7,4 +14,6 @@ module.exports = function notFound(req, res, next) {
       requestId: req.requestId || null,
     },
   });
-};
+}
+
+module.exports = notFound;
