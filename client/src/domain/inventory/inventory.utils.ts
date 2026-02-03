@@ -1,4 +1,4 @@
-import { apiCall } from '../../shared/api/http';
+import { apiCallOrThrow } from '../../shared/api/http';
 import { InventoryItem } from './inventory.types';
 
 export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];
@@ -51,15 +51,19 @@ export const guessCategory = (name: string): string => {
 export async function lookupBarcode(
   code: string,
 ): Promise<{ name: string; category: string } | null> {
-  const data: any = await apiCall(`/lookup/${encodeURIComponent(code)}`);
-  if (data && Array.isArray(data.items) && data.items.length > 0) {
-    const item = data.items[0];
-    const title = String(item.title ?? '').trim();
-    const cat = item.category ? String(item.category) : '';
-    return {
-      name: title,
-      category: guessCategory(cat ? `${cat} ${title}` : title),
-    };
+  try {
+    const data: any = await apiCallOrThrow(`/lookup/${encodeURIComponent(code)}`);
+    if (data && Array.isArray(data.items) && data.items.length > 0) {
+      const item = data.items[0];
+      const title = String(item.title ?? '').trim();
+      const cat = item.category ? String(item.category) : '';
+      return {
+        name: title,
+        category: guessCategory(cat ? `${cat} ${title}` : title),
+      };
+    }
+  } catch {
+    return null;
   }
   return null;
 }

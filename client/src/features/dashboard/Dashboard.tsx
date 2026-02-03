@@ -1,15 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
-import { apiCall } from '../../shared/api/http';
+import { apiCallOrThrow } from '../../shared/api/http';
 import { formatMoney } from '../../shared/lib/format';
 import { FinancialCard } from '../../shared/ui/FinancialCard';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiCall('/dashboard/stats').then(setStats);
+    let active = true;
+    apiCallOrThrow('/dashboard/stats')
+      .then((data) => {
+        if (!active) return;
+        setStats(data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!active) return;
+        const msg =
+          typeof err?.userMessage === 'string' && err.userMessage
+            ? err.userMessage
+            : 'Failed to load dashboard stats';
+        setError(msg);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
+
+  if (error) {
+    return (
+      <div className="p-10 text-rose-600 font-semibold">
+        {error}
+      </div>
+    );
+  }
 
   if (!stats) return <div className="p-10">Loading...</div>;
 

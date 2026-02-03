@@ -286,23 +286,3 @@ export async function apiCallOrThrow<T>(
     if (timer) clearTimeout(timer);
   }
 }
-
-/**
- * Compat API: returns null on error (so existing legacy modules keep working).
- * Prefer apiCallOrThrow in new code.
- */
-export async function apiCall<T>(
-  url: string,
-  method: HttpMethod = 'GET',
-  body: unknown = null,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
-): Promise<T | null> {
-  try {
-    return await apiCallOrThrow<T>(url, method, body, opts);
-  } catch (e) {
-    // 保持 legacy 行为：不抛出，只记录
-    // eslint-disable-next-line no-console
-    console.error('apiCall failed:', method, url, e);
-    return null;
-  }
-}
