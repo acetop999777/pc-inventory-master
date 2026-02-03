@@ -25,20 +25,28 @@ This repo is a small monorepo with two runtime services:
   - `writeBehind/`: write-behind wrappers (clients, inventory)
   - `saveQueue/`: queue that debounces/merges writes, surfaces sync status
   - `confirm/ConfirmProvider.tsx`: in-app modal replacement for `window.confirm/alert`
+- `features/`
+  - `clients/`: list/detail routes + editor cards
+  - `inventory/`: inventory UI (list + movements)
+  - `inbound/`: receipts UI (list/create/detail)
+  - `dashboard/`: stats/profit UI
 - `features/clients/`
   - `ClientsRoutes.tsx`: list/detail routes + draft store + “draft commit” policy
   - `ClientDetailPage.tsx`: screen composed from editor cards
   - `editor/`: specs/financials/identity/logistics UI
     - `pcpp.ts`: PCPartPicker parsing
-- `presentation/`
+- `shared/`
   - `layouts/MainLayout.tsx`: shell layout + nav
-  - `modules/*`: each app view UI (`ClientHub`, `InventoryHub`, `InboundHub`, `Dashboard`)
+  - `api/`: API fetch helpers
+  - `ui/`: shared UI components
+  - `lib/`: shared utilities
 - `domain/`
   - pure logic & types (e.g. financial computations, inbound parsing)
 
 ### Server (`server/`)
 
-- `index.js`: express app + routes + DB init
+- `index.js`: bootstrap (wait for DB, run migrations, start server)
+- `app.js`: express app + routes + middleware wiring
 - `services/`: transactional business logic (inventory batch, logs)
 - `repositories/`: SQL-only data access helpers
 - `db/tx.js`: transaction helper (BEGIN/COMMIT/ROLLBACK)
@@ -48,7 +56,7 @@ This repo is a small monorepo with two runtime services:
 
 ## Data model (main tables)
 
-From `server/db/migrations/*.sql` and `server/index.js` baseline init:
+From `server/db/migrations/*.sql` (single source of truth):
 
 - `clients`: customer + order metadata, `specs` JSONB, `photos` JSONB
 - `inventory`: parts inventory with weighted average cost (`cost`) and `quantity`

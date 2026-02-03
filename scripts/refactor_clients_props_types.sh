@@ -7,19 +7,11 @@ cd "$ROOT"
 TYPES="client/src/features/clients/types.ts"
 LIST="client/src/features/clients/ClientsListPage.tsx"
 DETAIL="client/src/features/clients/ClientDetailPage.tsx"
-ROW_FEATURES="client/src/features/clients/ClientRow.tsx"
-ROW_PRESENTATION="client/src/presentation/modules/ClientHub/components/ClientRow.tsx"
-
-ROW=""
-if [[ -f "$ROW_FEATURES" ]]; then
-  ROW="$ROW_FEATURES"
-elif [[ -f "$ROW_PRESENTATION" ]]; then
-  ROW="$ROW_PRESENTATION"
-fi
+ROW="client/src/features/clients/components/ClientRow.tsx"
 
 [[ -f "$LIST" ]] || { echo "❌ missing: $LIST"; exit 1; }
 [[ -f "$DETAIL" ]] || { echo "❌ missing: $DETAIL"; exit 1; }
-[[ -n "$ROW" ]] || { echo "❌ cannot find ClientRow.tsx (checked: $ROW_FEATURES, $ROW_PRESENTATION)"; exit 1; }
+[[ -f "$ROW" ]] || { echo "❌ missing: $ROW"; exit 1; }
 
 echo "== write: $TYPES =="
 mkdir -p "$(dirname "$TYPES")"
@@ -144,11 +136,7 @@ replace_props_block "$DETAIL" "ClientDetailPageProps"
 
 echo "== patch: $ROW =="
 backup "$ROW"
-if [[ "$ROW" == "$ROW_PRESENTATION" ]]; then
-  ensure_import_after_imports "$ROW" "import type { ClientRowProps } from '../../../../features/clients/types';"
-else
-  ensure_import_after_imports "$ROW" "import type { ClientRowProps } from './types';"
-fi
+ensure_import_after_imports "$ROW" "import type { ClientRowProps } from '../types';"
 replace_props_block "$ROW" "ClientRowProps"
 
 echo "== sanity checks =="

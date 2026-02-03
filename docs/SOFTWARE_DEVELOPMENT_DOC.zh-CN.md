@@ -60,7 +60,7 @@
 - SKU 采用“非空时 lower(trim) 唯一”的规则。
 
 对应实现位置：
-- 前端库存页：`client/src/presentation/modules/Inventory/InventoryHub.tsx`
+- 前端库存页：`client/src/features/inventory/InventoryHub.tsx`
 - 库存写入链路：`client/src/app/writeBehind/inventoryWriteBehind.ts`
 - 后端库存服务：`server/services/inventoryService.js`
 - movement 表写入：`server/repositories/movementRepo.js`
@@ -81,10 +81,10 @@
 - 这些动作在事务内完成，且受 operationId 幂等保护。
 
 对应实现位置：
-- 前端路由壳：`client/src/presentation/modules/Inbound/InboundHub.tsx`
+- 前端路由壳：`client/src/features/inbound/InboundHub.tsx`
 - 创建/详情页：
-1. `client/src/presentation/modules/Inbound/ReceiptCreate.tsx`
-2. `client/src/presentation/modules/Inbound/ReceiptDetail.tsx`
+1. `client/src/features/inbound/ReceiptCreate.tsx`
+2. `client/src/features/inbound/ReceiptDetail.tsx`
 - 后端服务：`server/services/inboundReceiptService.js`
 
 ---
@@ -429,7 +429,7 @@ SKU 规则对应迁移：`server/db/migrations/002_schema_align_indexes_constrai
 关键装配点：
 - Provider 装配：`client/src/app/providers/AppProviders.tsx`
 - 路由装配：`client/src/AppRouter.tsx`
-- 页面模块：`client/src/presentation/modules/*`
+- 页面模块：`client/src/features/*`
 
 AppProviders 里依次挂载了：
 - React Query：`QueryClientProvider`
@@ -740,4 +740,3 @@ npm run verify
 - 库存变动一定留痕（movement ledger）
 
 只要这三件事不被破坏，系统就很难“悄悄变坏”。
-

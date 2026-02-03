@@ -83,7 +83,7 @@ PY
 python3 - <<'PY'
 import re
 from pathlib import Path
-p = Path("client/src/presentation/modules/Dashboard/Dashboard.tsx")
+p = Path("client/src/features/dashboard/Dashboard.tsx")
 if p.exists():
     s = p.read_text(encoding="utf-8")
     # remove Users from lucide import: { Users, X } / { X, Users }
