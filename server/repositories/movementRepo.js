@@ -1,5 +1,6 @@
 /**
  * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {Record<string, any>} DbRow
  * @typedef {{
  *   inventoryId: string,
  *   qtyDelta?: unknown,
@@ -19,7 +20,7 @@
 /**
  * @param {DbClient} tx
  * @param {MovementInput} movement
- * @returns {Promise<unknown>}
+ * @returns {Promise<DbRow>}
  */
 async function insert(tx, movement) {
   const {
@@ -65,7 +66,7 @@ async function insert(tx, movement) {
 /**
  * @param {DbClient} tx
  * @param {string} operationId
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function getByOperationId(tx, operationId) {
   const { rows } = await tx.query(

@@ -3,12 +3,40 @@ const { withTransaction } = require('../db/tx');
 const idempotencyRepo = require('../repositories/idempotencyRepo');
 const logRepo = require('../repositories/logRepo');
 
+/**
+ * @typedef {import('pg').Pool} DbPool
+ * @typedef {{
+ *   id?: unknown,
+ *   timestamp?: unknown,
+ *   type?: unknown,
+ *   title?: unknown,
+ *   msg?: unknown,
+ *   meta?: unknown
+ * }} LogInput
+ * @typedef {{
+ *   pool: DbPool,
+ *   operationId: unknown,
+ *   log: LogInput,
+ *   endpoint?: unknown,
+ *   requestId?: unknown
+ * }} CreateLogInput
+ */
+
+/**
+ * @param {unknown} v
+ * @returns {string | null}
+ */
 function asNonEmptyString(v) {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+/**
+ * @param {CreateLogInput} params
+ * @returns {Promise<unknown>}
+ */
 async function createLog({ pool, operationId, log, endpoint, requestId }) {
-  if (!asNonEmptyString(operationId)) {
+  const opId = asNonEmptyString(operationId);
+  if (!opId) {
     throw new AppError({
       code: 'INVALID_ARGUMENT',
       httpStatus: 400,
@@ -29,8 +57,10 @@ async function createLog({ pool, operationId, log, endpoint, requestId }) {
     });
   }
 
+  const endpointSafe = asNonEmptyString(endpoint);
+
   return withTransaction(pool, async (tx) => {
-    const idem = await idempotencyRepo.beginOperation(tx, { operationId, endpoint });
+    const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') return idem.response;
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
@@ -38,7 +68,7 @@ async function createLog({ pool, operationId, log, endpoint, requestId }) {
         httpStatus: 409,
         retryable: true,
         message: 'Operation is already in progress',
-        details: { operationId },
+        details: { operationId: opId },
       });
     }
 
@@ -57,14 +87,14 @@ async function createLog({ pool, operationId, log, endpoint, requestId }) {
         scope: 'logs',
         event: 'logs.create.success',
         requestId,
-        operationId,
-        endpoint,
+        operationId: opId,
+        endpoint: endpointSafe,
         logId: id,
       }),
     );
 
     const response = { success: true };
-    await idempotencyRepo.markDone(tx, { operationId, response });
+    await idempotencyRepo.markDone(tx, { operationId: opId, response });
     return response;
   });
 }

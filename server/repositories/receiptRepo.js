@@ -1,5 +1,6 @@
 /**
  * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {Record<string, any>} DbRow
  * @typedef {{
  *   receivedAt?: unknown,
  *   vendor?: unknown,
@@ -28,7 +29,7 @@
 /**
  * @param {DbClient} tx
  * @param {ReceiptInput} receipt
- * @returns {Promise<unknown>}
+ * @returns {Promise<DbRow>}
  */
 async function insertReceipt(tx, receipt) {
   const { receivedAt, vendor, mode, notes, requestId, operationId, images } = receipt;
@@ -54,7 +55,7 @@ async function insertReceipt(tx, receipt) {
 /**
  * @param {DbClient} tx
  * @param {ReceiptItemInput} item
- * @returns {Promise<unknown>}
+ * @returns {Promise<DbRow>}
  */
 async function insertReceiptItem(tx, item) {
   const { receiptId, inventoryId, qtyReceived, unitCost } = item;
@@ -71,7 +72,7 @@ async function insertReceiptItem(tx, item) {
 /**
  * @param {DbClient} tx
  * @param {unknown} limit
- * @returns {Promise<unknown[]>}
+ * @returns {Promise<DbRow[]>}
  */
 async function listReceipts(tx, limit) {
   const lim = Number(limit || 50);
@@ -90,7 +91,7 @@ async function listReceipts(tx, limit) {
 /**
  * @param {DbClient} tx
  * @param {string} id
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function getReceipt(tx, id) {
   const { rows } = await tx.query('SELECT * FROM inbound_receipts WHERE id = $1', [id]);
@@ -100,7 +101,7 @@ async function getReceipt(tx, id) {
 /**
  * @param {DbClient} tx
  * @param {string} operationId
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function getReceiptByOperationId(tx, operationId) {
   const { rows } = await tx.query('SELECT * FROM inbound_receipts WHERE operation_id = $1', [operationId]);
@@ -110,7 +111,7 @@ async function getReceiptByOperationId(tx, operationId) {
 /**
  * @param {DbClient} tx
  * @param {string} receiptId
- * @returns {Promise<unknown[]>}
+ * @returns {Promise<DbRow[]>}
  */
 async function getReceiptItems(tx, receiptId) {
   const { rows } = await tx.query(
@@ -128,7 +129,7 @@ async function getReceiptItems(tx, receiptId) {
  * @param {DbClient} tx
  * @param {string} receiptId
  * @param {ReceiptUpdateInput} fields
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function updateReceipt(tx, receiptId, fields) {
   const sets = [];
@@ -185,7 +186,7 @@ async function updateReceipt(tx, receiptId, fields) {
  * @param {string} itemId
  * @param {unknown} qtyReceived
  * @param {unknown} unitCost
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function updateReceiptItem(tx, itemId, qtyReceived, unitCost) {
   const { rows } = await tx.query(
@@ -201,7 +202,7 @@ async function updateReceiptItem(tx, itemId, qtyReceived, unitCost) {
 /**
  * @param {DbClient} tx
  * @param {string} itemId
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function deleteReceiptItem(tx, itemId) {
   const { rows } = await tx.query(
@@ -215,7 +216,7 @@ async function deleteReceiptItem(tx, itemId) {
  * @param {DbClient} tx
  * @param {string} receiptId
  * @param {unknown} images
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function updateReceiptImages(tx, receiptId, images) {
   const imagesJson = JSON.stringify(Array.isArray(images) ? images : []);

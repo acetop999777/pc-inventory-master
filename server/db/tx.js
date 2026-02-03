@@ -1,3 +1,10 @@
+/**
+ * @typedef {any} DbPool
+ * @typedef {any} DbClient
+ * @param {DbPool} pool
+ * @param {(client: DbClient) => Promise<any>} fn
+ * @returns {Promise<any>}
+ */
 async function withTransaction(pool, fn) {
   const client = await pool.connect();
   try {

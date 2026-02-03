@@ -6,10 +6,70 @@ const auditLogRepo = require('../repositories/auditLogRepo');
 const movementRepo = require('../repositories/movementRepo');
 const idempotencyRepo = require('../repositories/idempotencyRepo');
 
+/**
+ * @typedef {import('pg').Pool} DbPool
+ * @typedef {Record<string, unknown>} InventoryPatch
+ * @typedef {{
+ *   id?: unknown,
+ *   category?: unknown,
+ *   name?: unknown,
+ *   keyword?: unknown,
+ *   sku?: unknown,
+ *   quantity?: unknown,
+ *   cost?: unknown,
+ *   price?: unknown,
+ *   location?: unknown,
+ *   status?: unknown,
+ *   notes?: unknown,
+ *   metadata?: unknown,
+ *   operator?: unknown
+ * }} InventoryItemInput
+ * @typedef {{
+ *   id?: unknown,
+ *   qtyDelta?: unknown,
+ *   reason?: unknown,
+ *   unitCost?: unknown,
+ *   category?: unknown,
+ *   name?: unknown,
+ *   keyword?: unknown,
+ *   sku?: unknown,
+ *   price?: unknown,
+ *   location?: unknown,
+ *   status?: unknown,
+ *   notes?: unknown,
+ *   metadata?: unknown,
+ *   operator?: unknown
+ * }} InventoryBatchItem
+ * @typedef {{
+ *   pool: DbPool,
+ *   id?: unknown,
+ *   fields?: InventoryPatch,
+ *   operationId?: unknown,
+ *   requestId?: unknown,
+ *   endpoint?: unknown
+ * }} UpdateInventoryItemInput
+ * @typedef {{
+ *   pool: DbPool,
+ *   operationId?: unknown,
+ *   items?: unknown,
+ *   endpoint?: unknown,
+ *   requestId?: unknown
+ * }} ApplyInventoryBatchInput
+ */
+
+/**
+ * @param {unknown} v
+ * @returns {string | null}
+ */
 function asNonEmptyString(v) {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+/**
+ * @param {unknown} v
+ * @param {string} field
+ * @returns {number}
+ */
 function requireInt(v, field) {
   const n = Number(v);
   if (!Number.isFinite(n) || !Number.isInteger(n)) {
@@ -24,6 +84,11 @@ function requireInt(v, field) {
   return n;
 }
 
+/**
+ * @param {unknown} v
+ * @param {string} field
+ * @returns {number}
+ */
 function requireNumber(v, field) {
   const n = Number(v);
   if (!Number.isFinite(n)) {
@@ -38,10 +103,18 @@ function requireNumber(v, field) {
   return n;
 }
 
+/**
+ * @param {number} n
+ * @returns {number}
+ */
 function roundMoney(n) {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * @param {InventoryPatch} fields
+ * @returns {InventoryPatch}
+ */
 function coerceInventoryPatch(fields) {
   const next = { ...fields };
   if (Object.prototype.hasOwnProperty.call(next, 'quantity')) {
@@ -56,6 +129,10 @@ function coerceInventoryPatch(fields) {
   return next;
 }
 
+/**
+ * @param {Record<string, unknown>} payload
+ * @returns {void}
+ */
 function logInventoryEvent(payload) {
   const record = {
     ts: new Date().toISOString(),
@@ -65,6 +142,11 @@ function logInventoryEvent(payload) {
   console.log(JSON.stringify(record));
 }
 
+/**
+ * @param {unknown} raw
+ * @param {number} qtyDelta
+ * @returns {string}
+ */
 function normalizeReason(raw, qtyDelta) {
   const reason = typeof raw === 'string' ? raw.toUpperCase().trim() : '';
   if (reason === 'RECEIVE' || reason === 'CONSUME' || reason === 'ADJUST' || reason === 'OPENING') {
@@ -75,10 +157,19 @@ function normalizeReason(raw, qtyDelta) {
   return 'ADJUST';
 }
 
+/**
+ * @param {string} operationId
+ * @param {string} inventoryId
+ * @returns {string}
+ */
 function movementOperationId(operationId, inventoryId) {
   return `${operationId}:${inventoryId}`;
 }
 
+/**
+ * @param {UpdateInventoryItemInput} params
+ * @returns {Promise<unknown>}
+ */
 async function updateInventoryItem({ pool, id, fields, operationId, requestId, endpoint }) {
   const rowId = asNonEmptyString(id);
   if (!rowId) {
@@ -91,7 +182,8 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
     });
   }
 
-  if (!asNonEmptyString(operationId)) {
+  const opId = asNonEmptyString(operationId);
+  if (!opId) {
     throw new AppError({
       code: 'INVALID_ARGUMENT',
       httpStatus: 400,
@@ -102,9 +194,10 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
   }
 
   const patch = coerceInventoryPatch(fields || {});
+  const endpointSafe = asNonEmptyString(endpoint);
 
   return withTransaction(pool, async (tx) => {
-    const idem = await idempotencyRepo.beginOperation(tx, { operationId, endpoint });
+    const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') return idem.response;
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
@@ -112,7 +205,7 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
         httpStatus: 409,
         retryable: true,
         message: 'Operation is already in progress',
-        details: { operationId },
+        details: { operationId: opId },
       });
     }
 
@@ -151,8 +244,8 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
     logInventoryEvent({
       event: 'inventory.update.start',
       requestId,
-      operationId,
-      endpoint,
+      operationId: opId,
+      endpoint: endpointSafe,
       inventoryId: rowId,
       sku: existing?.sku,
       action: 'ADJUST',
@@ -163,7 +256,7 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
       const updatedRow = await inventoryRepo.update(tx, rowId, patch);
 
       if (shouldMove) {
-        const movementId = movementOperationId(operationId, rowId);
+        const movementId = movementOperationId(opId, rowId);
         await movementRepo.insert(tx, {
           inventoryId: rowId,
           qtyDelta,
@@ -171,7 +264,7 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
           unitCost: costChanged ? nextCost : null,
           unitCostUsed: null,
           refType: 'ADJUST',
-          refId: operationId,
+          refId: opId,
           onHandAfter: nextQty,
           avgCostAfter: nextCost,
           requestId,
@@ -186,19 +279,19 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
           qtyChange: qtyDelta,
           unitCost: nextCost,
           totalValue: qtyDelta * nextCost,
-          refId: operationId,
+          refId: opId,
           operator: patch.operator || null,
         });
       }
 
       const response = updatedRow || { success: true };
-      await idempotencyRepo.markDone(tx, { operationId, response });
+      await idempotencyRepo.markDone(tx, { operationId: opId, response });
 
       logInventoryEvent({
         event: 'inventory.update.success',
         requestId,
-        operationId,
-        endpoint,
+        operationId: opId,
+        endpoint: endpointSafe,
         inventoryId: rowId,
         sku: updatedRow?.sku,
         action: 'ADJUST',
@@ -207,24 +300,30 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
 
       return response;
     } catch (err) {
+      const errAny = /** @type {any} */ (err);
       logInventoryEvent({
         event: 'inventory.update.error',
         requestId,
-        operationId,
-        endpoint,
+        operationId: opId,
+        endpoint: endpointSafe,
         inventoryId: rowId,
         sku: existing?.sku,
         action: 'ADJUST',
         delta: qtyDelta,
-        error: err?.code || err?.message || 'ERROR',
+        error: errAny?.code || errAny?.message || 'ERROR',
       });
       throw err;
     }
   });
 }
 
+/**
+ * @param {ApplyInventoryBatchInput} params
+ * @returns {Promise<unknown>}
+ */
 async function applyInventoryBatch({ pool, operationId, items, endpoint, requestId }) {
-  if (!asNonEmptyString(operationId)) {
+  const opId = asNonEmptyString(operationId);
+  if (!opId) {
     throw new AppError({
       code: 'INVALID_ARGUMENT',
       httpStatus: 400,
@@ -244,8 +343,12 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
     });
   }
 
+  /** @type {InventoryBatchItem[]} */
+  const batchItems = items;
+  const endpointSafe = asNonEmptyString(endpoint);
+
   return withTransaction(pool, async (tx) => {
-    const idem = await idempotencyRepo.beginOperation(tx, { operationId, endpoint });
+    const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') return idem.response;
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
@@ -253,12 +356,14 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
         httpStatus: 409,
         retryable: true,
         message: 'Operation is already in progress',
-        details: { operationId },
+        details: { operationId: opId },
       });
     }
 
     const seen = new Set();
-    const sortedItems = items.slice().sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || '')));
+    const sortedItems = batchItems
+      .slice()
+      .sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || '')));
 
     const updatedIds = [];
 
@@ -312,8 +417,8 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
       logInventoryEvent({
         event: 'inventory.batch.start',
         requestId,
-        operationId,
-        endpoint,
+        operationId: opId,
+        endpoint: endpointSafe,
         inventoryId: id,
         sku: item?.sku,
         action: reason,
@@ -379,7 +484,7 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
           await inventoryRepo.insert(tx, nextRow);
         }
 
-        const movementId = movementOperationId(operationId, id);
+        const movementId = movementOperationId(opId, id);
         await movementRepo.insert(tx, {
           inventoryId: id,
           qtyDelta,
@@ -387,7 +492,7 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
           unitCost: reason === 'RECEIVE' || reason === 'ADJUST' ? unitCost : null,
           unitCostUsed: reason === 'CONSUME' ? unitCost : null,
           refType: 'BATCH',
-          refId: operationId,
+          refId: opId,
           onHandAfter: newQty,
           avgCostAfter: roundMoney(newAvgCost),
           requestId,
@@ -402,7 +507,7 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
           qtyChange: qtyDelta,
           unitCost: unitCost,
           totalValue: incomingTotalVal,
-          refId: operationId,
+          refId: opId,
           operator: item.operator || null,
         });
 
@@ -411,31 +516,32 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
         logInventoryEvent({
           event: 'inventory.batch.success',
           requestId,
-          operationId,
-          endpoint,
+          operationId: opId,
+          endpoint: endpointSafe,
           inventoryId: id,
           sku: nextRow.sku,
           action: reason,
           delta: qtyDelta,
         });
       } catch (err) {
+        const errAny = /** @type {any} */ (err);
         logInventoryEvent({
           event: 'inventory.batch.error',
           requestId,
-          operationId,
-          endpoint,
+          operationId: opId,
+          endpoint: endpointSafe,
           inventoryId: id,
           sku: item?.sku,
           action: reason,
           delta: qtyDelta,
-          error: err?.code || err?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         });
         throw err;
       }
     }
 
     const response = { success: true, updatedIds };
-    await idempotencyRepo.markDone(tx, { operationId, response });
+    await idempotencyRepo.markDone(tx, { operationId: opId, response });
     return response;
   });
 }

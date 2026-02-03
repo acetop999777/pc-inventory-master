@@ -1,5 +1,6 @@
 /**
  * @typedef {import('pg').PoolClient} DbClient
+ * @typedef {Record<string, any>} DbRow
  * @typedef {{
  *   id: string,
  *   category?: unknown,
@@ -19,7 +20,7 @@
 
 /**
  * @param {unknown} row
- * @returns {unknown | null}
+ * @returns {DbRow | null}
  */
 function mapRow(row) {
   return row || null;
@@ -28,7 +29,7 @@ function mapRow(row) {
 /**
  * @param {DbClient} tx
  * @param {string} id
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function getForUpdateById(tx, id) {
   const { rows } = await tx.query('SELECT * FROM inventory WHERE id = $1 FOR UPDATE', [id]);
@@ -38,7 +39,7 @@ async function getForUpdateById(tx, id) {
 /**
  * @param {DbClient} tx
  * @param {InventoryInput} item
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function insert(tx, item) {
   const {
@@ -85,7 +86,7 @@ async function insert(tx, item) {
  * @param {DbClient} tx
  * @param {string} id
  * @param {InventoryUpdate} fields
- * @returns {Promise<unknown | null>}
+ * @returns {Promise<DbRow | null>}
  */
 async function update(tx, id, fields) {
   const allowed = [
