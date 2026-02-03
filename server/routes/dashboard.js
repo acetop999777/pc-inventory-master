@@ -1,5 +1,10 @@
 const express = require('express');
 
+/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+
+/**
+ * @param {RouteDeps} deps
+ */
 module.exports = function dashboardRoutes({ pool }) {
   const router = express.Router();
 
@@ -42,7 +47,16 @@ module.exports = function dashboardRoutes({ pool }) {
          ORDER BY 1 ASC`,
         [trunc, fmt, start, end],
       );
-      res.json(rows.map((r) => ({ date: r.label, profit: parseFloat(r.value) })));
+      res.json(
+        rows.map((r) => {
+          /** @type {{ label?: string, value?: string | number | null }} */
+          const row = r;
+          return {
+            date: row.label,
+            profit: Number(row.value || 0),
+          };
+        }),
+      );
     } catch (err) {
       next(err);
     }

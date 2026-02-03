@@ -1,5 +1,10 @@
 const express = require('express');
 
+/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+
+/**
+ * @param {RouteDeps} deps
+ */
 module.exports = function lookupRoutes({ pool }) {
   const router = express.Router();
 

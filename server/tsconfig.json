@@ -26,9 +26,13 @@
     "middleware/**/*.js",
     "middleware/**/*.ts",
     "middleware/**/*.d.ts",
+    "routes/**/*.js",
+    "routes/**/*.ts",
+    "routes/**/*.d.ts",
     "services/**/*.js",
     "services/**/*.ts",
-    "services/**/*.d.ts"
+    "services/**/*.d.ts",
+    "types/**/*.d.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

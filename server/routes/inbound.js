@@ -7,6 +7,11 @@ const {
   updateReceipt,
 } = require('../services/inboundReceiptService');
 
+/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+
+/**
+ * @param {RouteDeps} deps
+ */
 module.exports = function inboundRoutes({ pool }) {
   const router = express.Router();
 
@@ -69,6 +74,7 @@ module.exports = function inboundRoutes({ pool }) {
       );
       res.json(result);
     } catch (e) {
+      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -78,7 +84,7 @@ module.exports = function inboundRoutes({ pool }) {
           operationId: payload.operationId,
           endpoint,
           status: 'error',
-          error: e?.code || e?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         }),
       );
       next(e);
@@ -142,6 +148,7 @@ module.exports = function inboundRoutes({ pool }) {
       );
       res.json({ success: true });
     } catch (err) {
+      const errAny = /** @type {any} */ (err);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -151,7 +158,7 @@ module.exports = function inboundRoutes({ pool }) {
           endpoint,
           receiptId: id,
           status: 'error',
-          error: err?.code || err?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         }),
       );
       next(err);

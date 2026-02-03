@@ -1,6 +1,11 @@
 const express = require('express');
 const { createLog } = require('../services/logService');
 
+/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+
+/**
+ * @param {RouteDeps} deps
+ */
 module.exports = function logsRoutes({ pool }) {
   const router = express.Router();
 
@@ -48,6 +53,7 @@ module.exports = function logsRoutes({ pool }) {
       );
       res.json(result);
     } catch (e) {
+      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -57,7 +63,7 @@ module.exports = function logsRoutes({ pool }) {
           operationId,
           endpoint,
           status: 'error',
-          error: e?.code || e?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         }),
       );
       next(e);

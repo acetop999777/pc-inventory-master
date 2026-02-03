@@ -3,6 +3,11 @@ const AppError = require('../errors/AppError');
 const { assertClientInput } = require('../validators/clientValidator');
 const { mapClient } = require('../mappers/clientMapper');
 
+/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+
+/**
+ * @param {RouteDeps} deps
+ */
 module.exports = function clientsRoutes({ pool }) {
   const router = express.Router();
 

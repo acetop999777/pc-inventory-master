@@ -1,15 +1,32 @@
 // Contract: date-only YYYY-MM-DD
+/**
+ * @param {unknown} d
+ * @returns {string}
+ */
 function fmtDate(d) {
   if (!d) return '';
   // pg DATE often returns 'YYYY-MM-DD' string; keep stable
   if (typeof d === 'string') return d.slice(0, 10);
-  try {
-    return new Date(d).toISOString().slice(0, 10);
-  } catch {
-    return '';
+  if (typeof d === 'number') {
+    try {
+      return new Date(d).toISOString().slice(0, 10);
+    } catch {
+      return '';
+    }
   }
+  if (d instanceof Date) {
+    try {
+      return d.toISOString().slice(0, 10);
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
+/**
+ * @param {Record<string, any>} r
+ */
 const mapClient = (r) => ({
   id: r.id,
   wechatName: r.wechat_name,

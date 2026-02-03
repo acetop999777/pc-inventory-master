@@ -1,6 +1,11 @@
 const express = require('express');
 const { applyInventoryBatch, updateInventoryItem } = require('../services/inventoryService');
 
+/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+
+/**
+ * @param {RouteDeps} deps
+ */
 module.exports = function inventoryRoutes({ pool }) {
   const router = express.Router();
 
@@ -36,27 +41,29 @@ module.exports = function inventoryRoutes({ pool }) {
 
       let prevCost = 0;
       const normalized = rows.map((row) => {
-        const qtyDelta = Number(row.qty_delta ?? 0);
-        const onHandAfter = Number(row.on_hand_after ?? 0);
-        const avgCostAfter = Number(row.avg_cost_after ?? 0);
+        /** @type {any} */
+        const entry = row;
+        const qtyDelta = Number(entry.qty_delta ?? 0);
+        const onHandAfter = Number(entry.on_hand_after ?? 0);
+        const avgCostAfter = Number(entry.avg_cost_after ?? 0);
         const prevQty = onHandAfter - qtyDelta;
         const prevCostVal = Number.isFinite(prevCost) ? prevCost : 0;
         prevCost = avgCostAfter;
 
         return {
-          id: row.id,
-          inventoryId: row.inventory_id,
+          id: entry.id,
+          inventoryId: entry.inventory_id,
           qtyDelta,
-          reason: row.reason,
-          unitCost: row.unit_cost != null ? Number(row.unit_cost) : null,
-          unitCostUsed: row.unit_cost_used != null ? Number(row.unit_cost_used) : null,
+          reason: entry.reason,
+          unitCost: entry.unit_cost != null ? Number(entry.unit_cost) : null,
+          unitCostUsed: entry.unit_cost_used != null ? Number(entry.unit_cost_used) : null,
           onHandAfter,
           avgCostAfter,
-          occurredAt: row.occurred_at,
-          refType: row.ref_type,
-          refId: row.ref_id,
-          vendor: row.receipt_vendor || null,
-          receiptReceivedAt: row.receipt_received_at || null,
+          occurredAt: entry.occurred_at,
+          refType: entry.ref_type,
+          refId: entry.ref_id,
+          vendor: entry.receipt_vendor || null,
+          receiptReceivedAt: entry.receipt_received_at || null,
           prevQty,
           prevCost: prevCostVal,
         };
@@ -103,6 +110,7 @@ module.exports = function inventoryRoutes({ pool }) {
       );
       res.json(result);
     } catch (e) {
+      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -112,7 +120,7 @@ module.exports = function inventoryRoutes({ pool }) {
           operationId,
           endpoint,
           status: 'error',
-          error: e?.code || e?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         }),
       );
       next(e);
@@ -157,6 +165,7 @@ module.exports = function inventoryRoutes({ pool }) {
       );
       return res.json(row || { success: true });
     } catch (e) {
+      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -167,7 +176,7 @@ module.exports = function inventoryRoutes({ pool }) {
           endpoint,
           inventoryId: id,
           status: 'error',
-          error: e?.code || e?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         }),
       );
       next(e);
@@ -233,6 +242,7 @@ module.exports = function inventoryRoutes({ pool }) {
       );
       res.json({ success: true });
     } catch (e) {
+      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -243,7 +253,7 @@ module.exports = function inventoryRoutes({ pool }) {
           endpoint,
           inventoryId: req.params.id,
           status: 'error',
-          error: e?.code || e?.message || 'ERROR',
+          error: errAny?.code || errAny?.message || 'ERROR',
         }),
       );
       next(e);
