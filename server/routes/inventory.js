@@ -1,5 +1,9 @@
 const express = require('express');
 const { applyInventoryBatch, updateInventoryItem } = require('../services/inventoryService');
+const {
+  assertInventoryBatchPayload,
+  assertInventoryUpdatePayload,
+} = require('../validators/inventoryValidator');
 
 /** @typedef {{ pool: import('pg').Pool }} RouteDeps */
 
@@ -77,7 +81,13 @@ module.exports = function inventoryRoutes({ pool }) {
 
   router.post('/inventory/batch', async (req, res, next) => {
     const endpoint = req.originalUrl || req.url;
-    const { operationId, items } = req.body || {};
+    let payload;
+    try {
+      payload = assertInventoryBatchPayload(req.body || {});
+    } catch (e) {
+      return next(e);
+    }
+    const { operationId, items } = payload;
     console.log(
       JSON.stringify({
         ts: new Date().toISOString(),
@@ -129,7 +139,12 @@ module.exports = function inventoryRoutes({ pool }) {
 
   router.put('/inventory/:id', async (req, res, next) => {
     const id = req.params.id;
-    const body = req.body || {};
+    let body;
+    try {
+      body = assertInventoryUpdatePayload(req.body || {});
+    } catch (e) {
+      return next(e);
+    }
     const endpoint = req.originalUrl || req.url;
     console.log(
       JSON.stringify({

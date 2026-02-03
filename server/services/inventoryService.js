@@ -5,6 +5,7 @@ const inventoryRepo = require('../repositories/inventoryRepo');
 const auditLogRepo = require('../repositories/auditLogRepo');
 const movementRepo = require('../repositories/movementRepo');
 const idempotencyRepo = require('../repositories/idempotencyRepo');
+const { asNonEmptyString, requireInt, requireNumber } = require('../validators/requestUtils');
 
 /**
  * @typedef {import('pg').Pool} DbPool
@@ -56,52 +57,6 @@ const idempotencyRepo = require('../repositories/idempotencyRepo');
  *   requestId?: unknown
  * }} ApplyInventoryBatchInput
  */
-
-/**
- * @param {unknown} v
- * @returns {string | null}
- */
-function asNonEmptyString(v) {
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
-}
-
-/**
- * @param {unknown} v
- * @param {string} field
- * @returns {number}
- */
-function requireInt(v, field) {
-  const n = Number(v);
-  if (!Number.isFinite(n) || !Number.isInteger(n)) {
-    throw new AppError({
-      code: 'INVALID_ARGUMENT',
-      httpStatus: 400,
-      retryable: false,
-      message: `${field} must be an integer`,
-      details: { field },
-    });
-  }
-  return n;
-}
-
-/**
- * @param {unknown} v
- * @param {string} field
- * @returns {number}
- */
-function requireNumber(v, field) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) {
-    throw new AppError({
-      code: 'INVALID_ARGUMENT',
-      httpStatus: 400,
-      retryable: false,
-      message: `${field} must be a number`,
-      details: { field },
-    });
-  }
-  return n;
-}
 
 /**
  * @param {number} n

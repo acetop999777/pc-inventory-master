@@ -6,6 +6,11 @@ const {
   getReceiptDetail,
   updateReceipt,
 } = require('../services/inboundReceiptService');
+const {
+  normalizeReceiptListLimit,
+  assertReceiptCreatePayload,
+  assertReceiptUpdatePayload,
+} = require('../validators/inboundValidator');
 
 /** @typedef {{ pool: import('pg').Pool }} RouteDeps */
 
@@ -17,7 +22,7 @@ module.exports = function inboundRoutes({ pool }) {
 
   router.get('/inbound/receipts', async (req, res, next) => {
     try {
-      const limit = Number(req.query.limit || 50);
+      const limit = normalizeReceiptListLimit(req.query.limit);
       const rows = await listReceipts({ pool, limit });
       res.json(rows);
     } catch (e) {
@@ -36,7 +41,12 @@ module.exports = function inboundRoutes({ pool }) {
 
   router.post('/inbound/receipts', async (req, res, next) => {
     const endpoint = req.originalUrl || req.url;
-    const payload = req.body || {};
+    let payload;
+    try {
+      payload = assertReceiptCreatePayload(req.body || {});
+    } catch (e) {
+      return next(e);
+    }
     console.log(
       JSON.stringify({
         ts: new Date().toISOString(),
@@ -93,7 +103,12 @@ module.exports = function inboundRoutes({ pool }) {
 
   router.patch('/inbound/receipts/:id', async (req, res, next) => {
     const id = req.params.id;
-    const payload = req.body || {};
+    let payload;
+    try {
+      payload = assertReceiptUpdatePayload(req.body || {});
+    } catch (e) {
+      return next(e);
+    }
     const endpoint = req.originalUrl || req.url;
     try {
       const result = await updateReceipt({

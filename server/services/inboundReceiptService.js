@@ -6,6 +6,7 @@ const movementRepo = require('../repositories/movementRepo');
 const auditLogRepo = require('../repositories/auditLogRepo');
 const idempotencyRepo = require('../repositories/idempotencyRepo');
 const receiptRepo = require('../repositories/receiptRepo');
+const { asNonEmptyString, requireNumber, requireInt } = require('../validators/requestUtils');
 
 /**
  * @typedef {import('pg').Pool} DbPool
@@ -41,52 +42,6 @@ const receiptRepo = require('../repositories/receiptRepo');
  * @typedef {{ pool: DbPool, id: string, images?: unknown }} UpdateReceiptImagesInput
  * @typedef {{ pool: DbPool, id: string, payload: ReceiptUpdatePayload, requestId?: unknown, endpoint?: unknown }} UpdateReceiptInput
  */
-
-/**
- * @param {unknown} v
- * @returns {string | null}
- */
-function asNonEmptyString(v) {
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
-}
-
-/**
- * @param {unknown} v
- * @param {string} field
- * @returns {number}
- */
-function requireNumber(v, field) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) {
-    throw new AppError({
-      code: 'INVALID_ARGUMENT',
-      httpStatus: 400,
-      retryable: false,
-      message: `${field} must be a number`,
-      details: { field },
-    });
-  }
-  return n;
-}
-
-/**
- * @param {unknown} v
- * @param {string} field
- * @returns {number}
- */
-function requireInt(v, field) {
-  const n = Number(v);
-  if (!Number.isFinite(n) || !Number.isInteger(n)) {
-    throw new AppError({
-      code: 'INVALID_ARGUMENT',
-      httpStatus: 400,
-      retryable: false,
-      message: `${field} must be an integer`,
-      details: { field },
-    });
-  }
-  return n;
-}
 
 /**
  * @param {number} n
