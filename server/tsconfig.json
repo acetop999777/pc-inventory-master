@@ -26,6 +26,9 @@
     "mappers/**/*.js",
     "mappers/**/*.ts",
     "mappers/**/*.d.ts",
+    "db/**/*.js",
+    "db/**/*.ts",
+    "db/**/*.d.ts",
     "middleware/**/*.js",
     "middleware/**/*.ts",
     "middleware/**/*.d.ts",
@@ -36,6 +39,7 @@
     "services/**/*.ts",
     "services/**/*.d.ts",
     "app.js",
+    "index.js",
     "types/**/*.d.ts"
   ],
   "exclude": ["node_modules", "dist"]

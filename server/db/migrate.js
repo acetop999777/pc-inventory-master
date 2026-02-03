@@ -5,6 +5,7 @@ const path = require('path');
  * Runs SQL migrations in server/db/migrations/*.sql
  * - Idempotent via schema_migrations table (filename PK)
  * - Protected by pg_advisory_lock to avoid concurrent runners
+ * @param {import('pg').Pool} pool
  */
 async function runMigrations(pool) {
   const migrationsDir = path.join(__dirname, 'migrations');

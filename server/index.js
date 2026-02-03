@@ -83,6 +83,9 @@ async function seedIfEnabled() {
 }
 
 // -------- bootstrap --------
+/**
+ * @param {{ attempts?: number, delayMs?: number }} opts
+ */
 async function waitForDb({ attempts = 30, delayMs = 1000 } = {}) {
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -114,10 +117,15 @@ async function bootstrap() {
   app.listen(PORT, () => console.log(`Server on ${PORT}`));
 }
 
-bootstrap().catch((err) => {
+/**
+ * @param {any} err
+ */
+function handleBootstrapError(err) {
   console.error('[bootstrap] failed', err);
   process.exit(1);
-});
+}
+
+bootstrap().catch(handleBootstrapError);
 
 // graceful shutdown
 process.on('SIGTERM', async () => {
