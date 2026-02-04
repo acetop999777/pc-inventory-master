@@ -1,10 +1,12 @@
-import type { Pool } from 'pg';
+import crypto from 'crypto';
+import type { Pool, PoolClient } from 'pg';
 import AppError = require('../errors/AppError');
 import { withTransaction } from '../db/tx';
 import * as idempotencyRepo from '../repositories/idempotencyRepo';
 import * as logRepo from '../repositories/logRepo';
 
 type DbPool = Pool;
+type DbClient = PoolClient;
 type LogInput = {
   id?: unknown;
   timestamp?: unknown;
@@ -29,7 +31,7 @@ function asNonEmptyString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-function logWriteMetric(payload: Record<string, unknown>): void {
+async function logWriteMetric(tx: DbClient, payload: Record<string, unknown>): Promise<void> {
   console.log(
     JSON.stringify({
       ts: new Date().toISOString(),
@@ -37,6 +39,25 @@ function logWriteMetric(payload: Record<string, unknown>): void {
       ...payload,
     }),
   );
+  try {
+    await logRepo.insert(tx, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: 'metric',
+      title: typeof payload.event === 'string' ? payload.event : 'logs.metric',
+      msg: null,
+      meta: payload,
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'logs',
+        event: 'logs.metric.persist.error',
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
 }
 
 /**
@@ -78,7 +99,7 @@ async function createLog({
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') {
-      logWriteMetric({
+      await logWriteMetric(tx, {
         event: 'logs.create.metrics',
         requestId,
         operationId: opId,
@@ -122,7 +143,7 @@ async function createLog({
 
     const response = { success: true };
     await idempotencyRepo.markDone(tx, { operationId: opId, response });
-    logWriteMetric({
+    await logWriteMetric(tx, {
       event: 'logs.create.metrics',
       requestId,
       operationId: opId,

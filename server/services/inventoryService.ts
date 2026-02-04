@@ -1,14 +1,16 @@
 import crypto from 'crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import AppError = require('../errors/AppError');
 import { withTransaction } from '../db/tx';
 import * as inventoryRepo from '../repositories/inventoryRepo';
 import * as auditLogRepo from '../repositories/auditLogRepo';
 import * as movementRepo from '../repositories/movementRepo';
 import * as idempotencyRepo from '../repositories/idempotencyRepo';
+import * as logRepo from '../repositories/logRepo';
 import { asNonEmptyString, requireInt, requireNumber } from '../validators/requestUtils';
 
 type DbPool = Pool;
+type DbClient = PoolClient;
 type InventoryPatch = Record<string, unknown>;
 type InventoryItemInput = {
   id?: unknown;
@@ -107,8 +109,27 @@ function logInventoryEvent(payload: Record<string, unknown>): void {
   console.log(JSON.stringify(record));
 }
 
-function logInventoryWriteMetric(payload: Record<string, unknown>): void {
+async function logInventoryWriteMetric(tx: DbClient, payload: Record<string, unknown>): Promise<void> {
   logInventoryEvent(payload);
+  try {
+    await logRepo.insert(tx, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: 'metric',
+      title: typeof payload.event === 'string' ? payload.event : 'inventory.metric',
+      msg: null,
+      meta: payload,
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.metric.persist.error',
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
 }
 
 function normalizeReason(raw: unknown, qtyDelta: number): string {
@@ -159,7 +180,7 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') {
-      logInventoryWriteMetric({
+      await logInventoryWriteMetric(tx, {
         event: 'inventory.update.metrics',
         requestId,
         operationId: opId,
@@ -269,7 +290,7 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
         delta: qtyDelta,
       });
 
-      logInventoryWriteMetric({
+      await logInventoryWriteMetric(tx, {
         event: 'inventory.update.metrics',
         requestId,
         operationId: opId,
@@ -330,7 +351,7 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') {
-      logInventoryWriteMetric({
+      await logInventoryWriteMetric(tx, {
         event: 'inventory.batch.metrics',
         requestId,
         operationId: opId,
@@ -532,7 +553,7 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
 
     const response = { success: true, updatedIds };
     await idempotencyRepo.markDone(tx, { operationId: opId, response });
-    logInventoryWriteMetric({
+    await logInventoryWriteMetric(tx, {
       event: 'inventory.batch.metrics',
       requestId,
       operationId: opId,

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import AppError = require('../errors/AppError');
 import { withTransaction } from '../db/tx';
 import * as inventoryRepo from '../repositories/inventoryRepo';
@@ -7,9 +7,11 @@ import * as movementRepo from '../repositories/movementRepo';
 import * as auditLogRepo from '../repositories/auditLogRepo';
 import * as idempotencyRepo from '../repositories/idempotencyRepo';
 import * as receiptRepo from '../repositories/receiptRepo';
+import * as logRepo from '../repositories/logRepo';
 import { asNonEmptyString, requireNumber, requireInt } from '../validators/requestUtils';
 
 type DbPool = Pool;
+type DbClient = PoolClient;
 type ReceiptItemInput = {
   inventoryId?: unknown;
   qty?: unknown;
@@ -139,7 +141,7 @@ function buildResponse(
   };
 }
 
-function logReceiptWriteMetric(payload: Record<string, unknown>): void {
+async function logReceiptWriteMetric(tx: DbClient, payload: Record<string, unknown>): Promise<void> {
   console.log(
     JSON.stringify({
       ts: new Date().toISOString(),
@@ -147,6 +149,25 @@ function logReceiptWriteMetric(payload: Record<string, unknown>): void {
       ...payload,
     }),
   );
+  try {
+    await logRepo.insert(tx, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: 'metric',
+      title: typeof payload.event === 'string' ? payload.event : 'receipts.metric',
+      msg: null,
+      meta: payload,
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'receipts',
+        event: 'receipts.metric.persist.error',
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
 }
 
 /**
@@ -192,7 +213,7 @@ async function createReceipt({
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
     if (idem.state === 'DONE') {
-      logReceiptWriteMetric({
+      await logReceiptWriteMetric(tx, {
         event: 'receipts.create.metrics',
         requestId,
         operationId: opId,
@@ -229,6 +250,15 @@ async function createReceipt({
       }
       const response = buildResponse(existingReceipt, receiptItems, updates);
       await idempotencyRepo.markDone(tx, { operationId: opId, response });
+      await logReceiptWriteMetric(tx, {
+        event: 'receipts.create.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
       return response;
     }
 
@@ -382,7 +412,7 @@ async function createReceipt({
 
     const response = buildResponse(receipt, receiptItems, inventoryUpdates);
     await idempotencyRepo.markDone(tx, { operationId: opId, response });
-    logReceiptWriteMetric({
+    await logReceiptWriteMetric(tx, {
       event: 'receipts.create.metrics',
       requestId,
       operationId: opId,
@@ -466,7 +496,7 @@ async function updateReceiptImages({ pool, id, images }: UpdateReceiptImagesInpu
         details: { id },
       });
     }
-    logReceiptWriteMetric({
+    await logReceiptWriteMetric(tx, {
       event: 'receipts.images.metrics',
       requestId: null,
       operationId: receipt.operation_id,
@@ -712,7 +742,7 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }: UpdateR
     }
 
     const updatedItems = (await receiptRepo.getReceiptItems(tx, receipt.id)) as ReceiptItemRow[];
-    logReceiptWriteMetric({
+    await logReceiptWriteMetric(tx, {
       event: 'receipts.update.metrics',
       requestId,
       operationId: receipt.operation_id,

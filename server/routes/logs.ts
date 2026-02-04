@@ -2,6 +2,7 @@ import express from 'express';
 import type { Pool } from 'pg';
 import { createLog } from '../services/logService';
 import type { RequestWithId } from '../middleware/requestId';
+import { coerceLimit } from '../validators/requestUtils';
 
 type RouteDeps = { pool: Pool };
 type ErrorLike = { code?: unknown; message?: unknown };
@@ -19,7 +20,20 @@ function logsRoutes({ pool }: RouteDeps) {
 
   router.get('/logs', async (req: RequestWithId, res, next) => {
     try {
-      const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200');
+      const type =
+        typeof req.query?.type === 'string' && req.query.type.trim()
+          ? req.query.type.trim()
+          : null;
+      const limit = coerceLimit(req.query?.limit, { min: 1, max: 500, fallback: 200 });
+      if (type) {
+        const { rows } = await pool.query(
+          'SELECT * FROM logs WHERE type = $1 ORDER BY timestamp DESC LIMIT $2',
+          [type, limit],
+        );
+        res.json(rows);
+        return;
+      }
+      const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT $1', [limit]);
       res.json(rows);
     } catch (e) {
       next(e);

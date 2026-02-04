@@ -667,7 +667,8 @@ npm run verify
 
 ### 12.4 最小可观测性闭环（已实现）
 
-- 后端写入服务层会记录：`operationId`、`requestId`、`durationMs`、`idempotencyHit`。
+- 后端写入服务层会记录：`operationId`、`requestId`、`durationMs`、`idempotencyHit`（含 clients/inventory/receipts/logs）。
+- 写入指标会落到 `logs` 表（`type=metric`），可通过 `/api/logs?type=metric&limit=200` 查看。
 - 前端 SaveQueue 在失败时会记录：`retryable / non-retryable` 分类与操作信息。
 
 ---
