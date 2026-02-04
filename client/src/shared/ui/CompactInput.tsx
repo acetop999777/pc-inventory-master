@@ -33,19 +33,19 @@ export const CompactInput: React.FC<Props> = ({
 
   return (
     <div
-      className={`flex flex-col items-start gap-1 border-b border-slate-200 py-1.5 ${className ?? ''} md:flex-row md:items-center md:gap-2 md:h-9 ${isDate ? 'cursor-pointer' : ''}`}
+      className={`flex flex-col items-start gap-1 border-b border-[var(--ui-border)] py-1.5 ${className ?? ''} md:flex-row md:items-center md:gap-2 md:h-9 ${isDate ? 'cursor-pointer' : ''}`}
       onClick={handleContainerClick}
     >
-      <span className="text-[10px] font-bold text-slate-400 uppercase w-full md:w-20 shrink-0 tracking-wider select-none whitespace-nowrap leading-none">
+      <span className="text-[10px] font-bold text-[var(--ui-text-subtle)] uppercase w-full md:w-20 shrink-0 tracking-wider select-none whitespace-nowrap leading-none">
         <span className="inline-flex items-center gap-1">
-          {Icon ? <Icon size={12} className="text-slate-300" /> : null}
+          {Icon ? <Icon size={12} className="text-[var(--ui-text-subtle)]" /> : null}
           {label}
         </span>
       </span>
 
       <input
         ref={inputRef}
-        className={`w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-200 leading-none ${isDate ? 'compact-date-input cursor-pointer' : ''}`}
+        className={`w-full bg-transparent text-sm font-bold text-[var(--ui-text)] outline-none placeholder:text-[var(--ui-text-subtle)] leading-none ${isDate ? 'compact-date-input cursor-pointer' : ''}`}
         {...props}
       />
 

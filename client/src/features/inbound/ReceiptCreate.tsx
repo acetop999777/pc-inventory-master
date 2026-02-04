@@ -16,8 +16,7 @@ import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils'
 import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
-import { Button } from '../../shared/ui/Button';
-import { panel, panelDashed } from '../../shared/ui/panel';
+import { Button, panel, panelDashed } from '../../shared/ui';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 

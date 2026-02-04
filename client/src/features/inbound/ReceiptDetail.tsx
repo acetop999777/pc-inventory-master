@@ -7,8 +7,7 @@ import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../shared/ui/Button';
-import { panel, panelDashed } from '../../shared/ui/panel';
+import { Button, panel, panelDashed } from '../../shared/ui';
 
 export default function ReceiptDetail() {
   const nav = useNavigate();

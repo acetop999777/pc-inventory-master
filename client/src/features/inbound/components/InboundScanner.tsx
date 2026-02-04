@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Scan, Box, Loader2 } from 'lucide-react';
-import { Button } from '../../../shared/ui/Button';
-import { panelXl } from '../../../shared/ui/panel';
+import { Button, panelXl } from '../../../shared/ui';
 
 interface Props {
   onScan: (code: string) => Promise<void>;

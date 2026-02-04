@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
-import { Button } from '../../../shared/ui/Button';
+import { Button } from '../../../shared/ui';
 
 type Mode = 'add' | 'remove';
 

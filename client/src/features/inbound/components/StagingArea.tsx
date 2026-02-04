@@ -3,8 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { StagedItem } from '../../../domain/inventory/inbound.logic';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import { ALL_CATS } from '../../../domain/inventory/inventory.utils';
-import { Button } from '../../../shared/ui/Button';
-import { panelSoft, panelXl } from '../../../shared/ui/panel';
+import { Button, panelSoft, panelXl } from '../../../shared/ui';
 
 interface Props {
   batch: StagedItem[];

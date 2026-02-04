@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { formatMoney } from '../../shared/lib/format';
-import { FinancialCard } from '../../shared/ui/FinancialCard';
-import { panelDashedXl } from '../../shared/ui/panel';
+import { FinancialCard, panelDashedXl } from '../../shared/ui';
 
 export default function Dashboard() {
   type DashboardStats = {

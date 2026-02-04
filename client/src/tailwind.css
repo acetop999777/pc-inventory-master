@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --ui-surface: #ffffff;
+    --ui-surface-muted: #f8fafc;
+    --ui-border: #e2e8f0;
+    --ui-border-strong: #cbd5e1;
+    --ui-text: #0f172a;
+    --ui-text-muted: #64748b;
+    --ui-text-subtle: #94a3b8;
+    --ui-primary: #0f172a;
+    --ui-primary-contrast: #ffffff;
+    --ui-ring: #94a3b8;
+    --ui-input-bg: #ffffff;
+    --ui-input-border: #e2e8f0;
+    --ui-input-text: #0f172a;
+    --ui-input-placeholder: #94a3b8;
+  }
+}
+
+@layer components {
+  .ui-input {
+    border-radius: 0.75rem;
+    border-width: 1px;
+    border-color: var(--ui-input-border);
+    background-color: var(--ui-input-bg);
+    color: var(--ui-input-text);
+  }
+
+  .ui-input::placeholder {
+    color: var(--ui-input-placeholder);
+  }
+
+  .ui-btn {
+    border-radius: 9999px;
+    border-width: 1px;
+    border-color: var(--ui-border);
+    color: var(--ui-text-muted);
+    background-color: transparent;
+  }
+
+  .ui-btn-primary {
+    border-color: transparent;
+    background-color: var(--ui-primary);
+    color: var(--ui-primary-contrast);
+  }
+}
+
 @layer utilities {
   .compact-date-input {
     -webkit-appearance: none;

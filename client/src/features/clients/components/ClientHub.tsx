@@ -4,7 +4,7 @@ import { ClientRow } from './ClientRow';
 import { ClientEntity } from '../../../domain/client/client.types';
 import { calculateFinancials } from '../../../domain/client/client.logic';
 import { formatMoney } from '../../../shared/lib/format';
-import { Button } from '../../../shared/ui/Button';
+import { Button } from '../../../shared/ui';
 
 interface Props {
   clients: ClientEntity[];

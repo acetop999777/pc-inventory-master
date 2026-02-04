@@ -2,9 +2,7 @@ import React from 'react';
 import { Camera, X } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
-import { CompactInput } from '../../../../shared/ui/CompactInput';
-import { Button } from '../../../../shared/ui/Button';
-import { panelSoftMd } from '../../../../shared/ui/panel';
+import { CompactInput, Button, panelSoftMd } from '../../../../shared/ui';
 
 interface Props {
   data: ClientEntity;

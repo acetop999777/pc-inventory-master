@@ -1,7 +1,7 @@
 import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle, X, Copy } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
-import { Button } from '../../shared/ui/Button';
+import { Button } from '../../shared/ui';
 
 type ErrShape = {
   name?: unknown;

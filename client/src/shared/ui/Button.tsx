@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ButtonVariant = 'outline' | 'ghost';
+type ButtonVariant = 'primary' | 'outline' | 'ghost';
 type ButtonSize = 'xs' | 'icon' | 'lg';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -9,11 +9,12 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const base =
-  'inline-flex items-center justify-center font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400';
+  'ui-btn inline-flex items-center justify-center font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-ring)]';
 
 const variants: Record<ButtonVariant, string> = {
-  outline: 'border border-slate-200 text-slate-500 hover:bg-slate-50',
-  ghost: 'text-slate-500',
+  primary: 'ui-btn-primary hover:opacity-90',
+  outline: 'border-[var(--ui-border)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-muted)]',
+  ghost: 'border-transparent text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-muted)]',
 };
 
 const sizes: Record<ButtonSize, string> = {

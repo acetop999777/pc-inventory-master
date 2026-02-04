@@ -8,8 +8,7 @@ import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBeh
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
-import { Button } from '../../shared/ui/Button';
-import { panelDashed } from '../../shared/ui/panel';
+import { Button, panelDashed } from '../../shared/ui';
 
 type InlineEditorProps<T extends string | number> = {
   value: T | null | undefined;

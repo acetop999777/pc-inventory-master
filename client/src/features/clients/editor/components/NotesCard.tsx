@@ -2,8 +2,7 @@ import React from 'react';
 import { FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
-import { Button } from '../../../../shared/ui/Button';
-import { panelMd } from '../../../../shared/ui/panel';
+import { Button, panelMd } from '../../../../shared/ui';
 
 interface Props {
   data: ClientEntity;

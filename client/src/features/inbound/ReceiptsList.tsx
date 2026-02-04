@@ -7,8 +7,7 @@ import type { ReceiptListItem } from '../../shared/api/types';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
-import { Button } from '../../shared/ui/Button';
-import { panel } from '../../shared/ui/panel';
+import { Button, panel } from '../../shared/ui';
 
 function toDateStart(value?: string) {
   if (!value) return null;

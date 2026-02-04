@@ -3,7 +3,7 @@ import { Trash2, Archive } from 'lucide-react';
 import type { ClientEntity } from '../../../domain/client/client.types';
 import { calculateFinancials } from '../../../domain/client/client.logic';
 import { formatDateShort, formatDateYMD, formatMoney } from '../../../shared/lib/format';
-import { Button } from '../../../shared/ui/Button';
+import { Button } from '../../../shared/ui';
 
 type Props = {
   client: ClientEntity;

@@ -5,7 +5,7 @@ import type { UpdateClientField } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
 import { parsePcppText } from '../pcpp';
-import { Button } from '../../../../shared/ui/Button';
+import { Button } from '../../../../shared/ui';
 
 interface Props {
   data: ClientEntity;
