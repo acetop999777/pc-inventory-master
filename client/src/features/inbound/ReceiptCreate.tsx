@@ -17,6 +17,7 @@ import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
 import { Button } from '../../shared/ui/Button';
+import { panel, panelDashed } from '../../shared/ui/panel';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 
@@ -387,7 +388,7 @@ export default function ReceiptCreate() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+      <div className={`${panel} p-5 mb-6`}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ordered At</div>
@@ -485,7 +486,7 @@ export default function ReceiptCreate() {
 
           <div
             className={[
-              'mt-3 rounded-2xl border border-dashed px-4 py-4 transition',
+              `mt-3 ${panelDashed} px-4 py-4 transition`,
               dragActive ? 'border-blue-400 bg-blue-50/60' : 'border-slate-200 bg-slate-50',
             ].join(' ')}
             onDragOver={(e) => {
@@ -542,7 +543,7 @@ export default function ReceiptCreate() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className={`${panel} overflow-hidden`}>
         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
           <div className="col-span-3">Item Name</div>
           <div className="col-span-2">Category</div>

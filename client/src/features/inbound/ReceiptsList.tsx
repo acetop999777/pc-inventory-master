@@ -7,6 +7,7 @@ import { apiCallOrThrow } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { Button } from '../../shared/ui/Button';
+import { panel } from '../../shared/ui/panel';
 
 function toDateStart(value?: string) {
   if (!value) return null;
@@ -85,7 +86,7 @@ export default function ReceiptsList() {
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+      <div className={`${panel} p-5 mb-6`}>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -121,7 +122,7 @@ export default function ReceiptsList() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className={`${panel} overflow-hidden`}>
         <div className="grid grid-cols-12 items-center gap-4 px-5 py-3 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
           <div className="col-span-2">Date</div>
           <div className="col-span-3">Vendor</div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Scan, Box, Loader2 } from 'lucide-react';
 import { Button } from '../../../shared/ui/Button';
+import { panelXl } from '../../../shared/ui/panel';
 
 interface Props {
   onScan: (code: string) => Promise<void>;
@@ -23,7 +24,7 @@ export const InboundScanner: React.FC<Props> = ({ onScan, onParse, loading }) =>
   return (
     <div className="space-y-6 h-full flex flex-col">
       {/* 1. Barcode Scanner */}
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex-shrink-0">
+      <div className={`${panelXl} p-6 flex-shrink-0`}>
         <h3 className="font-black uppercase text-xs mb-4 text-slate-400 tracking-widest flex items-center gap-2">
           <Scan size={14} /> Scanner Input
         </h3>
@@ -44,7 +45,7 @@ export const InboundScanner: React.FC<Props> = ({ onScan, onParse, loading }) =>
       </div>
 
       {/* 2. Newegg Parsing */}
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex-1 flex flex-col min-h-0">
+      <div className={`${panelXl} p-6 flex-1 flex flex-col min-h-0`}>
         <h3 className="font-black uppercase text-xs mb-4 text-slate-400 tracking-widest flex items-center gap-2">
           <Box size={14} /> Newegg Import
         </h3>

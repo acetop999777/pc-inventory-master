@@ -7,6 +7,7 @@ import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../shared/ui/Button';
+import { panel, panelDashed } from '../../shared/ui/panel';
 
 export default function ReceiptDetail() {
   const nav = useNavigate();
@@ -208,7 +209,7 @@ export default function ReceiptDetail() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+      <div className={`${panel} p-5 mb-6`}>
         <div className="flex items-center justify-between">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Receipt Photos</div>
           <Button
@@ -237,7 +238,7 @@ export default function ReceiptDetail() {
 
         <div
           className={[
-            'mt-3 rounded-2xl border border-dashed px-4 py-4 transition',
+            `mt-3 ${panelDashed} px-4 py-4 transition`,
             dragActive ? 'border-blue-400 bg-blue-50/60' : 'border-slate-200 bg-slate-50',
           ].join(' ')}
           onDragOver={(e) => {
@@ -295,7 +296,7 @@ export default function ReceiptDetail() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className={`${panel} overflow-hidden`}>
         <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
           <div className="col-span-5">Item</div>
           <div className="col-span-2">Qty</div>

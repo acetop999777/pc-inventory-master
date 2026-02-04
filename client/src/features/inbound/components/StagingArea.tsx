@@ -4,6 +4,7 @@ import { StagedItem } from '../../../domain/inventory/inbound.logic';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import { ALL_CATS } from '../../../domain/inventory/inventory.utils';
 import { Button } from '../../../shared/ui/Button';
+import { panelSoft, panelXl } from '../../../shared/ui/panel';
 
 interface Props {
   batch: StagedItem[];
@@ -45,7 +46,7 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
 
   return (
     <div
-      className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 flex flex-col h-full min-h-0"
+      className={`${panelXl} p-6 flex flex-col h-full min-h-0`}
       onClick={() => setActiveDrop(null)}
     >
       <div className="flex justify-between items-center mb-6 flex-shrink-0">
@@ -82,7 +83,7 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
           return (
             <div
               key={i}
-              className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 group hover:border-blue-200 transition-colors relative animate-in slide-in-from-bottom-2 duration-300"
+              className={`${panelSoft} p-5 flex flex-col gap-3 group hover:border-blue-200 transition-colors relative animate-in slide-in-from-bottom-2 duration-300`}
             >
               {/* Row 1: Name Input & Dropdown */}
               <div className="flex justify-between items-start relative">
