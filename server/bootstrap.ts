@@ -5,15 +5,11 @@ import { waitForDb } from './db/waitForDb';
 import { seedIfEnabled } from './db/seed';
 import { startupCleanupIfEnabled } from './db/startupCleanup';
 
-function isInitDbRequested() {
-  const raw = String(process.env.INIT_DB || '').toLowerCase();
-  return raw === '1' || raw === 'true' || raw === 'yes';
-}
-
 async function bootstrap() {
   await waitForDb(pool);
-  if (isInitDbRequested()) {
-    console.warn('[bootstrap] INIT_DB is deprecated; migrations only. Skipping initDB().');
+  const initDbFlag = String(process.env.INIT_DB || '').toLowerCase();
+  if (initDbFlag === '1' || initDbFlag === 'true' || initDbFlag === 'yes') {
+    throw new Error('[bootstrap] INIT_DB is no longer supported; migrations are the only schema source.');
   }
   await runMigrations(pool);
   await startupCleanupIfEnabled(pool); // ✅ 默认不跑（STARTUP_CLEANUP=true 才跑）

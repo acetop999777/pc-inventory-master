@@ -168,7 +168,7 @@
 
 实际执行的是：
 - `docker-compose.yml` + `docker-compose.dev.yml` 叠加
-- 后端使用 `node --watch index.js`
+- 后端使用 `node --watch index.js`（dev compose 仍是旧写法，后续建议改为直接跑 TS）
 - 前端使用 Vite dev server
 
 端口：
@@ -209,7 +209,7 @@ docker compose up -d --build
 - `SEED`（是否注入演示数据）
 - `STARTUP_CLEANUP`（是否在启动时做一次性清理，默认不建议开启）
 
-后端连接数据库时的默认值定义在：`server/index.js`
+后端连接数据库时的默认值定义在：`server/bootstrap.ts`
 
 ---
 
@@ -297,19 +297,18 @@ SKU 规则对应迁移：`server/db/migrations/002_schema_align_indexes_constrai
 
 ### 6.1 后端启动流程（非常关键）
 
-启动主流程在：`server/index.js`
+启动主流程在：`server/index.ts`（内部调用 `bootstrap.ts`）
 
 顺序大致是：
 1. `waitForDb()`：等待数据库可连接
-2. `initDB()`：基线建表（兜底）
-3. `runMigrations(pool)`：执行迁移（schema 来源）
-4. `startupCleanupIfEnabled()`：可选清理
-5. `seedIfEnabled()`：可选种子数据
-6. `app.listen(PORT)`：启动服务
+2. `runMigrations(pool)`：执行迁移（schema 唯一来源）
+3. `startupCleanupIfEnabled()`：可选清理
+4. `seedIfEnabled()`：可选种子数据
+5. `app.listen(PORT)`：启动服务
 
 非常重要的现实情况：
-- 当前系统同时存在 `initDB()` 与 migrations。
-- 真实的 schema 演进应以 `server/db/migrations/*.sql` 为准。
+- `INIT_DB` 已禁用，任何 schema 变更只能通过 migrations。
+- 启动时如果设置了 `INIT_DB=true` 会直接失败，以避免“兜底建表”导致的环境分叉。
 
 ### 6.2 后端分层方式（建议的阅读模型）
 
@@ -319,15 +318,15 @@ SKU 规则对应迁移：`server/db/migrations/002_schema_align_indexes_constrai
 - 仓储层：SQL 细节与表操作
 
 对应目录：
-- 路由：`server/index.js`
-- 服务：`server/services/*.js`
-- 仓储：`server/repositories/*.js`
+- 路由：`server/routes/*`
+- 服务：`server/services/*.ts`
+- 仓储：`server/repositories/*.ts`
 
 ### 6.3 写入链路的标准姿势（强烈建议复用）
 
 在库存与入库单中，写入遵循统一套路：
 1. 校验输入（缺 operationId 直接报错）
-2. 开启事务：`withTransaction()`（`server/db/tx.js`）
+2. 开启事务：`withTransaction()`（`server/db/tx.ts`）
 3. 调用 `idempotencyRepo.beginOperation()`
 4. 读取并加锁：`SELECT ... FOR UPDATE`
 5. 计算变更（数量 / 成本 / 台账）
@@ -337,8 +336,8 @@ SKU 规则对应迁移：`server/db/migrations/002_schema_align_indexes_constrai
 9. `idempotencyRepo.markDone()`
 
 你可以直接参考：
-- 库存批量：`server/services/inventoryService.js`
-- 入库单创建/编辑：`server/services/inboundReceiptService.js`
+- 库存批量：`server/services/inventoryService.ts`
+- 入库单创建/编辑：`server/services/inboundReceiptService.ts`
 
 ### 6.4 统一错误契约（前后端对齐的关键）
 
@@ -557,7 +556,7 @@ Write-behind 封装位置：`client/src/app/writeBehind/*`
 3. 加入 operationId 校验
 4. 接入 `idempotencyRepo.beginOperation()` / `markDone()`
 5. 需要时写 movement / audit log
-6. 最后在 `server/index.js` 挂路由
+6. 最后在 `server/app.ts` 挂路由
 
 参考范例：
 - `server/services/inventoryService.js`
@@ -578,14 +577,14 @@ Write-behind 封装位置：`client/src/app/writeBehind/*`
 
 ### 10.3 新增或修改数据库结构（唯一推荐方式）
 
-不要只改 `initDB()`。
+不要引入任何 “initDB 兜底建表”。
 
 正确做法：
 1. 在 `server/db/migrations/` 新增一个 `.sql` 迁移文件
 2. 保持“可重复执行（idempotent）”
 3. 通过 Docker 启动让 `runMigrations()` 自动执行
 
-迁移执行器位置：`server/db/migrate.js`
+迁移执行器位置：`server/db/migrate.ts`
 
 ### 10.4 如何快速判断“写入为什么没成功”
 
@@ -639,18 +638,14 @@ npm run verify
 
 这些不是“理论”，而是“踩坑总结”。
 
-### 12.1 initDB 与 migrations 同时存在
+### 12.1 Schema 唯一来源：migrations
 
 现状：
-- `server/index.js` 里有 `initDB()`
-- 同时也有 `runMigrations()`
-
-建议理解方式：
-- migrations 才是 schema 的真实来源
-- `initDB()` 更像兜底与历史兼容
+- 运行路径 100% 依赖 `runMigrations()`。
+- `INIT_DB` 已被禁用，避免任何“兜底建表”导致环境漂移。
 
 因此：
-- 涉及结构演进时，请优先写迁移 SQL：`server/db/migrations/*.sql`
+- 涉及结构演进时，只能写迁移 SQL：`server/db/migrations/*.sql`
 
 ### 12.2 operationId 不是可选项（对关键写入）
 
