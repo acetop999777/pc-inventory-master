@@ -4,6 +4,7 @@ import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { CompactInput } from '../../../../shared/ui/CompactInput';
 import { Button } from '../../../../shared/ui/Button';
+import { panelSoftMd } from '../../../../shared/ui/panel';
 
 type Props = {
   data: ClientEntity;
@@ -24,7 +25,7 @@ export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, st
   const currentIndex = Math.max(0, options.indexOf(data.status || options[0]));
 
   return (
-    <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100">
+    <div className={`${panelSoftMd} p-4 md:p-6`}>
       <h3 className="font-black uppercase text-xs mb-6 text-slate-400 tracking-widest flex items-center gap-2">
         <Calendar size={14} />
         Workflow Status

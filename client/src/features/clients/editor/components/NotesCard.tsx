@@ -3,6 +3,7 @@ import { FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { Button } from '../../../../shared/ui/Button';
+import { panelMd } from '../../../../shared/ui/panel';
 
 interface Props {
   data: ClientEntity;
@@ -11,7 +12,7 @@ interface Props {
 
 export const NotesCard: React.FC<Props> = ({ data, update }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl md:rounded-[2rem] p-4 md:p-6 shadow-sm">
+    <div className={`${panelMd} p-4 md:p-6`}>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
           <FileText size={14} className="text-slate-400" /> Notes

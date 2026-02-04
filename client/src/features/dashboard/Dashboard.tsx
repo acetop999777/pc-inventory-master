@@ -3,6 +3,7 @@ import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { formatMoney } from '../../shared/lib/format';
 import { FinancialCard } from '../../shared/ui/FinancialCard';
+import { panelDashedXl } from '../../shared/ui/panel';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -70,7 +71,7 @@ export default function Dashboard() {
       </div>
 
       {/* 这里以后可以放图表 */}
-      <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center text-slate-300 font-bold border-dashed h-96 flex items-center justify-center uppercase tracking-widest">
+      <div className={`bg-white border-slate-200 ${panelDashedXl} p-10 text-center text-slate-300 font-bold h-96 flex items-center justify-center uppercase tracking-widest`}>
         Analytics Chart Module (Coming Soon)
       </div>
     </div>

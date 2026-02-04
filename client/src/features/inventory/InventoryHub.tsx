@@ -9,6 +9,7 @@ import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
 import { Button } from '../../shared/ui/Button';
+import { panelDashed } from '../../shared/ui/panel';
 
 type InlineEditorProps = {
   value: any;
@@ -223,7 +224,7 @@ export default function InventoryHub() {
   const Chart = () => {
     if (chartMoves.length === 0) {
       return (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-xs font-bold uppercase tracking-widest text-slate-400">
+        <div className={`bg-white border-slate-200 ${panelDashed} p-6 text-center text-xs font-bold uppercase tracking-widest text-slate-400`}>
           No history yet
         </div>
       );
@@ -541,7 +542,7 @@ export default function InventoryHub() {
             ))}
 
             {filtered.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">
+              <div className={`bg-white border-slate-200 ${panelDashed} p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400`}>
                 No inventory items found
               </div>
             )}
@@ -735,7 +736,7 @@ export default function InventoryHub() {
             </div>
 
             {logLoading ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400">
+              <div className={`bg-white border-slate-200 ${panelDashed} p-8 text-center text-xs font-bold uppercase tracking-widest text-slate-400`}>
                 Loading history...
               </div>
             ) : logError ? (

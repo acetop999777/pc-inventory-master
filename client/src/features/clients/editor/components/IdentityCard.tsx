@@ -4,6 +4,7 @@ import { ClientEntity } from '../../../../domain/client/client.types';
 import type { UpdateClientField } from '../../types';
 import { CompactInput } from '../../../../shared/ui/CompactInput';
 import { Button } from '../../../../shared/ui/Button';
+import { panelSoftMd } from '../../../../shared/ui/panel';
 
 interface Props {
   data: ClientEntity;
@@ -14,7 +15,7 @@ interface Props {
 
 export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onPhotoRemove }) => {
   return (
-    <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100 relative overflow-hidden">
+    <div className={`${panelSoftMd} p-4 md:p-6 relative overflow-hidden`}>
       <div className="mb-6">
         {/* 只有用户名，没有箭头了 */}
         <div className="flex items-center gap-2 mb-4">
