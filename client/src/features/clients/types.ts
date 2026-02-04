@@ -37,7 +37,9 @@ export interface ClientsListPageProps extends ClientsListPageExtraProps {
  * ClientHub is a presentation module that typically wraps the list UI.
  * Keep it separate because some routes import ClientHub directly.
  */
-export interface ClientHubProps extends ClientsListPageProps {}
+export interface ClientHubProps extends ClientsListPageProps {
+  onArchiveClient?: (id: string, name: string) => void;
+}
 
 /**
  * Row props across list implementations.
@@ -46,13 +48,13 @@ export interface ClientHubProps extends ClientsListPageProps {}
 export interface ClientRowProps {
   client: ClientEntity;
 
-  financials?: ClientFinancials | null;
-
+  archived?: boolean;
   active?: boolean;
   isActive?: boolean;
 
   onSelect?: () => void;
   onDelete?: (e: React.MouseEvent) => void;
+  onArchive?: (e: React.MouseEvent) => void;
 }
 
 export interface ClientDetailPageProps {
@@ -73,4 +75,30 @@ export interface ClientDetailPageProps {
   onRetry?: () => void;
   onUpdateField: UpdateClientField;
   onBack?: () => void;
+}
+
+export interface ClientEditorCardProps {
+  data: ClientEntity;
+  update: UpdateClientField;
+}
+
+export interface ClientIdentityCardProps extends ClientEditorCardProps {
+  onPhotoUpload: () => void;
+  onPhotoRemove: (idx: number) => void;
+}
+
+export interface ClientLogisticsCardProps extends ClientEditorCardProps {
+  statusOptions?: StatusSteps;
+  statusSteps?: StatusSteps;
+}
+
+export interface ClientFinancialsCardProps extends ClientEditorCardProps {
+  financials: ClientFinancials;
+}
+
+export interface ClientNotesCardProps extends ClientEditorCardProps {}
+
+export interface ClientSpecsTableProps extends ClientEditorCardProps {
+  inventory: InventoryItem[];
+  onCalculate?: () => void;
 }

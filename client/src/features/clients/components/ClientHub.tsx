@@ -5,19 +5,7 @@ import { ClientEntity } from '../../../domain/client';
 import { calculateFinancials } from '../../../domain/client';
 import { formatMoney } from '../../../shared/lib/format';
 import { Button } from '../../../shared/ui';
-
-interface Props {
-  clients: ClientEntity[];
-  onSelectClient: (client: ClientEntity) => void;
-  onNewClient: () => void;
-  onDeleteClient: (id: string, name: string) => void;
-
-  /**
-   * Optional: if you wire this later, rows will show an Archive icon on hover
-   * (e.g. "mark delivered" / "move to archived").
-   */
-  onArchiveClient?: (id: string, name: string) => void;
-}
+import type { ClientHubProps } from '../types';
 
 const UI_TAG = 'UI_TAG: CLIENTHUB_V6_20260119';
 const LS_KEY = 'pcinv.clients.archivedOpen.v2';
@@ -129,7 +117,28 @@ export default function ClientHub({
   onNewClient,
   onDeleteClient,
   onArchiveClient,
-}: Props) {
+}: ClientHubProps) {
+  const handleSelect = React.useCallback(
+    (client: ClientEntity) => {
+      onSelectClient?.(client);
+    },
+    [onSelectClient],
+  );
+  const handleNew = React.useCallback(() => {
+    onNewClient?.();
+  }, [onNewClient]);
+  const handleDelete = React.useCallback(
+    (id: string, name: string) => {
+      onDeleteClient?.(id, name);
+    },
+    [onDeleteClient],
+  );
+  const handleArchive = React.useCallback(
+    (id: string, name: string) => {
+      onArchiveClient?.(id, name);
+    },
+    [onArchiveClient],
+  );
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [dateFrom, setDateFrom] = useState('');
@@ -289,7 +298,7 @@ export default function ClientHub({
           if (topMatch) {
             e.preventDefault();
             rememberActive(String(topMatch.id));
-            onSelectClient(topMatch);
+            handleSelect(topMatch);
           }
         }
         if (e.key === 'Escape') {
@@ -313,7 +322,7 @@ export default function ClientHub({
       if (e.key.toLowerCase() === 'n') {
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         e.preventDefault();
-        onNewClient();
+        handleNew();
         return;
       }
 
@@ -332,7 +341,7 @@ export default function ClientHub({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [archivedOpen, onNewClient, onSelectClient, search, topMatch]);
+  }, [archivedOpen, handleNew, handleSelect, search, topMatch]);
 
   // render archived content when opening; when closing keep for animation then unmount
   useLayoutEffect(() => {
@@ -544,7 +553,7 @@ export default function ClientHub({
           </div>
 
           <Button
-            onClick={onNewClient}
+            onClick={handleNew}
             variant="ghost"
             size="xs"
             className="mt-4 w-full rounded-2xl bg-white text-slate-900 py-2.5 text-[11px] font-black uppercase tracking-widest shadow-lg"
@@ -776,7 +785,7 @@ export default function ClientHub({
             </div>
           </div>
           <Button
-            onClick={onNewClient}
+            onClick={handleNew}
             variant="ghost"
             size="xs"
             className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-lg hover:shadow-xl active:scale-[0.99] transition"
@@ -800,17 +809,17 @@ export default function ClientHub({
             active={String(c.id) === String(activeRowId)}
             onSelect={() => {
               rememberActive(String(c.id));
-              onSelectClient(c);
+              handleSelect(c);
             }}
             onDelete={(e) => {
               e.stopPropagation();
-              onDeleteClient(c.id, c.wechatName);
+              handleDelete(c.id, c.wechatName);
             }}
             onArchive={
               onArchiveClient
                 ? (e) => {
                     e.stopPropagation();
-                    onArchiveClient(c.id, c.wechatName);
+                    handleArchive(c.id, c.wechatName);
                   }
                 : undefined
             }
@@ -847,11 +856,11 @@ export default function ClientHub({
                     active={String(c.id) === String(activeRowId)}
                     onSelect={() => {
                       rememberActive(String(c.id));
-                      onSelectClient(c);
+                      handleSelect(c);
                     }}
                     onDelete={(e) => {
                       e.stopPropagation();
-                      onDeleteClient(c.id, c.wechatName);
+                      handleDelete(c.id, c.wechatName);
                     }}
                     // archived rows usually won't show archive action unless you wire something
                     onArchive={undefined}

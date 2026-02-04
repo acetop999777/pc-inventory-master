@@ -1,18 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Cpu, ExternalLink, Copy, Check, X } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client';
-import type { UpdateClientField } from '../../types';
+import type { ClientSpecs } from '../../../../domain/client';
+import type { ClientSpecsTableProps } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
 import { parsePcppText } from '../pcpp';
 import { Button } from '../../../../shared/ui';
-
-interface Props {
-  data: ClientEntity;
-  inventory: InventoryItem[];
-  update: UpdateClientField;
-  onCalculate?: () => void;
-}
 
 type SpecRow = {
   name?: string;
@@ -23,7 +16,6 @@ type SpecRow = {
 };
 
 const SHIPPING_KEY = 'SHIPPING';
-type ClientSpecs = ClientEntity['specs'];
 type ClientSpecRow = ClientSpecs[string];
 
 function upsUrlFromText(text: string): string | null {
@@ -43,7 +35,12 @@ function upsUrlFromText(text: string): string | null {
   return null;
 }
 
-export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalculate }) => {
+export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
+  data,
+  inventory,
+  update,
+  onCalculate,
+}) => {
   const [activeDrop, setActiveDrop] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 

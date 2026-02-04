@@ -1,15 +1,9 @@
 import React from 'react';
 import { FileText, ChevronUp, ChevronDown } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client';
-import type { UpdateClientField } from '../../types';
+import type { ClientNotesCardProps } from '../../types';
 import { Button, panelMd } from '../../../../shared/ui';
 
-interface Props {
-  data: ClientEntity;
-  update: UpdateClientField;
-}
-
-export const NotesCard: React.FC<Props> = ({ data, update }) => {
+export const NotesCard: React.FC<ClientNotesCardProps> = ({ data, update }) => {
   return (
     <div className={`${panelMd} p-4 md:p-6`}>
       <div className="flex justify-between items-center mb-4">

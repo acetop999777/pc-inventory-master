@@ -1,24 +1,19 @@
 import React from 'react';
 import { Calendar, Truck } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client';
-import type { UpdateClientField } from '../../types';
+import type { ClientLogisticsCardProps } from '../../types';
 import { CompactInput, Button, panelSoftMd } from '../../../../shared/ui';
-
-type Props = {
-  data: ClientEntity;
-  update: UpdateClientField;
-
-  // accept both names to avoid future prop-drift
-  statusOptions?: readonly string[];
-  statusSteps?: readonly string[];
-};
 
 function normalizeOptions(statusOptions?: readonly string[], statusSteps?: readonly string[]) {
   const opts = (statusOptions ?? statusSteps ?? []) as readonly string[];
   return opts.length ? opts : (['Pending', 'In Progress', 'Ready', 'Delivered'] as const);
 }
 
-export const LogisticsCard: React.FC<Props> = ({ data, update, statusOptions, statusSteps }) => {
+export const LogisticsCard: React.FC<ClientLogisticsCardProps> = ({
+  data,
+  update,
+  statusOptions,
+  statusSteps,
+}) => {
   const options = normalizeOptions(statusOptions, statusSteps);
   const currentIndex = Math.max(0, options.indexOf(data.status || options[0]));
 

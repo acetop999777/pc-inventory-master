@@ -1,18 +1,9 @@
 import React from 'react';
 import { Trash2, Archive } from 'lucide-react';
-import type { ClientEntity } from '../../../domain/client';
+import type { ClientRowProps } from '../types';
 import { calculateFinancials } from '../../../domain/client';
 import { formatDateShort, formatDateYMD, formatMoney } from '../../../shared/lib/format';
 import { Button } from '../../../shared/ui';
-
-type Props = {
-  client: ClientEntity;
-  archived?: boolean;
-  active?: boolean;
-  onSelect?: () => void;
-  onDelete?: (e: React.MouseEvent) => void;
-  onArchive?: (e: React.MouseEvent) => void; // optional
-};
 
 function norm(v: unknown) {
   return String(v ?? '').trim().toLowerCase();
@@ -45,7 +36,7 @@ function StatusPill({ status }: { status?: string }) {
   );
 }
 
-function computeTotals(client: ClientEntity) {
+function computeTotals(client: ClientRowProps['client']) {
   const fin = calculateFinancials(client);
 
   const due = Number(fin.balanceDue ?? 0);
@@ -63,7 +54,7 @@ function computeTotals(client: ClientEntity) {
   return { total, due, profit };
 }
 
-export const ClientRow: React.FC<Props> = ({
+export const ClientRow: React.FC<ClientRowProps> = ({
   client,
   archived,
   active,

@@ -1,17 +1,14 @@
 import React from 'react';
 import { Camera, X } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client';
-import type { UpdateClientField } from '../../types';
+import type { ClientIdentityCardProps } from '../../types';
 import { CompactInput, Button, panelSoftMd } from '../../../../shared/ui';
 
-interface Props {
-  data: ClientEntity;
-  update: UpdateClientField;
-  onPhotoUpload: () => void;
-  onPhotoRemove: (idx: number) => void;
-}
-
-export const IdentityCard: React.FC<Props> = ({ data, update, onPhotoUpload, onPhotoRemove }) => {
+export const IdentityCard: React.FC<ClientIdentityCardProps> = ({
+  data,
+  update,
+  onPhotoUpload,
+  onPhotoRemove,
+}) => {
   return (
     <div className={`${panelSoftMd} p-4 md:p-6 relative overflow-hidden`}>
       <div className="mb-6">

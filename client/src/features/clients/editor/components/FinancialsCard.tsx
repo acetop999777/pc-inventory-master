@@ -1,15 +1,8 @@
 import React from 'react';
 import { DollarSign, Wallet, HandCoins } from 'lucide-react';
-import { ClientEntity, ClientFinancials } from '../../../../domain/client';
-import type { UpdateClientField } from '../../types';
+import type { ClientFinancialsCardProps } from '../../types';
 import { FinancialCard } from '../../../../shared/ui';
 import { formatMoney } from '../../../../shared/lib/format';
-
-interface Props {
-  data: ClientEntity;
-  financials: ClientFinancials;
-  update: UpdateClientField;
-}
 
 function parseMoney(raw: string, fallback: number): number {
   const s = String(raw ?? '').trim();
@@ -20,7 +13,11 @@ function parseMoney(raw: string, fallback: number): number {
   return Math.max(0, n);
 }
 
-export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) => {
+export const FinancialsCard: React.FC<ClientFinancialsCardProps> = ({
+  data,
+  financials,
+  update,
+}) => {
   const [totalText, setTotalText] = React.useState<string>(
     data.totalPrice == null ? '' : String(data.totalPrice),
   );
