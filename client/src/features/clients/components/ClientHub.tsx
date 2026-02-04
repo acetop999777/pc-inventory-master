@@ -4,7 +4,7 @@ import { ClientRow } from './ClientRow';
 import { ClientEntity } from '../../../domain/client';
 import { calculateFinancials } from '../../../domain/client';
 import { formatMoney } from '../../../shared/lib/format';
-import { Button, Select } from '../../../shared/ui';
+import { Button, Input, Select } from '../../../shared/ui';
 import type { ClientHubProps } from '../types';
 
 const UI_TAG = 'UI_TAG: CLIENTHUB_V6_20260119';
@@ -550,9 +550,11 @@ export default function ClientHub({
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:rounded-2xl md:border md:border-slate-200 md:bg-slate-50 md:px-4 md:py-3">
         <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center md:gap-3">
           <div className="relative w-full md:w-72">
-            <input
+            <Input
               ref={searchRef}
-              className="w-full rounded-2xl md:rounded-full border border-slate-200 bg-white px-4 py-2 pr-9 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+              size="sm"
+              variant="soft"
+              className="rounded-2xl md:rounded-full pr-9 text-sm font-semibold text-slate-700 placeholder:text-slate-400"
               placeholder="Search clients..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -574,8 +576,9 @@ export default function ClientHub({
               <Select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                selectSize="sm"
-                className="border-0 bg-transparent px-0 py-0 text-[13px] font-semibold text-slate-700 focus-visible:ring-0"
+                size="sm"
+                variant="ghost"
+                className="px-0 py-0 text-[13px] font-semibold text-slate-700 focus-visible:ring-0"
                 wrapperClassName="min-w-[120px]"
                 aria-label="Status filter"
               >

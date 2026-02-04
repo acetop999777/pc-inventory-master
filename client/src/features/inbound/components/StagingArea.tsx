@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { StagedItem } from '../../../domain/inventory/inbound.logic';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import { ALL_CATS } from '../../../domain/inventory/inventory.utils';
-import { Button, Select, panelSoft, panelXl } from '../../../shared/ui';
+import { Button, Input, Select, panelSoft, panelXl } from '../../../shared/ui';
 
 interface Props {
   batch: StagedItem[];
@@ -87,8 +87,10 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
               {/* Row 1: Name Input & Dropdown */}
               <div className="flex justify-between items-start relative">
                 <div className="w-full relative">
-                  <input
-                    className="font-bold text-sm w-full bg-transparent outline-none text-slate-800 placeholder:text-slate-300"
+                  <Input
+                    size="sm"
+                    variant="ghost"
+                    className="font-bold text-sm bg-transparent px-0 text-slate-800 placeholder:text-slate-300"
                     value={item.name}
                     onChange={(e) => updateItem(i, 'name', e.target.value)}
                     onClick={(e) => {
@@ -141,8 +143,9 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
                 )}
 
                 <Select
-                  selectSize="sm"
-                  className="text-[10px] font-bold bg-slate-50 text-slate-500 rounded-lg px-2 py-1 uppercase cursor-pointer hover:bg-slate-100 transition-colors"
+                  size="sm"
+                  variant="soft"
+                  className="text-[10px] font-bold text-slate-500 rounded-lg px-2 uppercase cursor-pointer hover:bg-slate-100 transition-colors"
                   value={item.category}
                   onChange={(e) => updateItem(i, 'category', e.target.value)}
                 >
@@ -158,9 +161,11 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
               <div className="grid grid-cols-2 gap-4 mt-1">
                 <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-between px-3 border border-transparent focus-within:border-blue-200 transition-colors">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Qty</span>
-                  <input
+                  <Input
                     type="number"
-                    className="bg-transparent text-right font-black text-sm w-12 outline-none"
+                    size="sm"
+                    variant="ghost"
+                    className="bg-transparent px-0 text-right font-black text-sm w-12"
                     value={item.qtyInput}
                     onChange={(e) => updateItem(i, 'qtyInput', parseInt(e.target.value) || 0)}
                   />
@@ -169,9 +174,11 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Cost</span>
                   <div className="flex items-center">
                     <span className="text-xs font-bold text-emerald-600 mr-0.5">$</span>
-                    <input
+                    <Input
                       type="number"
-                      className="bg-transparent text-right font-black text-sm w-20 outline-none text-emerald-600"
+                      size="sm"
+                      variant="ghost"
+                      className="bg-transparent px-0 text-right font-black text-sm w-20 text-emerald-600"
                       value={item.costInput}
                       onChange={(e) => updateItem(i, 'costInput', parseFloat(e.target.value) || 0)}
                     />
@@ -181,8 +188,10 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
 
               {/* Row 4: SKU */}
               <div className="flex justify-between items-center">
-                <input
-                  className="text-[10px] font-mono text-slate-400 bg-transparent outline-none w-full placeholder:text-slate-200"
+                <Input
+                  size="sm"
+                  variant="ghost"
+                  className="text-[10px] font-mono text-slate-400 bg-transparent px-0 placeholder:text-slate-200"
                   placeholder="SKU / UPC Code"
                   value={item.sku}
                   onChange={(e) => updateItem(i, 'sku', e.target.value)}

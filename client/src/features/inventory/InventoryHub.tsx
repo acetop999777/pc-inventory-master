@@ -8,7 +8,7 @@ import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBeh
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
-import { Button, Select, panelDashed } from '../../shared/ui';
+import { Button, Input, Select, panelDashed, useToast } from '../../shared/ui';
 
 type InlineEditorProps<T extends string | number> = {
   value: T | null | undefined;
@@ -101,6 +101,7 @@ export default function InventoryHub() {
   const { update, remove } = useInventoryWriteBehind();
   const confirmDialog = useConfirm();
   const alert = useAlert();
+  const toast = useToast();
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState('ALL');
 
@@ -350,6 +351,11 @@ export default function InventoryHub() {
         onApply={(payload) => {
           if (!modalItem) return;
           updateItem(modalItem, payload);
+          toast({
+            title: 'Inventory',
+            message: `${modalItem.name} updated.`,
+            tone: 'success',
+          });
         }}
       />
 
@@ -407,8 +413,10 @@ export default function InventoryHub() {
           <div className="mt-4">
             <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <Search size={16} className="text-slate-400" />
-              <input
-                className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
+              <Input
+                variant="ghost"
+                size="sm"
+                className="bg-transparent px-0"
                 placeholder="Search components..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -434,8 +442,9 @@ export default function InventoryHub() {
                     </div>
                     <div className="shrink-0">
                       <Select
-                        selectSize="sm"
-                        className="rounded-full border border-slate-200 bg-slate-100 text-[10px] font-black uppercase text-slate-600"
+                        size="sm"
+                        variant="soft"
+                        className="rounded-full text-[10px] font-black uppercase text-slate-600"
                         value={i.category}
                         onChange={(e) => updateItem(i, { category: e.target.value })}
                       >
@@ -593,8 +602,10 @@ export default function InventoryHub() {
           <div className="flex gap-4 items-center">
             <div className="flex-1 bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-2 shadow-sm">
               <Search size={16} className="ml-2 text-slate-400" />
-              <input
-                className="w-full text-xs font-bold outline-none"
+              <Input
+                variant="ghost"
+                size="sm"
+                className="bg-transparent px-0 text-xs font-bold"
                 placeholder="Search components..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -624,8 +635,9 @@ export default function InventoryHub() {
 
               <div className="col-span-2">
                 <Select
-                  selectSize="sm"
-                  className="rounded text-[10px] font-bold uppercase px-2 text-slate-500 bg-slate-100"
+                  size="sm"
+                  variant="soft"
+                  className="rounded text-[10px] font-bold uppercase px-2 text-slate-500"
                   value={i.category}
                   onChange={(e) => updateItem(i, { category: e.target.value })}
                 >

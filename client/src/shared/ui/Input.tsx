@@ -1,9 +1,11 @@
 import React from 'react';
 
 type InputSize = 'sm' | 'md' | 'lg';
+type InputVariant = 'default' | 'soft' | 'ghost';
 
-type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
-  inputSize?: InputSize;
+type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> & {
+  size?: InputSize;
+  variant?: InputVariant;
 };
 
 const base =
@@ -15,15 +17,26 @@ const sizes: Record<InputSize, string> = {
   lg: 'h-12 px-4 text-[15px]',
 };
 
+const variants: Record<InputVariant, string> = {
+  default: '',
+  soft: 'bg-slate-50 border-slate-200 text-slate-700 placeholder:text-slate-400',
+  ghost: 'bg-transparent border-transparent text-slate-700 placeholder:text-slate-400',
+};
+
 function cx(...parts: Array<string | undefined>) {
   return parts.filter(Boolean).join(' ');
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
-  { className, inputSize = 'md', type = 'text', ...props },
+  { className, size = 'md', variant = 'default', type = 'text', ...props },
   ref,
 ) {
   return (
-    <input ref={ref} type={type} className={cx(base, sizes[inputSize], className)} {...props} />
+    <input
+      ref={ref}
+      type={type}
+      className={cx(base, sizes[size], variants[variant], className)}
+      {...props}
+    />
   );
 });

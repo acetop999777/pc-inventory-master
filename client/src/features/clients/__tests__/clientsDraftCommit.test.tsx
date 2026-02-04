@@ -1,8 +1,9 @@
 import React, { act } from 'react';
+import { vi } from 'vitest';
 import type { ClientEntity } from '../../../domain/client';
 import { createRoot } from 'react-dom/client';
 import { ConfirmProvider } from '../../../app/confirm/ConfirmProvider';
-const { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } = require('../ClientsRoutes');
+import { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } from '../ClientsRoutes';
 
 /* eslint-disable testing-library/no-unnecessary-act */
 
@@ -24,53 +25,53 @@ const requireDetailProps = (): MockDetailProps => {
   return mockLastDetailProps;
 };
 
-const mockNavigate = jest.fn();
-const mockUpdateClient = jest.fn();
+const mockNavigate = vi.fn();
+const mockUpdateClient = vi.fn();
 
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
   useParams: () => ({ id: 'draft1' }),
 }));
 
-jest.mock('../../../shared/lib/id', () => ({
+vi.mock('../../../shared/lib/id', () => ({
   generateId: () => 'draft1',
 }));
 
-jest.mock('../../../app/queries/clients', () => ({
+vi.mock('../../../app/queries/clients', () => ({
   useClientsQuery: () => ({ data: mockClientsData }),
 }));
 
-jest.mock('../../../app/queries/inventory', () => ({
+vi.mock('../../../app/queries/inventory', () => ({
   useInventoryQuery: () => ({ data: [] }),
 }));
 
-jest.mock('../../../app/writeBehind/clientWriteBehind', () => ({
+vi.mock('../../../app/writeBehind/clientWriteBehind', () => ({
   useClientWriteBehind: () => ({
     update: mockUpdateClient,
-    remove: jest.fn(),
+    remove: vi.fn(),
   }),
 }));
 
 const mockQueue = {
-  flushKey: jest.fn(async () => undefined),
+  flushKey: vi.fn(async () => undefined),
   getSnapshot: () => ({ keys: [] as Array<unknown> }),
 };
 
-jest.mock('../../../app/saveQueue/SaveQueueProvider', () => ({
+vi.mock('../../../app/saveQueue/SaveQueueProvider', () => ({
   useSaveQueue: () => ({ queue: mockQueue, snapshot: { keys: [] as Array<unknown> } }),
 }));
 
 const mockGuard = {
-  setGuard: jest.fn(),
+  setGuard: vi.fn(),
   run: <T,>(fn: () => T) => fn(),
 };
 
-jest.mock('../../../app/navigation/NavigationGuard', () => ({
+vi.mock('../../../app/navigation/NavigationGuard', () => ({
   useNavigationGuard: () => mockGuard,
 }));
 
-jest.mock('../ClientDetailPage', () => {
-  const React = require('react');
+vi.mock('../ClientDetailPage', async () => {
+  const React = await import('react');
   return {
     ClientDetailPage: (props: MockDetailProps) => {
       mockLastDetailProps = props;
@@ -79,8 +80,8 @@ jest.mock('../ClientDetailPage', () => {
   };
 });
 
-jest.mock('../ClientsListPage', () => {
-  const React = require('react');
+vi.mock('../ClientsListPage', async () => {
+  const React = await import('react');
   return {
     ClientsListPage: (props: { onNewClient: () => void }) => {
       const { onNewClient } = props;

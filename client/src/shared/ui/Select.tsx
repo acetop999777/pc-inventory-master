@@ -1,9 +1,11 @@
 import React from 'react';
 
 type SelectSize = 'sm' | 'md' | 'lg';
+type SelectVariant = 'default' | 'soft' | 'ghost';
 
-type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
-  selectSize?: SelectSize;
+type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
+  size?: SelectSize;
+  variant?: SelectVariant;
   wrapperClassName?: string;
 };
 
@@ -16,17 +18,27 @@ const sizes: Record<SelectSize, string> = {
   lg: 'h-12 px-4 text-[15px]',
 };
 
+const variants: Record<SelectVariant, string> = {
+  default: '',
+  soft: 'bg-slate-50 border-slate-200 text-slate-700',
+  ghost: 'bg-transparent border-transparent text-slate-700',
+};
+
 function cx(...parts: Array<string | undefined>) {
   return parts.filter(Boolean).join(' ');
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { className, wrapperClassName, selectSize = 'md', children, ...props },
+  { className, wrapperClassName, size = 'md', variant = 'default', children, ...props },
   ref,
 ) {
   return (
     <div className={cx('relative', wrapperClassName)}>
-      <select ref={ref} className={cx(base, sizes[selectSize], className)} {...props}>
+      <select
+        ref={ref}
+        className={cx(base, sizes[size], variants[variant], className)}
+        {...props}
+      >
         {children}
       </select>
       <svg

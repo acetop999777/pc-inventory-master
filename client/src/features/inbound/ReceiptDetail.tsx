@@ -7,7 +7,7 @@ import { api } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, panel, panelDashed } from '../../shared/ui';
+import { Button, Input, Select, panel, panelDashed } from '../../shared/ui';
 
 export default function ReceiptDetail() {
   const nav = useNavigate();
@@ -188,19 +188,21 @@ export default function ReceiptDetail() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Received At</div>
-          <input
+          <Input
             type="datetime-local"
             value={receivedAt}
             onChange={(e) => setReceivedAt(e.target.value)}
-            className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+            size="sm"
+            className="mt-2 text-xs font-bold text-slate-700"
           />
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor</div>
-          <input
+          <Input
             value={vendor}
             onChange={(e) => setVendor(e.target.value)}
-            className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+            size="sm"
+            className="mt-2 text-xs font-bold text-slate-700"
             placeholder="-"
           />
         </div>
@@ -209,8 +211,9 @@ export default function ReceiptDetail() {
           <Select
             value={mode}
             onChange={(e) => setMode(e.target.value)}
-            selectSize="sm"
-            className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 uppercase"
+            size="sm"
+            variant="soft"
+            className="w-full text-xs font-bold text-slate-700 uppercase"
             wrapperClassName="mt-2"
           >
             {['MANUAL', 'SCAN', 'SUMMARY'].map((m) => (
@@ -222,10 +225,11 @@ export default function ReceiptDetail() {
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</div>
-          <input
+          <Input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+            size="sm"
+            className="mt-2 text-xs font-bold text-slate-700"
             placeholder="optional"
           />
         </div>
@@ -338,7 +342,7 @@ export default function ReceiptDetail() {
                 {it.displayName || it.sku || it.inventoryId}
               </div>
               <div className="col-span-2">
-                <input
+                <Input
                   value={draft?.qtyReceived ?? String(it.qtyReceived)}
                   onChange={(e) => {
                     const next = e.target.value;
@@ -348,11 +352,13 @@ export default function ReceiptDetail() {
                       ),
                     );
                   }}
-                  className="w-full text-xs font-mono text-slate-700 border border-slate-200 rounded-xl px-2 py-1"
+                  size="sm"
+                  variant="soft"
+                  className="w-full text-xs font-mono text-slate-700 px-2"
                 />
               </div>
               <div className="col-span-2">
-                <input
+                <Input
                   value={draft?.unitCost ?? String(it.unitCost)}
                   onChange={(e) => {
                     const next = e.target.value;
@@ -362,7 +368,9 @@ export default function ReceiptDetail() {
                       ),
                     );
                   }}
-                  className="w-full text-xs font-mono text-slate-700 border border-slate-200 rounded-xl px-2 py-1"
+                  size="sm"
+                  variant="soft"
+                  className="w-full text-xs font-mono text-slate-700 px-2"
                 />
               </div>
               <div className="col-span-2 text-xs font-mono text-slate-700 text-right">

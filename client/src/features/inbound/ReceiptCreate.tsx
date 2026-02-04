@@ -16,7 +16,7 @@ import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils'
 import { api } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
-import { Button, Select, panel, panelDashed } from '../../shared/ui';
+import { Button, Input, Select, panel, panelDashed, useToast } from '../../shared/ui';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 
@@ -39,6 +39,7 @@ function makeId() {
 export default function ReceiptCreate() {
   const nav = useNavigate();
   const alert = useAlert();
+  const toast = useToast();
   const { data: inventory = [] } = useInventoryQuery();
   const { update: updateInventory } = useInventoryWriteBehind();
   const { create } = useReceiptWriteBehind();
@@ -359,6 +360,7 @@ export default function ReceiptCreate() {
       items,
     });
 
+    toast({ title: 'Receipt', message: 'Receipt saved.', tone: 'success' });
     nav('/inbound/receipts');
   };
 
@@ -386,20 +388,22 @@ export default function ReceiptCreate() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ordered At</div>
-            <input
+            <Input
               type="datetime-local"
               value={receivedAt}
               onChange={(e) => setReceivedAt(e.target.value)}
-              className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+              size="sm"
+              className="mt-2 text-xs font-bold text-slate-700"
             />
           </div>
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor</div>
-            <input
+            <Input
               value={vendor}
               onChange={(e) => setVendor(e.target.value)}
               placeholder="e.g. Newegg"
-              className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+              size="sm"
+              className="mt-2 text-xs font-bold text-slate-700"
             />
           </div>
           <div>
@@ -407,8 +411,9 @@ export default function ReceiptCreate() {
             <Select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
-              selectSize="sm"
-              className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+              size="sm"
+              variant="soft"
+              className="w-full text-xs font-bold text-slate-700"
               wrapperClassName="mt-2"
             >
               {MODES.map((m) => (
@@ -420,11 +425,12 @@ export default function ReceiptCreate() {
           </div>
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</div>
-            <input
+            <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="optional"
-              className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+              size="sm"
+              className="mt-2 text-xs font-bold text-slate-700"
             />
           </div>
         </div>
@@ -572,7 +578,7 @@ export default function ReceiptCreate() {
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                   Item Name
                 </div>
-                <input
+                <Input
                   value={line.name}
                   onChange={(e) => {
                     const name = e.target.value;
@@ -585,7 +591,9 @@ export default function ReceiptCreate() {
                   }}
                   onFocus={() => setActiveSuggest(line.id)}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                  size="sm"
+                  variant="soft"
+                  className="text-xs font-bold text-slate-700"
                   placeholder="Item name..."
                 />
                 {activeSuggest === line.id && suggestions.length > 0 ? (
@@ -627,8 +635,9 @@ export default function ReceiptCreate() {
                 <Select
                   value={line.category}
                   onChange={(e) => updateLine(line.id, { category: e.target.value })}
-                  selectSize="sm"
-                  className="w-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 rounded-xl px-3 py-2"
+                  size="sm"
+                  variant="soft"
+                  className="w-full text-[10px] font-black uppercase tracking-widest text-slate-500"
                 >
                   <option value="">Select</option>
                   {ALL_CATS.map((c) => (
@@ -642,11 +651,13 @@ export default function ReceiptCreate() {
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                   SKU / UPC
                 </div>
-                <input
+                <Input
                   value={line.sku}
                   onChange={(e) => updateLine(line.id, { sku: e.target.value, inventoryId: '' })}
                   onFocus={() => setActiveSuggest(line.id)}
-                  className="w-full text-xs font-mono text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                  size="sm"
+                  variant="soft"
+                  className="text-xs font-mono text-slate-700"
                   placeholder="SKU/UPC"
                 />
               </div>
@@ -654,11 +665,13 @@ export default function ReceiptCreate() {
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                   Keyword
                 </div>
-                <input
+                <Input
                   value={line.keyword}
                   onChange={(e) => updateLine(line.id, { keyword: e.target.value, inventoryId: '' })}
                   onFocus={() => setActiveSuggest(line.id)}
-                  className="w-full text-xs font-mono text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                  size="sm"
+                  variant="soft"
+                  className="text-xs font-mono text-slate-700"
                   placeholder="Keyword"
                 />
               </div>
@@ -666,20 +679,24 @@ export default function ReceiptCreate() {
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                   Qty
                 </div>
-                <input
+                <Input
                   value={line.qty}
                   onChange={(e) => updateLine(line.id, { qty: e.target.value })}
-                  className="w-full text-xs font-mono text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                  size="sm"
+                  variant="soft"
+                  className="text-xs font-mono text-slate-700"
                 />
               </div>
               <div className="md:col-span-1">
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                   Unit Cost
                 </div>
-                <input
+                <Input
                   value={line.unitCost}
                   onChange={(e) => updateLine(line.id, { unitCost: e.target.value })}
-                  className="w-full text-xs font-mono text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                  size="sm"
+                  variant="soft"
+                  className="text-xs font-mono text-slate-700"
                 />
               </div>
               <div className="md:col-span-1 text-right text-xs font-mono text-slate-600">

@@ -158,7 +158,7 @@ export function StockAdjustModal(props: {
                 {mode === 'add' ? 'Add Quantity' : 'Remove Quantity'}
               </div>
               <Input
-                inputSize="sm"
+                size="sm"
                 className="font-bold"
                 value={qtyInput}
                 onChange={(e) => setQtyInput(e.target.value)}
@@ -172,7 +172,7 @@ export function StockAdjustModal(props: {
                 Unit Cost (this update)
               </div>
               <Input
-                inputSize="sm"
+                size="sm"
                 className="font-bold text-slate-900"
                 value={unitCostInput}
                 onChange={(e) => setUnitCostInput(e.target.value)}

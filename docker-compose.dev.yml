@@ -12,10 +12,9 @@ services:
       context: ./client
       dockerfile: Dockerfile.dev
     environment:
-      HOST: 0.0.0.0
-      PORT: "80"
-      WDS_SOCKET_PORT: "8090"
       CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "8090:5173"
     stdin_open: true
     tty: true
     volumes:
