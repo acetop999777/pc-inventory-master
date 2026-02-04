@@ -7,6 +7,7 @@ export type SaveKeyStatus = {
   inFlight: boolean;
   hasError: boolean;
   lastError?: unknown;
+  lastErrorKind?: 'retryable' | 'non-retryable' | null;
   updatedAt: number;
 };
 
@@ -50,6 +51,7 @@ type KeyState<P> = {
   retryCount: number;
   inFlight: Promise<void> | null;
   lastError: unknown;
+  lastErrorKind: 'retryable' | 'non-retryable' | null;
   updatedAt: number;
 
   waiters: Set<Deferred<void>>;
@@ -106,6 +108,34 @@ export class SaveQueue {
     return true;
   }
 
+  private classifyError(err: unknown): 'retryable' | 'non-retryable' {
+    return this.isRetryableError(err) ? 'retryable' : 'non-retryable';
+  }
+
+  private logWriteError(key: SaveKey, st: KeyState<unknown>, operationId: string, err: unknown) {
+    const kind = this.classifyError(err);
+    const message =
+      typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+        ? String((err as { userMessage?: unknown }).userMessage)
+        : typeof (err as { message?: unknown })?.message === 'string'
+          ? String((err as { message?: unknown }).message)
+          : 'SaveQueue write failed';
+
+    console.warn(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'savequeue',
+        event: 'savequeue.write.error',
+        key,
+        label: st.label ?? null,
+        operationId,
+        retryable: kind === 'retryable',
+        message,
+        retryCount: st.retryCount,
+      }),
+    );
+  }
+
   private makeOperationId(): string {
     const cryptoObj = globalThis.crypto;
     if (cryptoObj && typeof cryptoObj.randomUUID === 'function') return cryptoObj.randomUUID();
@@ -135,6 +165,7 @@ export class SaveQueue {
         inFlight,
         hasError,
         lastError: st.lastError,
+        lastErrorKind: st.lastErrorKind,
         updatedAt: st.updatedAt,
       });
     });
@@ -153,7 +184,9 @@ export class SaveQueue {
 
   getKeyStatus(key: SaveKey): SaveKeyStatus {
     const st = this.states.get(key);
-    if (!st) return { key, pending: false, inFlight: false, hasError: false, updatedAt: 0 };
+    if (!st) {
+      return { key, pending: false, inFlight: false, hasError: false, lastErrorKind: null, updatedAt: 0 };
+    }
     return {
       key,
       label: st.label,
@@ -161,6 +194,7 @@ export class SaveQueue {
       inFlight: !!st.inFlight,
       hasError: st.lastError != null,
       lastError: st.lastError,
+      lastErrorKind: st.lastErrorKind,
       updatedAt: st.updatedAt,
     };
   }
@@ -184,6 +218,7 @@ export class SaveQueue {
         retryCount: 0,
         inFlight: null,
         lastError: null,
+        lastErrorKind: null,
         updatedAt: now,
         waiters: new Set(),
       };
@@ -254,6 +289,8 @@ export class SaveQueue {
     const write = st.write;
     if (!write) {
       st.lastError = new Error('SaveQueue missing writer');
+      st.lastErrorKind = 'non-retryable';
+      this.logWriteError(key, st as KeyState<unknown>, operationId, st.lastError);
       st.patch = patch;
       this.emit();
       return;
@@ -266,11 +303,13 @@ export class SaveQueue {
     const p = run()
       .then(() => {
         st.lastError = null;
+        st.lastErrorKind = null;
         st.retryCount = 0;
         st.inFlightOperationId = null;
       })
       .catch((e) => {
         st.lastError = e;
+        st.lastErrorKind = this.classifyError(e);
         const hadPending = st.patch !== undefined;
         if (hadPending) {
           st.patch = st.merge ? st.merge(st.patch, patch) : st.patch;
@@ -280,6 +319,8 @@ export class SaveQueue {
           st.pendingOperationId = st.inFlightOperationId || null;
         }
         st.inFlightOperationId = null;
+
+        this.logWriteError(key, st as KeyState<unknown>, operationId, e);
 
         if (this.isRetryableError(e)) {
           const delay = Math.min(1000 * 2 ** st.retryCount, 15000);
@@ -365,6 +406,7 @@ export class SaveQueue {
     st.retryTimer = null;
     st.patch = undefined;
     st.lastError = null;
+    st.lastErrorKind = null;
     st.pendingOperationId = null;
     st.inFlightOperationId = null;
     if (!st.inFlight) {

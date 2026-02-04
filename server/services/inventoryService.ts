@@ -107,6 +107,10 @@ function logInventoryEvent(payload: Record<string, unknown>): void {
   console.log(JSON.stringify(record));
 }
 
+function logInventoryWriteMetric(payload: Record<string, unknown>): void {
+  logInventoryEvent(payload);
+}
+
 function normalizeReason(raw: unknown, qtyDelta: number): string {
   const reason = typeof raw === 'string' ? raw.toUpperCase().trim() : '';
   if (reason === 'RECEIVE' || reason === 'CONSUME' || reason === 'ADJUST' || reason === 'OPENING') {
@@ -150,10 +154,22 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
 
   const patch = coerceInventoryPatch(fields || {});
   const endpointSafe = asNonEmptyString(endpoint);
+  const startMs = Date.now();
 
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
-    if (idem.state === 'DONE') return idem.response;
+    if (idem.state === 'DONE') {
+      logInventoryWriteMetric({
+        event: 'inventory.update.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
+      return idem.response;
+    }
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
         code: 'OPERATION_IN_PROGRESS',
@@ -253,6 +269,16 @@ async function updateInventoryItem({ pool, id, fields, operationId, requestId, e
         delta: qtyDelta,
       });
 
+      logInventoryWriteMetric({
+        event: 'inventory.update.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: false,
+        status: 'success',
+      });
+
       return response;
     } catch (err) {
       logInventoryEvent({
@@ -299,10 +325,22 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
 
   const batchItems = items as InventoryBatchItem[];
   const endpointSafe = asNonEmptyString(endpoint);
+  const startMs = Date.now();
 
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
-    if (idem.state === 'DONE') return idem.response;
+    if (idem.state === 'DONE') {
+      logInventoryWriteMetric({
+        event: 'inventory.batch.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
+      return idem.response;
+    }
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
         code: 'OPERATION_IN_PROGRESS',
@@ -494,6 +532,15 @@ async function applyInventoryBatch({ pool, operationId, items, endpoint, request
 
     const response = { success: true, updatedIds };
     await idempotencyRepo.markDone(tx, { operationId: opId, response });
+    logInventoryWriteMetric({
+      event: 'inventory.batch.metrics',
+      requestId,
+      operationId: opId,
+      endpoint: endpointSafe,
+      durationMs: Date.now() - startMs,
+      idempotencyHit: false,
+      status: 'success',
+    });
     return response;
   });
 }

@@ -570,6 +570,7 @@ Write-behind 封装位置：`client/src/app/writeBehind/*`
 3. 先做乐观更新，再 enqueue
 4. 在 enqueue 的 `write()` 里调用 `apiCallOrThrow`
 5. 确保把 `operationId` 透传给后端
+6. 所有请求返回必须走 `shared/api/decoders.ts`（新增接口时先补 decoder）
 
 参考范例：
 - `client/src/app/writeBehind/clientWriteBehind.ts`
@@ -663,6 +664,11 @@ npm run verify
 - 直到用户修复输入并重试
 
 这不是 bug，而是为了避免“坏请求自动重试造成更多破坏”。
+
+### 12.4 最小可观测性闭环（已实现）
+
+- 后端写入服务层会记录：`operationId`、`requestId`、`durationMs`、`idempotencyHit`。
+- 前端 SaveQueue 在失败时会记录：`retryable / non-retryable` 分类与操作信息。
 
 ---
 

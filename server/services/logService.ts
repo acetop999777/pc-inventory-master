@@ -29,6 +29,16 @@ function asNonEmptyString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function logWriteMetric(payload: Record<string, unknown>): void {
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'logs',
+      ...payload,
+    }),
+  );
+}
+
 /**
  * @param {CreateLogInput} params
  * @returns {Promise<unknown>}
@@ -40,6 +50,7 @@ async function createLog({
   endpoint,
   requestId,
 }: CreateLogInput): Promise<unknown> {
+  const startMs = Date.now();
   const opId = asNonEmptyString(operationId);
   if (!opId) {
     throw new AppError({
@@ -66,7 +77,18 @@ async function createLog({
 
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
-    if (idem.state === 'DONE') return idem.response;
+    if (idem.state === 'DONE') {
+      logWriteMetric({
+        event: 'logs.create.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
+      return idem.response;
+    }
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
         code: 'OPERATION_IN_PROGRESS',
@@ -100,6 +122,15 @@ async function createLog({
 
     const response = { success: true };
     await idempotencyRepo.markDone(tx, { operationId: opId, response });
+    logWriteMetric({
+      event: 'logs.create.metrics',
+      requestId,
+      operationId: opId,
+      endpoint: endpointSafe,
+      durationMs: Date.now() - startMs,
+      idempotencyHit: false,
+      status: 'success',
+    });
     return response;
   });
 }

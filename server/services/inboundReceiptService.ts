@@ -139,6 +139,16 @@ function buildResponse(
   };
 }
 
+function logReceiptWriteMetric(payload: Record<string, unknown>): void {
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      scope: 'receipts',
+      ...payload,
+    }),
+  );
+}
+
 /**
  * @param {CreateReceiptInput} params
  * @returns {Promise<unknown>}
@@ -177,10 +187,22 @@ async function createReceipt({
   }
 
   const endpointSafe = asNonEmptyString(endpoint);
+  const startMs = Date.now();
 
   return withTransaction(pool, async (tx) => {
     const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
-    if (idem.state === 'DONE') return idem.response;
+    if (idem.state === 'DONE') {
+      logReceiptWriteMetric({
+        event: 'receipts.create.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
+      return idem.response;
+    }
     if (idem.state === 'IN_PROGRESS') {
       throw new AppError({
         code: 'OPERATION_IN_PROGRESS',
@@ -360,6 +382,15 @@ async function createReceipt({
 
     const response = buildResponse(receipt, receiptItems, inventoryUpdates);
     await idempotencyRepo.markDone(tx, { operationId: opId, response });
+    logReceiptWriteMetric({
+      event: 'receipts.create.metrics',
+      requestId,
+      operationId: opId,
+      endpoint: endpointSafe,
+      durationMs: Date.now() - startMs,
+      idempotencyHit: false,
+      status: 'success',
+    });
     return response;
   });
 }
@@ -423,6 +454,7 @@ async function getReceiptDetail({ pool, id }: GetReceiptDetailInput) {
  * @returns {Promise<unknown>}
  */
 async function updateReceiptImages({ pool, id, images }: UpdateReceiptImagesInput) {
+  const startMs = Date.now();
   return withTransaction(pool, async (tx) => {
     const receipt = (await receiptRepo.updateReceiptImages(tx, id, images)) as ReceiptRow | null;
     if (!receipt) {
@@ -434,6 +466,16 @@ async function updateReceiptImages({ pool, id, images }: UpdateReceiptImagesInpu
         details: { id },
       });
     }
+    logReceiptWriteMetric({
+      event: 'receipts.images.metrics',
+      requestId: null,
+      operationId: receipt.operation_id,
+      endpoint: null,
+      durationMs: Date.now() - startMs,
+      idempotencyHit: false,
+      idempotencyMode: 'none',
+      status: 'success',
+    });
     return {
       id: receipt.id,
       receivedAt: receipt.received_at,
@@ -451,6 +493,7 @@ async function updateReceiptImages({ pool, id, images }: UpdateReceiptImagesInpu
  * @returns {Promise<unknown>}
  */
 async function updateReceipt({ pool, id, payload, requestId, endpoint }: UpdateReceiptInput) {
+  const startMs = Date.now();
   return withTransaction(pool, async (tx) => {
     const receipt = (await receiptRepo.getReceipt(tx, id)) as ReceiptRow | null;
     if (!receipt) {
@@ -669,6 +712,16 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }: UpdateR
     }
 
     const updatedItems = (await receiptRepo.getReceiptItems(tx, receipt.id)) as ReceiptItemRow[];
+    logReceiptWriteMetric({
+      event: 'receipts.update.metrics',
+      requestId,
+      operationId: receipt.operation_id,
+      endpoint: asNonEmptyString(endpoint),
+      durationMs: Date.now() - startMs,
+      idempotencyHit: false,
+      idempotencyMode: 'none',
+      status: 'success',
+    });
     return buildResponse(updatedReceipt, updatedItems, inventoryUpdates);
   });
 }
