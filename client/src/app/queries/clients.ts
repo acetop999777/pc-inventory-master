@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../shared/api/http';
-import { asArray } from '../../shared/api/response';
-import { ClientEntity, normalizeClientRow } from '../../domain/client';
+import { ClientEntity } from '../../domain/client';
+import { decodeClients } from '../../shared/api/decoders';
 
 export const clientsQueryKey = ['clients'] as const;
 
@@ -10,7 +10,7 @@ export function useClientsQuery() {
     queryKey: clientsQueryKey,
     queryFn: async () => {
       const raw = await api.get<unknown>('/clients');
-      return asArray(raw).map(normalizeClientRow);
+      return decodeClients('/clients', raw);
     },
   });
 }

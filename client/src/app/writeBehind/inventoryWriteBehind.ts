@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
-import { inventoryQueryKey, normalizeInventoryRow } from '../queries/inventory';
+import { inventoryQueryKey } from '../queries/inventory';
+import { normalizeInventoryRow } from '../../domain/inventory/normalize';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 
 type InventoryWrite = { op: 'patch'; fields: Partial<InventoryItem> } | { op: 'delete' };
