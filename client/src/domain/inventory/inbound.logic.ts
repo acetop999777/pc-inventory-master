@@ -16,6 +16,7 @@ type ParsedInbound = {
   msg: string;
   type?: string;
   orderedAt?: string | null;
+  detected?: boolean;
 };
 
 export const processScan = async (
@@ -710,6 +711,7 @@ export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): 
       .filter((l) => l.length > 0);
 
     const looksLikeMicroCenter =
+      looksLikeMicroCenterText(text) ||
       looksLikeMicroCenterText(lines.join(' ')) ||
       lines.some((l) => /micro\s*center/i.test(l)) ||
       lines.some((l) =>
@@ -718,7 +720,7 @@ export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): 
         ),
       );
     if (!looksLikeMicroCenter) {
-      return { items: [], msg: 'No items found', type: 'error', orderedAt: null };
+      return { items: [], msg: 'No items found', type: 'error', orderedAt: null, detected: false };
     }
 
     const orderedAt = parseMicroCenterTransactionDate(lines) || parseMicroCenterReadyAt(lines);
@@ -740,14 +742,23 @@ export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): 
 
     let items = parseMicroCenterSkuTable(section, inventory);
     if (items.length === 0) items = parseMicroCenterSkuLabel(lines, inventory);
-
     if (items.length === 0) {
-      return { items: [], msg: 'No items found', type: 'error', orderedAt };
+      const fallbackLines = normalizeReceiptLine(text)
+        .replace(/\b(S\/N|SN)\b/gi, '\n$1')
+        .replace(/\b(\d{5,})\b/g, '\n$1')
+        .split('\n')
+        .map((l) => normalizeReceiptLine(l))
+        .filter((l) => l.length > 0);
+      items = parseMicroCenterSkuTable(fallbackLines, inventory);
     }
 
-    return { items, msg: 'Parsed ' + items.length + ' items', orderedAt };
+    if (items.length === 0) {
+      return { items: [], msg: 'No items found', type: 'error', orderedAt, detected: true };
+    }
+
+    return { items, msg: 'Parsed ' + items.length + ' items', orderedAt, detected: true };
   } catch (e) {
     console.error(e);
-    return { items: [], msg: 'Parse Error', type: 'error', orderedAt: null };
+    return { items: [], msg: 'Parse Error', type: 'error', orderedAt: null, detected: false };
   }
 };

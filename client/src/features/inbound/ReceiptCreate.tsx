@@ -224,14 +224,6 @@ export default function ReceiptCreate() {
     const text = inputText.trim();
     if (!text) return;
 
-    const normalized = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-    const looksLikeMicroCenter =
-      /micro\s*center|your sale information|transaction date|reference number|price per|total price|sale total|clearance markdown|s\/n:/i.test(
-        text,
-      ) ||
-      /micro center|your sale information|transaction date|reference number|price per|total price|sale total|clearance markdown|s n/.test(
-        normalized,
-      );
     const parsedMicroCenter = parseMicroCenterText(text, inventory);
     if (parsedMicroCenter.items.length > 0) {
       if (parsedMicroCenter.orderedAt) setReceivedAt(toLocalInput(parsedMicroCenter.orderedAt));
@@ -240,7 +232,7 @@ export default function ReceiptCreate() {
       setLines(itemsFromStaged(parsedMicroCenter.items));
       return;
     }
-    if (looksLikeMicroCenter) {
+    if (parsedMicroCenter.detected) {
       await alert({ title: 'Parse Failed', message: parsedMicroCenter.msg });
       return;
     }
