@@ -1,14 +1,20 @@
+type AppErrorOptions = {
+  code: string;
+  message: string;
+  httpStatus?: number;
+  details?: unknown;
+  retryable?: boolean;
+  retryAfterMs?: number;
+};
+
 class AppError extends Error {
-  /**
-   * @param {object} opts
-   * @param {string} opts.code
-   * @param {string} opts.message
-   * @param {number} [opts.httpStatus=500]
-   * @param {any} [opts.details]
-   * @param {boolean} [opts.retryable]
-   * @param {number} [opts.retryAfterMs]
-   */
-  constructor({ code, message, httpStatus = 500, details, retryable, retryAfterMs }) {
+  code: string;
+  httpStatus: number;
+  details?: unknown;
+  retryable: boolean;
+  retryAfterMs?: number;
+
+  constructor({ code, message, httpStatus = 500, details, retryable, retryAfterMs }: AppErrorOptions) {
     super(message);
     this.name = 'AppError';
     this.code = code;
@@ -20,4 +26,4 @@ class AppError extends Error {
   }
 }
 
-module.exports = AppError;
+export = AppError;

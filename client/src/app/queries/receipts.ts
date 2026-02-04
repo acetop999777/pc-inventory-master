@@ -1,41 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
-
-export type ReceiptListItem = {
-  id: number;
-  receivedAt: string;
-  vendor: string | null;
-  mode: string;
-  notes: string | null;
-  createdAt: string;
-  operationId: string;
-  totalAmount: number;
-};
-
-export type ReceiptItem = {
-  id: number;
-  receiptId: number;
-  inventoryId: string;
-  qtyReceived: number;
-  unitCost: string;
-  lineTotal: string;
-  displayName: string;
-  sku: string;
-};
-
-export type ReceiptDetail = {
-  receipt: {
-    id: number;
-    receivedAt: string;
-    vendor: string | null;
-    mode: string;
-    notes: string | null;
-    operationId: string;
-    images?: string[];
-  };
-  items: ReceiptItem[];
-  inventoryUpdates: { inventoryId: string; onHandQty: number; avgCost: string }[];
-};
+import type { ReceiptDetail, ReceiptListItem } from '../../shared/api/types';
 
 export const receiptsQueryKey = ['receipts'] as const;
 

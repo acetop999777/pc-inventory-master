@@ -1,24 +1,19 @@
-/**
- * @typedef {import('pg').PoolClient} DbClient
- * @typedef {{
- *   id: string,
- *   sku?: unknown,
- *   name?: unknown,
- *   type?: unknown,
- *   qtyChange?: unknown,
- *   unitCost?: unknown,
- *   totalValue?: unknown,
- *   refId?: unknown,
- *   operator?: unknown
- * }} AuditLogInput
- */
+import type { PoolClient } from 'pg';
 
-/**
- * @param {DbClient} tx
- * @param {AuditLogInput} log
- * @returns {Promise<void>}
- */
-async function insert(tx, log) {
+type DbClient = PoolClient;
+type AuditLogInput = {
+  id: string;
+  sku?: unknown;
+  name?: unknown;
+  type?: unknown;
+  qtyChange?: unknown;
+  unitCost?: unknown;
+  totalValue?: unknown;
+  refId?: unknown;
+  operator?: unknown;
+};
+
+async function insert(tx: DbClient, log: AuditLogInput): Promise<void> {
   const {
     id,
     sku,
@@ -51,4 +46,4 @@ async function insert(tx, log) {
   );
 }
 
-module.exports = { insert };
+export { insert };

@@ -6,6 +6,19 @@ const {
 } = require('../validators/inventoryValidator');
 
 /** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+/** @typedef {{ code?: unknown, message?: unknown }} ErrorLike */
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorCode(err) {
+  if (!err || typeof err !== 'object') return 'ERROR';
+  const e = /** @type {ErrorLike} */ (err);
+  if (typeof e.code === 'string' && e.code) return e.code;
+  if (typeof e.message === 'string' && e.message) return e.message;
+  return 'ERROR';
+}
 
 /**
  * @param {RouteDeps} deps
@@ -45,7 +58,7 @@ module.exports = function inventoryRoutes({ pool }) {
 
       let prevCost = 0;
       const normalized = rows.map((row) => {
-        /** @type {any} */
+        /** @type {Record<string, unknown>} */
         const entry = row;
         const qtyDelta = Number(entry.qty_delta ?? 0);
         const onHandAfter = Number(entry.on_hand_after ?? 0);
@@ -120,7 +133,6 @@ module.exports = function inventoryRoutes({ pool }) {
       );
       res.json(result);
     } catch (e) {
-      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -130,7 +142,7 @@ module.exports = function inventoryRoutes({ pool }) {
           operationId,
           endpoint,
           status: 'error',
-          error: errAny?.code || errAny?.message || 'ERROR',
+          error: errorCode(e),
         }),
       );
       next(e);
@@ -180,7 +192,6 @@ module.exports = function inventoryRoutes({ pool }) {
       );
       return res.json(row || { success: true });
     } catch (e) {
-      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -191,7 +202,7 @@ module.exports = function inventoryRoutes({ pool }) {
           endpoint,
           inventoryId: id,
           status: 'error',
-          error: errAny?.code || errAny?.message || 'ERROR',
+          error: errorCode(e),
         }),
       );
       next(e);
@@ -257,7 +268,6 @@ module.exports = function inventoryRoutes({ pool }) {
       );
       res.json({ success: true });
     } catch (e) {
-      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -268,7 +278,7 @@ module.exports = function inventoryRoutes({ pool }) {
           endpoint,
           inventoryId: req.params.id,
           status: 'error',
-          error: errAny?.code || errAny?.message || 'ERROR',
+          error: errorCode(e),
         }),
       );
       next(e);

@@ -1,9 +1,9 @@
 /**
- * @typedef {any} DbPool
- * @typedef {any} DbClient
+ * @typedef {import('pg').Pool} DbPool
+ * @typedef {import('pg').PoolClient} DbClient
  * @param {DbPool} pool
- * @param {(client: DbClient) => Promise<any>} fn
- * @returns {Promise<any>}
+ * @param {(client: DbClient) => Promise<unknown>} fn
+ * @returns {Promise<unknown>}
  */
 async function withTransaction(pool, fn) {
   const client = await pool.connect();

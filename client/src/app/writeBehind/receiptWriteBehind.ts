@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
-import { receiptsQueryKey, ReceiptDetail, ReceiptListItem } from '../queries/receipts';
+import { receiptsQueryKey } from '../queries/receipts';
+import type { ReceiptDetail, ReceiptListItem } from '../../shared/api/types';
 
 export type ReceiptCreatePayload = {
   receivedAt?: string;

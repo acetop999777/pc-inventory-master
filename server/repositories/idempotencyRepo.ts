@@ -1,16 +1,14 @@
-/**
- * @typedef {import('pg').PoolClient} DbClient
- * @typedef {{ operationId: string, endpoint?: string | null }} BeginOperationInput
- * @typedef {{ state: 'NEW' | 'DONE' | 'IN_PROGRESS', response?: unknown }} BeginOperationResult
- * @typedef {{ operationId: string, response: unknown }} MarkDoneInput
- */
+import type { PoolClient } from 'pg';
 
-/**
- * @param {DbClient} tx
- * @param {BeginOperationInput} params
- * @returns {Promise<BeginOperationResult>}
- */
-async function beginOperation(tx, { operationId, endpoint }) {
+type DbClient = PoolClient;
+type BeginOperationInput = { operationId: string; endpoint?: string | null };
+type BeginOperationResult = { state: 'NEW' | 'DONE' | 'IN_PROGRESS'; response?: unknown };
+type MarkDoneInput = { operationId: string; response: unknown };
+
+async function beginOperation(
+  tx: DbClient,
+  { operationId, endpoint }: BeginOperationInput,
+): Promise<BeginOperationResult> {
   const insertRes = await tx.query(
     `INSERT INTO idempotency_keys (operation_id, endpoint, status)
      VALUES ($1, $2, 'IN_PROGRESS')
@@ -37,12 +35,7 @@ async function beginOperation(tx, { operationId, endpoint }) {
   return { state: 'IN_PROGRESS' };
 }
 
-/**
- * @param {DbClient} tx
- * @param {MarkDoneInput} params
- * @returns {Promise<void>}
- */
-async function markDone(tx, { operationId, response }) {
+async function markDone(tx: DbClient, { operationId, response }: MarkDoneInput): Promise<void> {
   await tx.query(
     `UPDATE idempotency_keys
      SET status = 'DONE', response_json = $2
@@ -51,7 +44,4 @@ async function markDone(tx, { operationId, response }) {
   );
 }
 
-module.exports = {
-  beginOperation,
-  markDone,
-};
+export { beginOperation, markDone };

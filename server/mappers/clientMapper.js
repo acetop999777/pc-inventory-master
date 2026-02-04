@@ -25,7 +25,7 @@ function fmtDate(d) {
 }
 
 /**
- * @param {Record<string, any>} r
+ * @param {Record<string, unknown>} r
  */
 const mapClient = (r) => ({
   id: r.id,
@@ -46,10 +46,10 @@ const mapClient = (r) => ({
   status: r.status,
   rating: r.rating || 0,
   notes: r.notes || '',
-  totalPrice: parseFloat(r.total_price || 0),
-  actualCost: parseFloat(r.actual_cost || 0),
-  profit: parseFloat(r.profit || 0),
-  paidAmount: parseFloat(r.paid_amount || 0),
+  totalPrice: Number(r.total_price ?? 0),
+  actualCost: Number(r.actual_cost ?? 0),
+  profit: Number(r.profit ?? 0),
+  paidAmount: Number(r.paid_amount ?? 0),
   phone: r.phone || '',
   metadata: r.metadata || {},
   specs: r.specs || {},

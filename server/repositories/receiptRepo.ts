@@ -1,37 +1,32 @@
-/**
- * @typedef {import('pg').PoolClient} DbClient
- * @typedef {Record<string, any>} DbRow
- * @typedef {{
- *   receivedAt?: unknown,
- *   vendor?: unknown,
- *   mode?: unknown,
- *   notes?: unknown,
- *   requestId?: unknown,
- *   operationId?: unknown,
- *   images?: unknown
- * }} ReceiptInput
- * @typedef {{
- *   receiptId: string,
- *   inventoryId: string,
- *   qtyReceived?: unknown,
- *   unitCost?: unknown
- * }} ReceiptItemInput
- * @typedef {{
- *   [key: string]: unknown,
- *   receivedAt?: unknown,
- *   vendor?: unknown,
- *   mode?: unknown,
- *   notes?: unknown,
- *   images?: unknown
- * }} ReceiptUpdateInput
- */
+import type { PoolClient } from 'pg';
 
-/**
- * @param {DbClient} tx
- * @param {ReceiptInput} receipt
- * @returns {Promise<DbRow>}
- */
-async function insertReceipt(tx, receipt) {
+type DbClient = PoolClient;
+type DbRow = Record<string, unknown>;
+type ReceiptInput = {
+  receivedAt?: unknown;
+  vendor?: unknown;
+  mode?: unknown;
+  notes?: unknown;
+  requestId?: unknown;
+  operationId?: unknown;
+  images?: unknown;
+};
+type ReceiptItemInput = {
+  receiptId: string | number;
+  inventoryId: string;
+  qtyReceived?: unknown;
+  unitCost?: unknown;
+};
+type ReceiptUpdateInput = {
+  [key: string]: unknown;
+  receivedAt?: unknown;
+  vendor?: unknown;
+  mode?: unknown;
+  notes?: unknown;
+  images?: unknown;
+};
+
+async function insertReceipt(tx: DbClient, receipt: ReceiptInput): Promise<DbRow> {
   const { receivedAt, vendor, mode, notes, requestId, operationId, images } = receipt;
   const imagesJson = JSON.stringify(Array.isArray(images) ? images : []);
   const { rows } = await tx.query(
@@ -52,12 +47,7 @@ async function insertReceipt(tx, receipt) {
   return rows[0];
 }
 
-/**
- * @param {DbClient} tx
- * @param {ReceiptItemInput} item
- * @returns {Promise<DbRow>}
- */
-async function insertReceiptItem(tx, item) {
+async function insertReceiptItem(tx: DbClient, item: ReceiptItemInput): Promise<DbRow> {
   const { receiptId, inventoryId, qtyReceived, unitCost } = item;
   const { rows } = await tx.query(
     `INSERT INTO inbound_receipt_items (
@@ -69,12 +59,7 @@ async function insertReceiptItem(tx, item) {
   return rows[0];
 }
 
-/**
- * @param {DbClient} tx
- * @param {unknown} limit
- * @returns {Promise<DbRow[]>}
- */
-async function listReceipts(tx, limit) {
+async function listReceipts(tx: DbClient, limit: unknown): Promise<DbRow[]> {
   const lim = Number(limit || 50);
   const { rows } = await tx.query(
     `SELECT r.*, COALESCE(SUM(i.line_total), 0) as total_amount
@@ -88,32 +73,17 @@ async function listReceipts(tx, limit) {
   return rows;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} id
- * @returns {Promise<DbRow | null>}
- */
-async function getReceipt(tx, id) {
+async function getReceipt(tx: DbClient, id: string | number): Promise<DbRow | null> {
   const { rows } = await tx.query('SELECT * FROM inbound_receipts WHERE id = $1', [id]);
   return rows[0] || null;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} operationId
- * @returns {Promise<DbRow | null>}
- */
-async function getReceiptByOperationId(tx, operationId) {
+async function getReceiptByOperationId(tx: DbClient, operationId: string): Promise<DbRow | null> {
   const { rows } = await tx.query('SELECT * FROM inbound_receipts WHERE operation_id = $1', [operationId]);
   return rows[0] || null;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} receiptId
- * @returns {Promise<DbRow[]>}
- */
-async function getReceiptItems(tx, receiptId) {
+async function getReceiptItems(tx: DbClient, receiptId: string | number): Promise<DbRow[]> {
   const { rows } = await tx.query(
     `SELECT i.*, inv.name as inventory_name, inv.sku as inventory_sku
      FROM inbound_receipt_items i
@@ -125,13 +95,11 @@ async function getReceiptItems(tx, receiptId) {
   return rows;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} receiptId
- * @param {ReceiptUpdateInput} fields
- * @returns {Promise<DbRow | null>}
- */
-async function updateReceipt(tx, receiptId, fields) {
+async function updateReceipt(
+  tx: DbClient,
+  receiptId: string | number,
+  fields: ReceiptUpdateInput,
+): Promise<DbRow | null> {
   const sets = [];
   const values = [];
   let idx = 1;
@@ -181,14 +149,12 @@ async function updateReceipt(tx, receiptId, fields) {
   return rows[0] || null;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} itemId
- * @param {unknown} qtyReceived
- * @param {unknown} unitCost
- * @returns {Promise<DbRow | null>}
- */
-async function updateReceiptItem(tx, itemId, qtyReceived, unitCost) {
+async function updateReceiptItem(
+  tx: DbClient,
+  itemId: string | number,
+  qtyReceived: unknown,
+  unitCost: unknown,
+): Promise<DbRow | null> {
   const { rows } = await tx.query(
     `UPDATE inbound_receipt_items
      SET qty_received = $2, unit_cost = $3
@@ -199,12 +165,7 @@ async function updateReceiptItem(tx, itemId, qtyReceived, unitCost) {
   return rows[0] || null;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} itemId
- * @returns {Promise<DbRow | null>}
- */
-async function deleteReceiptItem(tx, itemId) {
+async function deleteReceiptItem(tx: DbClient, itemId: string | number): Promise<DbRow | null> {
   const { rows } = await tx.query(
     'DELETE FROM inbound_receipt_items WHERE id = $1 RETURNING *',
     [itemId],
@@ -212,13 +173,11 @@ async function deleteReceiptItem(tx, itemId) {
   return rows[0] || null;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} receiptId
- * @param {unknown} images
- * @returns {Promise<DbRow | null>}
- */
-async function updateReceiptImages(tx, receiptId, images) {
+async function updateReceiptImages(
+  tx: DbClient,
+  receiptId: string | number,
+  images: unknown,
+): Promise<DbRow | null> {
   const imagesJson = JSON.stringify(Array.isArray(images) ? images : []);
   const { rows } = await tx.query(
     `UPDATE inbound_receipts
@@ -230,7 +189,7 @@ async function updateReceiptImages(tx, receiptId, images) {
   return rows[0] || null;
 }
 
-module.exports = {
+export {
   insertReceipt,
   insertReceiptItem,
   listReceipts,

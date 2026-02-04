@@ -1,63 +1,120 @@
-const crypto = require('crypto');
-const AppError = require('../errors/AppError');
-const { withTransaction } = require('../db/tx');
-const inventoryRepo = require('../repositories/inventoryRepo');
-const movementRepo = require('../repositories/movementRepo');
-const auditLogRepo = require('../repositories/auditLogRepo');
-const idempotencyRepo = require('../repositories/idempotencyRepo');
-const receiptRepo = require('../repositories/receiptRepo');
-const { asNonEmptyString, requireNumber, requireInt } = require('../validators/requestUtils');
+import crypto from 'crypto';
+import type { Pool } from 'pg';
+import AppError = require('../errors/AppError');
+import { withTransaction } from '../db/tx';
+import * as inventoryRepo from '../repositories/inventoryRepo';
+import * as movementRepo from '../repositories/movementRepo';
+import * as auditLogRepo from '../repositories/auditLogRepo';
+import * as idempotencyRepo from '../repositories/idempotencyRepo';
+import * as receiptRepo from '../repositories/receiptRepo';
+import { asNonEmptyString, requireNumber, requireInt } from '../validators/requestUtils';
 
-/**
- * @typedef {import('pg').Pool} DbPool
- * @typedef {{
- *   inventoryId?: unknown,
- *   qty?: unknown,
- *   unitCost?: unknown
- * }} ReceiptItemInput
- * @typedef {{
- *   id?: unknown,
- *   remove?: unknown,
- *   qtyReceived?: unknown,
- *   unitCost?: unknown
- * }} ReceiptUpdateItem
- * @typedef {{
- *   [key: string]: unknown,
- *   items?: unknown
- * }} ReceiptUpdatePayload
- * @typedef {{
- *   pool: DbPool,
- *   operationId: unknown,
- *   receivedAt?: string | number | Date | null,
- *   vendor?: unknown,
- *   mode?: unknown,
- *   notes?: unknown,
- *   images?: unknown,
- *   items: unknown,
- *   requestId?: unknown,
- *   endpoint?: unknown
- * }} CreateReceiptInput
- * @typedef {{ pool: DbPool, limit?: unknown }} ListReceiptsInput
- * @typedef {{ pool: DbPool, id: string }} GetReceiptDetailInput
- * @typedef {{ pool: DbPool, id: string, images?: unknown }} UpdateReceiptImagesInput
- * @typedef {{ pool: DbPool, id: string, payload: ReceiptUpdatePayload, requestId?: unknown, endpoint?: unknown }} UpdateReceiptInput
- */
+type DbPool = Pool;
+type ReceiptItemInput = {
+  inventoryId?: unknown;
+  qty?: unknown;
+  unitCost?: unknown;
+};
+type ReceiptUpdateItem = {
+  id?: unknown;
+  remove?: unknown;
+  qtyReceived?: unknown;
+  unitCost?: unknown;
+};
+type ReceiptUpdatePayload = {
+  [key: string]: unknown;
+  items?: unknown;
+};
+type CreateReceiptInput = {
+  pool: DbPool;
+  operationId: unknown;
+  receivedAt?: string | number | Date | null;
+  vendor?: unknown;
+  mode?: unknown;
+  notes?: unknown;
+  images?: unknown;
+  items: unknown;
+  requestId?: unknown;
+  endpoint?: unknown;
+};
+type ListReceiptsInput = { pool: DbPool; limit?: unknown };
+type GetReceiptDetailInput = { pool: DbPool; id: string };
+type UpdateReceiptImagesInput = { pool: DbPool; id: string; images?: unknown };
+type UpdateReceiptInput = {
+  pool: DbPool;
+  id: string;
+  payload: ReceiptUpdatePayload;
+  requestId?: unknown;
+  endpoint?: unknown;
+};
 
-/**
- * @param {number} n
- * @returns {number}
- */
-function roundMoney(n) {
+type ReceiptRow = {
+  id: number;
+  received_at: string;
+  vendor: string | null;
+  mode: string;
+  notes: string | null;
+  operation_id: string;
+  images?: unknown;
+};
+type InventoryRow = {
+  id: string;
+  name?: string | null;
+  sku?: string | null;
+  quantity?: unknown;
+  cost?: unknown;
+  category?: unknown;
+  keyword?: unknown;
+  price?: unknown;
+  location?: unknown;
+  status?: unknown;
+  notes?: unknown;
+  metadata?: unknown;
+};
+type ReceiptItemRow = {
+  id: number;
+  receipt_id: number;
+  inventory_id: string;
+  qty_received: number;
+  unit_cost: number;
+  line_total: number;
+  inventory_name?: string | null;
+  inventory_sku?: string | null;
+};
+type InventoryUpdate = { inventoryId: string; onHandQty: number; avgCost: string };
+type ReceiptResponseItem = {
+  id: number;
+  receiptId: number;
+  inventoryId: string;
+  qtyReceived: number;
+  unitCost: string;
+  lineTotal: string;
+  displayName: string;
+  sku: string;
+};
+type ReceiptResponse = {
+  receipt: {
+    id: number;
+    receivedAt: string;
+    vendor: string | null;
+    mode: string;
+    notes: string | null;
+    operationId: string;
+    images: string[];
+  };
+  items: ReceiptResponseItem[];
+  inventoryUpdates: InventoryUpdate[];
+};
+
+function roundMoney(n: number): number {
   return Math.round(n * 10000) / 10000;
 }
 
-/**
- * @param {any} receipt
- * @param {any[]} items
- * @param {any[]} updates
- * @returns {object}
- */
-function buildResponse(receipt, items, updates) {
+function buildResponse(
+  receipt: ReceiptRow,
+  items: ReceiptItemRow[],
+  updates: InventoryUpdate[],
+): ReceiptResponse {
   return {
     receipt: {
       id: receipt.id,
@@ -66,7 +123,7 @@ function buildResponse(receipt, items, updates) {
       mode: receipt.mode,
       notes: receipt.notes,
       operationId: receipt.operation_id,
-      images: Array.isArray(receipt.images) ? receipt.images : [],
+      images: Array.isArray(receipt.images) ? (receipt.images as string[]) : [],
     },
     items: items.map((it) => ({
       id: it.id,
@@ -97,7 +154,7 @@ async function createReceipt({
   items,
   requestId,
   endpoint,
-}) {
+}: CreateReceiptInput) {
   const opId = asNonEmptyString(operationId);
   if (!opId) {
     throw new AppError({
@@ -134,12 +191,12 @@ async function createReceipt({
       });
     }
 
-    const existingReceipt = await receiptRepo.getReceiptByOperationId(tx, opId);
+    const existingReceipt = (await receiptRepo.getReceiptByOperationId(tx, opId)) as ReceiptRow | null;
     if (existingReceipt) {
-      const receiptItems = await receiptRepo.getReceiptItems(tx, existingReceipt.id);
-      const updates = [];
+      const receiptItems = (await receiptRepo.getReceiptItems(tx, existingReceipt.id)) as ReceiptItemRow[];
+      const updates: InventoryUpdate[] = [];
       for (const it of receiptItems) {
-        const inv = await inventoryRepo.getForUpdateById(tx, it.inventory_id);
+        const inv = (await inventoryRepo.getForUpdateById(tx, it.inventory_id)) as InventoryRow | null;
         if (inv) {
           updates.push({
             inventoryId: it.inventory_id,
@@ -153,11 +210,9 @@ async function createReceipt({
       return response;
     }
 
-    const seen = new Set();
-    /** @type {ReceiptItemInput[]} */
-    const rawItems = items;
-    /** @type {{ inventoryId: string | null, qty: number, unitCost: number }[]} */
-    const sorted = rawItems
+    const seen = new Set<string>();
+    const rawItems = items as ReceiptItemInput[];
+    const sorted: Array<{ inventoryId: string | null; qty: number; unitCost: number }> = rawItems
       .map((item) => ({
         inventoryId: asNonEmptyString(item?.inventoryId),
         qty: requireInt(item?.qty, 'qty'),
@@ -206,7 +261,7 @@ async function createReceipt({
       seen.add(inventoryId);
     }
 
-    const receipt = await receiptRepo.insertReceipt(tx, {
+    const receipt = (await receiptRepo.insertReceipt(tx, {
       receivedAt: receivedAt ? new Date(receivedAt) : new Date(),
       vendor,
       mode: mode || 'MANUAL',
@@ -214,10 +269,10 @@ async function createReceipt({
       images,
       requestId,
       operationId: opId,
-    });
+    })) as ReceiptRow;
 
-    const receiptItems = [];
-    const inventoryUpdates = [];
+    const receiptItems: ReceiptItemRow[] = [];
+    const inventoryUpdates: InventoryUpdate[] = [];
 
     for (const it of sorted) {
       const inventoryId = it.inventoryId;
@@ -231,7 +286,7 @@ async function createReceipt({
         });
       }
 
-      const inv = await inventoryRepo.getForUpdateById(tx, inventoryId);
+      const inv = (await inventoryRepo.getForUpdateById(tx, inventoryId)) as InventoryRow | null;
       if (!inv) {
         throw new AppError({
           code: 'NOT_FOUND',
@@ -258,12 +313,12 @@ async function createReceipt({
 
       await inventoryRepo.update(tx, inventoryId, nextRow);
 
-      const receiptItem = await receiptRepo.insertReceiptItem(tx, {
+      const receiptItem = (await receiptRepo.insertReceiptItem(tx, {
         receiptId: receipt.id,
         inventoryId: inventoryId,
         qtyReceived: it.qty,
         unitCost: it.unitCost,
-      });
+      })) as ReceiptItemRow;
       receiptItems.push({
         ...receiptItem,
         inventory_name: inv.name,
@@ -313,9 +368,11 @@ async function createReceipt({
  * @param {ListReceiptsInput} params
  * @returns {Promise<unknown>}
  */
-async function listReceipts({ pool, limit }) {
+async function listReceipts({ pool, limit }: ListReceiptsInput) {
   return withTransaction(pool, async (tx) => {
-    const rows = await receiptRepo.listReceipts(tx, limit);
+    const rows = (await receiptRepo.listReceipts(tx, limit)) as Array<
+      ReceiptRow & { created_at?: string; total_amount?: unknown }
+    >;
     return rows.map((r) => ({
       id: r.id,
       receivedAt: r.received_at,
@@ -333,9 +390,9 @@ async function listReceipts({ pool, limit }) {
  * @param {GetReceiptDetailInput} params
  * @returns {Promise<unknown>}
  */
-async function getReceiptDetail({ pool, id }) {
+async function getReceiptDetail({ pool, id }: GetReceiptDetailInput) {
   return withTransaction(pool, async (tx) => {
-    const receipt = await receiptRepo.getReceipt(tx, id);
+    const receipt = (await receiptRepo.getReceipt(tx, id)) as ReceiptRow | null;
     if (!receipt) {
       throw new AppError({
         code: 'NOT_FOUND',
@@ -345,10 +402,10 @@ async function getReceiptDetail({ pool, id }) {
         details: { id },
       });
     }
-    const items = await receiptRepo.getReceiptItems(tx, receipt.id);
-    const inventoryUpdates = [];
+    const items = (await receiptRepo.getReceiptItems(tx, receipt.id)) as ReceiptItemRow[];
+    const inventoryUpdates: InventoryUpdate[] = [];
     for (const it of items) {
-      const inv = await inventoryRepo.getForUpdateById(tx, it.inventory_id);
+      const inv = (await inventoryRepo.getForUpdateById(tx, it.inventory_id)) as InventoryRow | null;
       if (inv) {
         inventoryUpdates.push({
           inventoryId: it.inventory_id,
@@ -365,9 +422,9 @@ async function getReceiptDetail({ pool, id }) {
  * @param {UpdateReceiptImagesInput} params
  * @returns {Promise<unknown>}
  */
-async function updateReceiptImages({ pool, id, images }) {
+async function updateReceiptImages({ pool, id, images }: UpdateReceiptImagesInput) {
   return withTransaction(pool, async (tx) => {
-    const receipt = await receiptRepo.updateReceiptImages(tx, id, images);
+    const receipt = (await receiptRepo.updateReceiptImages(tx, id, images)) as ReceiptRow | null;
     if (!receipt) {
       throw new AppError({
         code: 'NOT_FOUND',
@@ -393,9 +450,9 @@ async function updateReceiptImages({ pool, id, images }) {
  * @param {UpdateReceiptInput} params
  * @returns {Promise<unknown>}
  */
-async function updateReceipt({ pool, id, payload, requestId, endpoint }) {
+async function updateReceipt({ pool, id, payload, requestId, endpoint }: UpdateReceiptInput) {
   return withTransaction(pool, async (tx) => {
-    const receipt = await receiptRepo.getReceipt(tx, id);
+    const receipt = (await receiptRepo.getReceipt(tx, id)) as ReceiptRow | null;
     if (!receipt) {
       throw new AppError({
         code: 'NOT_FOUND',
@@ -406,13 +463,11 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }) {
       });
     }
 
-    const itemsPayload = Array.isArray(payload.items)
-      ? /** @type {ReceiptUpdateItem[]} */ (payload.items)
-      : null;
-    const inventoryUpdates = [];
+    const itemsPayload = Array.isArray(payload.items) ? (payload.items as ReceiptUpdateItem[]) : null;
+    const inventoryUpdates: InventoryUpdate[] = [];
 
     if (itemsPayload) {
-      const existingItems = await receiptRepo.getReceiptItems(tx, receipt.id);
+      const existingItems = (await receiptRepo.getReceiptItems(tx, receipt.id)) as ReceiptItemRow[];
       const existingById = new Map(existingItems.map((it) => [String(it.id), it]));
 
       for (const item of itemsPayload) {
@@ -429,7 +484,7 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }) {
         }
 
         if (item?.remove === true) {
-          const inv = await inventoryRepo.getForUpdateById(tx, existing.inventory_id);
+          const inv = (await inventoryRepo.getForUpdateById(tx, existing.inventory_id)) as InventoryRow | null;
           if (!inv) {
             throw new AppError({
               code: 'NOT_FOUND',
@@ -521,7 +576,7 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }) {
           continue;
         }
 
-        const inv = await inventoryRepo.getForUpdateById(tx, existing.inventory_id);
+        const inv = (await inventoryRepo.getForUpdateById(tx, existing.inventory_id)) as InventoryRow | null;
         if (!inv) {
           throw new AppError({
             code: 'NOT_FOUND',
@@ -602,7 +657,7 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }) {
       }
     }
 
-    const updatedReceipt = await receiptRepo.updateReceipt(tx, receipt.id, payload);
+    const updatedReceipt = (await receiptRepo.updateReceipt(tx, receipt.id, payload)) as ReceiptRow | null;
     if (!updatedReceipt) {
       throw new AppError({
         code: 'NOT_FOUND',
@@ -613,15 +668,9 @@ async function updateReceipt({ pool, id, payload, requestId, endpoint }) {
       });
     }
 
-    const updatedItems = await receiptRepo.getReceiptItems(tx, receipt.id);
+    const updatedItems = (await receiptRepo.getReceiptItems(tx, receipt.id)) as ReceiptItemRow[];
     return buildResponse(updatedReceipt, updatedItems, inventoryUpdates);
   });
 }
 
-module.exports = {
-  createReceipt,
-  listReceipts,
-  getReceiptDetail,
-  updateReceiptImages,
-  updateReceipt,
-};
+export { createReceipt, listReceipts, getReceiptDetail, updateReceiptImages, updateReceipt };

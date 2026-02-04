@@ -1,47 +1,34 @@
-/**
- * @typedef {import('pg').PoolClient} DbClient
- * @typedef {Record<string, any>} DbRow
- * @typedef {{
- *   id: string,
- *   category?: unknown,
- *   name?: unknown,
- *   keyword?: unknown,
- *   sku?: unknown,
- *   quantity?: unknown,
- *   cost?: unknown,
- *   price?: unknown,
- *   location?: unknown,
- *   status?: unknown,
- *   notes?: unknown,
- *   metadata?: unknown
- * }} InventoryInput
- * @typedef {Record<string, unknown>} InventoryUpdate
- */
+import type { PoolClient } from 'pg';
 
-/**
- * @param {unknown} row
- * @returns {DbRow | null}
- */
-function mapRow(row) {
-  return row || null;
+type DbClient = PoolClient;
+type DbRow = Record<string, unknown>;
+type InventoryInput = {
+  id: string;
+  category?: unknown;
+  name?: unknown;
+  keyword?: unknown;
+  sku?: unknown;
+  quantity?: unknown;
+  cost?: unknown;
+  price?: unknown;
+  location?: unknown;
+  status?: unknown;
+  notes?: unknown;
+  metadata?: unknown;
+};
+type InventoryUpdate = Record<string, unknown>;
+
+function mapRow(row: unknown): DbRow | null {
+  if (row && typeof row === 'object') return row as DbRow;
+  return null;
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} id
- * @returns {Promise<DbRow | null>}
- */
-async function getForUpdateById(tx, id) {
+async function getForUpdateById(tx: DbClient, id: string): Promise<DbRow | null> {
   const { rows } = await tx.query('SELECT * FROM inventory WHERE id = $1 FOR UPDATE', [id]);
   return mapRow(rows[0]);
 }
 
-/**
- * @param {DbClient} tx
- * @param {InventoryInput} item
- * @returns {Promise<DbRow | null>}
- */
-async function insert(tx, item) {
+async function insert(tx: DbClient, item: InventoryInput): Promise<DbRow | null> {
   const {
     id,
     category,
@@ -82,13 +69,7 @@ async function insert(tx, item) {
   return mapRow(rows[0]);
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} id
- * @param {InventoryUpdate} fields
- * @returns {Promise<DbRow | null>}
- */
-async function update(tx, id, fields) {
+async function update(tx: DbClient, id: string, fields: InventoryUpdate): Promise<DbRow | null> {
   const allowed = [
     'category',
     'name',
@@ -110,7 +91,7 @@ async function update(tx, id, fields) {
   for (const k of allowed) {
     if (Object.prototype.hasOwnProperty.call(fields, k)) {
       sets.push(`${k} = $${idx++}`);
-      values.push(fields[k]);
+      values.push(fields[k as keyof InventoryUpdate]);
     }
   }
 
@@ -128,8 +109,4 @@ async function update(tx, id, fields) {
   return mapRow(rows[0]);
 }
 
-module.exports = {
-  getForUpdateById,
-  insert,
-  update,
-};
+export { getForUpdateById, insert, update };

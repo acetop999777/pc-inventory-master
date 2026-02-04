@@ -2,7 +2,7 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useReceiptDetailQuery } from '../../app/queries/receipts';
-import type { ReceiptDetail as ReceiptDetailType } from '../../app/queries/receipts';
+import type { ReceiptDetail as ReceiptDetailType } from '../../shared/api/types';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';

@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
-import type { ReceiptListItem } from '../../app/queries/receipts';
+import type { ReceiptListItem } from '../../shared/api/types';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';

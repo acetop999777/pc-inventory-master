@@ -118,7 +118,7 @@ async function bootstrap() {
 }
 
 /**
- * @param {any} err
+ * @param {unknown} err
  */
 function handleBootstrapError(err) {
   console.error('[bootstrap] failed', err);

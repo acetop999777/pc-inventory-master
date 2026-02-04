@@ -13,6 +13,19 @@ const {
 } = require('../validators/inboundValidator');
 
 /** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+/** @typedef {{ code?: unknown, message?: unknown }} ErrorLike */
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorCode(err) {
+  if (!err || typeof err !== 'object') return 'ERROR';
+  const e = /** @type {ErrorLike} */ (err);
+  if (typeof e.code === 'string' && e.code) return e.code;
+  if (typeof e.message === 'string' && e.message) return e.message;
+  return 'ERROR';
+}
 
 /**
  * @param {RouteDeps} deps
@@ -84,7 +97,6 @@ module.exports = function inboundRoutes({ pool }) {
       );
       res.json(result);
     } catch (e) {
-      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -94,7 +106,7 @@ module.exports = function inboundRoutes({ pool }) {
           operationId: payload.operationId,
           endpoint,
           status: 'error',
-          error: errAny?.code || errAny?.message || 'ERROR',
+          error: errorCode(e),
         }),
       );
       next(e);
@@ -163,7 +175,6 @@ module.exports = function inboundRoutes({ pool }) {
       );
       res.json({ success: true });
     } catch (err) {
-      const errAny = /** @type {any} */ (err);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -173,7 +184,7 @@ module.exports = function inboundRoutes({ pool }) {
           endpoint,
           receiptId: id,
           status: 'error',
-          error: errAny?.code || errAny?.message || 'ERROR',
+          error: errorCode(err),
         }),
       );
       next(err);

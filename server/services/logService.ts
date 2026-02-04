@@ -1,32 +1,31 @@
-const AppError = require('../errors/AppError');
-const { withTransaction } = require('../db/tx');
-const idempotencyRepo = require('../repositories/idempotencyRepo');
-const logRepo = require('../repositories/logRepo');
+import type { Pool } from 'pg';
+import AppError = require('../errors/AppError');
+import { withTransaction } from '../db/tx';
+import * as idempotencyRepo from '../repositories/idempotencyRepo';
+import * as logRepo from '../repositories/logRepo';
 
-/**
- * @typedef {import('pg').Pool} DbPool
- * @typedef {{
- *   id?: unknown,
- *   timestamp?: unknown,
- *   type?: unknown,
- *   title?: unknown,
- *   msg?: unknown,
- *   meta?: unknown
- * }} LogInput
- * @typedef {{
- *   pool: DbPool,
- *   operationId: unknown,
- *   log: LogInput,
- *   endpoint?: unknown,
- *   requestId?: unknown
- * }} CreateLogInput
- */
+type DbPool = Pool;
+type LogInput = {
+  id?: unknown;
+  timestamp?: unknown;
+  type?: unknown;
+  title?: unknown;
+  msg?: unknown;
+  meta?: unknown;
+};
+type CreateLogInput = {
+  pool: DbPool;
+  operationId: unknown;
+  log: LogInput;
+  endpoint?: unknown;
+  requestId?: unknown;
+};
 
 /**
  * @param {unknown} v
  * @returns {string | null}
  */
-function asNonEmptyString(v) {
+function asNonEmptyString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
@@ -34,7 +33,13 @@ function asNonEmptyString(v) {
  * @param {CreateLogInput} params
  * @returns {Promise<unknown>}
  */
-async function createLog({ pool, operationId, log, endpoint, requestId }) {
+async function createLog({
+  pool,
+  operationId,
+  log,
+  endpoint,
+  requestId,
+}: CreateLogInput): Promise<unknown> {
   const opId = asNonEmptyString(operationId);
   if (!opId) {
     throw new AppError({
@@ -99,4 +104,4 @@ async function createLog({ pool, operationId, log, endpoint, requestId }) {
   });
 }
 
-module.exports = { createLog };
+export { createLog };

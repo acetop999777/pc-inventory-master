@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "npm run build && node dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
     "verify": "npm run typecheck --if-present && npm test --if-present && npm run build --if-present",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:ci": "echo \"server: no tests; skip\""

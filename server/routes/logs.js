@@ -2,6 +2,19 @@ const express = require('express');
 const { createLog } = require('../services/logService');
 
 /** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+/** @typedef {{ code?: unknown, message?: unknown }} ErrorLike */
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorCode(err) {
+  if (!err || typeof err !== 'object') return 'ERROR';
+  const e = /** @type {ErrorLike} */ (err);
+  if (typeof e.code === 'string' && e.code) return e.code;
+  if (typeof e.message === 'string' && e.message) return e.message;
+  return 'ERROR';
+}
 
 /**
  * @param {RouteDeps} deps
@@ -53,7 +66,6 @@ module.exports = function logsRoutes({ pool }) {
       );
       res.json(result);
     } catch (e) {
-      const errAny = /** @type {any} */ (e);
       console.log(
         JSON.stringify({
           ts: new Date().toISOString(),
@@ -63,7 +75,7 @@ module.exports = function logsRoutes({ pool }) {
           operationId,
           endpoint,
           status: 'error',
-          error: errAny?.code || errAny?.message || 'ERROR',
+          error: errorCode(e),
         }),
       );
       next(e);

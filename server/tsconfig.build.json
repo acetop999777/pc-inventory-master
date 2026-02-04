@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "checkJs": false,
+    "allowJs": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "declaration": false
+  },
+  "include": [
+    "errors/**/*.js",
+    "errors/**/*.ts",
+    "validators/**/*.js",
+    "validators/**/*.ts",
+    "repositories/**/*.js",
+    "repositories/**/*.ts",
+    "mappers/**/*.js",
+    "mappers/**/*.ts",
+    "db/**/*.js",
+    "db/**/*.ts",
+    "middleware/**/*.js",
+    "middleware/**/*.ts",
+    "routes/**/*.js",
+    "routes/**/*.ts",
+    "services/**/*.js",
+    "services/**/*.ts",
+    "app.js",
+    "index.js",
+    "types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

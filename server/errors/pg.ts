@@ -1,4 +1,4 @@
-const AppError = require('./AppError');
+import AppError = require('./AppError');
 
 const DB_UNAVAILABLE_CODES = new Set([
   '57P01', // admin_shutdown
@@ -20,13 +20,17 @@ const DB_UNAVAILABLE_CODES = new Set([
 /**
  * Map common Postgres errors into AppError so routes don't need to scatter try/catch.
  * Keep it minimal and high-signal.
- *
- * @param {any} err
- * @returns {AppError | null}
  */
-function mapPostgresError(err) {
+function mapPostgresError(err: unknown): AppError | null {
   if (!err || typeof err !== 'object') return null;
-  const code = typeof err.code === 'string' ? err.code : '';
+  const errObj = err as {
+    code?: unknown;
+    message?: unknown;
+    detail?: unknown;
+    constraint?: unknown;
+    table?: unknown;
+  };
+  const code = typeof errObj.code === 'string' ? errObj.code : '';
 
   if (DB_UNAVAILABLE_CODES.has(code)) {
     return new AppError({
@@ -39,7 +43,7 @@ function mapPostgresError(err) {
   }
 
   // 57014 = query_canceled (often timeout)
-  if (code === '57014' || (typeof err.message === 'string' && err.message.includes('timeout'))) {
+  if (code === '57014' || (typeof errObj.message === 'string' && errObj.message.includes('timeout'))) {
     return new AppError({
       code: 'TIMEOUT',
       httpStatus: 504,
@@ -52,7 +56,7 @@ function mapPostgresError(err) {
   // https://www.postgresql.org/docs/current/errcodes-appendix.html
   // 23505 = unique_violation
   if (code === '23505') {
-    const detail = typeof err.detail === 'string' ? err.detail : '';
+    const detail = typeof errObj.detail === 'string' ? errObj.detail : '';
     let field = undefined;
     let value = undefined;
     const m = detail.match(/Key \(([^)]+)\)=\(([^)]+)\) already exists/i);
@@ -61,7 +65,7 @@ function mapPostgresError(err) {
       value = m[2];
     }
 
-    const constraint = typeof err.constraint === 'string' ? err.constraint : undefined;
+    const constraint = typeof errObj.constraint === 'string' ? errObj.constraint : undefined;
     const isSku =
       constraint === 'ux_inventory_sku_norm_nonempty' ||
       (typeof field === 'string' && field.toLowerCase().includes('sku'));
@@ -76,17 +80,17 @@ function mapPostgresError(err) {
         field,
         value,
         constraint,
-        table: typeof err.table === 'string' ? err.table : undefined,
+        table: typeof errObj.table === 'string' ? errObj.table : undefined,
       },
     });
   }
 
   // 23514 = check_violation
   if (code === '23514') {
-    const constraint = typeof err.constraint === 'string' ? err.constraint : undefined;
-    const table = typeof err.table === 'string' ? err.table : undefined;
-    const detail = typeof err.detail === 'string' ? err.detail : undefined;
-    const message = typeof err.message === 'string' ? err.message : 'Validation failed';
+    const constraint = typeof errObj.constraint === 'string' ? errObj.constraint : undefined;
+    const table = typeof errObj.table === 'string' ? errObj.table : undefined;
+    const detail = typeof errObj.detail === 'string' ? errObj.detail : undefined;
+    const message = typeof errObj.message === 'string' ? errObj.message : 'Validation failed';
 
     return new AppError({
       code: 'INVALID_ARGUMENT',
@@ -105,10 +109,10 @@ function mapPostgresError(err) {
 
   // 23503 = foreign_key_violation
   if (code === '23503') {
-    const constraint = typeof err.constraint === 'string' ? err.constraint : undefined;
-    const table = typeof err.table === 'string' ? err.table : undefined;
-    const detail = typeof err.detail === 'string' ? err.detail : undefined;
-    const message = typeof err.message === 'string' ? err.message : 'Foreign key violation';
+    const constraint = typeof errObj.constraint === 'string' ? errObj.constraint : undefined;
+    const table = typeof errObj.table === 'string' ? errObj.table : undefined;
+    const detail = typeof errObj.detail === 'string' ? errObj.detail : undefined;
+    const message = typeof errObj.message === 'string' ? errObj.message : 'Foreign key violation';
 
     return new AppError({
       code: 'CONFLICT',
@@ -128,4 +132,4 @@ function mapPostgresError(err) {
   return null;
 }
 
-module.exports = { mapPostgresError };
+export { mapPostgresError };

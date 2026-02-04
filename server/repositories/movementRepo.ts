@@ -1,28 +1,23 @@
-/**
- * @typedef {import('pg').PoolClient} DbClient
- * @typedef {Record<string, any>} DbRow
- * @typedef {{
- *   inventoryId: string,
- *   qtyDelta?: unknown,
- *   reason?: unknown,
- *   unitCost?: unknown,
- *   unitCostUsed?: unknown,
- *   refType?: unknown,
- *   refId?: unknown,
- *   onHandAfter?: unknown,
- *   avgCostAfter?: unknown,
- *   requestId?: unknown,
- *   operationId?: unknown,
- *   occurredAt?: unknown
- * }} MovementInput
- */
+import type { PoolClient } from 'pg';
 
-/**
- * @param {DbClient} tx
- * @param {MovementInput} movement
- * @returns {Promise<DbRow>}
- */
-async function insert(tx, movement) {
+type DbClient = PoolClient;
+type DbRow = Record<string, unknown>;
+type MovementInput = {
+  inventoryId: string;
+  qtyDelta?: unknown;
+  reason?: unknown;
+  unitCost?: unknown;
+  unitCostUsed?: unknown;
+  refType?: unknown;
+  refId?: unknown;
+  onHandAfter?: unknown;
+  avgCostAfter?: unknown;
+  requestId?: unknown;
+  operationId?: unknown;
+  occurredAt?: unknown;
+};
+
+async function insert(tx: DbClient, movement: MovementInput): Promise<DbRow> {
   const {
     inventoryId,
     qtyDelta,
@@ -63,12 +58,7 @@ async function insert(tx, movement) {
   return rows[0];
 }
 
-/**
- * @param {DbClient} tx
- * @param {string} operationId
- * @returns {Promise<DbRow | null>}
- */
-async function getByOperationId(tx, operationId) {
+async function getByOperationId(tx: DbClient, operationId: string): Promise<DbRow | null> {
   const { rows } = await tx.query(
     'SELECT * FROM inventory_movements WHERE operation_id = $1',
     [operationId],
@@ -76,7 +66,4 @@ async function getByOperationId(tx, operationId) {
   return rows[0] || null;
 }
 
-module.exports = {
-  insert,
-  getByOperationId,
-};
+export { insert, getByOperationId };

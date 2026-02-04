@@ -1,6 +1,7 @@
 const { mapPostgresError } = require('../errors/pg');
 
 /** @typedef {import('express').Request & { requestId?: string }} RequestWithId */
+/** @typedef {{ code?: unknown, message?: unknown, retryable?: unknown, httpStatus?: unknown, status?: unknown, statusCode?: unknown, details?: unknown, retryAfterMs?: unknown }} ErrorLike */
 
 /**
  * @param {number} status
@@ -31,7 +32,7 @@ function inferCodeFromStatus(status) {
 function errorHandler(err, req, res, next) {
   // 1) 尝试把常见 PG 错误收口成业务 code
   const mapped = mapPostgresError(err);
-  const e = /** @type {any} */ (mapped || err);
+  const e = /** @type {ErrorLike} */ (mapped || err || {});
 
   // 2) 统一读 status：兼容 AppError.httpStatus / express err.status
   const status = Number(e?.httpStatus || e?.status || e?.statusCode || 500) || 500;
@@ -59,7 +60,7 @@ function errorHandler(err, req, res, next) {
   // 如果 headers 已经发出，交给 express 默认处理
   if (res.headersSent) return next(e);
 
-  /** @type {{ error: { code: string, message: string, retryable: boolean, requestId: string | null, details?: Record<string, any>, retryAfterMs?: number } }} */
+  /** @type {{ error: { code: string, message: string, retryable: boolean, requestId: string | null, details?: Record<string, unknown>, retryAfterMs?: number } }} */
   const payload = {
     error: {
       code,
@@ -71,7 +72,7 @@ function errorHandler(err, req, res, next) {
 
   // 可选细节：只透出 object（避免把 Error/函数等奇怪东西塞给前端）
   if (e?.details && typeof e.details === 'object') {
-    payload.error.details = e.details;
+    payload.error.details = /** @type {Record<string, unknown>} */ (e.details);
   }
   if (typeof e?.retryAfterMs === 'number') {
     payload.error.retryAfterMs = e.retryAfterMs;
