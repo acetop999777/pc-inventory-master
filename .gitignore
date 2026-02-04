@@ -19,6 +19,9 @@ coverage/
 
 backups/
 .bak/
+bak_pushfull_*/
+ops/patches/
+presentation/
 
 *.bak*
 *.broken*
