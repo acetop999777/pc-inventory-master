@@ -16,7 +16,7 @@ import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils'
 import { api } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
-import { Button, Input, Select, panel, panelDashed, useToast } from '../../shared/ui';
+import { Button, Field, FieldLabel, Input, Select, panel, panelDashed, useToast } from '../../shared/ui';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 
@@ -386,35 +386,32 @@ export default function ReceiptCreate() {
 
       <div className={`${panel} p-5 mb-6`}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ordered At</div>
+          <Field label="Ordered At">
             <Input
               type="datetime-local"
               value={receivedAt}
               onChange={(e) => setReceivedAt(e.target.value)}
               size="sm"
-              className="mt-2 text-xs font-bold text-slate-700"
+              className="text-xs font-bold text-slate-700"
             />
-          </div>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor</div>
+          </Field>
+          <Field label="Vendor">
             <Input
               value={vendor}
               onChange={(e) => setVendor(e.target.value)}
               placeholder="e.g. Newegg"
               size="sm"
-              className="mt-2 text-xs font-bold text-slate-700"
+              className="text-xs font-bold text-slate-700"
             />
-          </div>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mode</div>
+          </Field>
+          <Field label="Mode">
             <Select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
               size="sm"
               variant="soft"
               className="w-full text-xs font-bold text-slate-700"
-              wrapperClassName="mt-2"
+              wrapperClassName="w-full"
             >
               {MODES.map((m) => (
                 <option key={m} value={m}>
@@ -422,47 +419,45 @@ export default function ReceiptCreate() {
                 </option>
               ))}
             </Select>
-          </div>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</div>
+          </Field>
+          <Field label="Notes">
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="optional"
               size="sm"
-              className="mt-2 text-xs font-bold text-slate-700"
+              className="text-xs font-bold text-slate-700"
             />
-          </div>
+          </Field>
         </div>
         <div className="mt-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Scan / Order Summary Input</div>
-          <div className="mt-2 flex gap-2">
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Paste Newegg order summary or scan codes (one per line)"
-              className="flex-1 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 h-24 resize-none"
-            />
-            <Button
-              onClick={parseInput}
-              disabled={scanBusy}
-              size="xs"
-              variant="ghost"
-              className="self-start inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition text-[11px] font-black uppercase tracking-wider"
-            >
-              {scanBusy ? 'Parsing...' : 'Parse'}
-            </Button>
-          </div>
-          <div className="mt-2 text-[10px] font-bold text-slate-400">
-            Summary mode auto-fills Ordered At. Scan mode uses DB + UPC lookup.
-          </div>
+          <Field
+            label="Scan / Order Summary Input"
+            helpText="Summary mode auto-fills Ordered At. Scan mode uses DB + UPC lookup."
+          >
+            <div className="flex gap-2">
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Paste Newegg order summary or scan codes (one per line)"
+                className="flex-1 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 h-24 resize-none"
+              />
+              <Button
+                onClick={parseInput}
+                disabled={scanBusy}
+                size="xs"
+                variant="ghost"
+                className="self-start inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.99] transition text-[11px] font-black uppercase tracking-wider"
+              >
+                {scanBusy ? 'Parsing...' : 'Parse'}
+              </Button>
+            </div>
+          </Field>
         </div>
 
         <div className="mt-6 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between">
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Receipt Photos
-            </div>
+            <FieldLabel>Receipt Photos</FieldLabel>
             <Button
               onClick={() => uploadRef.current?.click()}
               size="xs"
@@ -575,9 +570,7 @@ export default function ReceiptCreate() {
               className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 px-5 py-4 md:py-3 border-b border-slate-100 items-center"
             >
               <div className="md:col-span-3 relative">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  Item Name
-                </div>
+                <FieldLabel className="md:hidden mb-1">Item Name</FieldLabel>
                 <Input
                   value={line.name}
                   onChange={(e) => {
@@ -629,9 +622,7 @@ export default function ReceiptCreate() {
                 ) : null}
               </div>
               <div className="md:col-span-2">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  Category
-                </div>
+                <FieldLabel className="md:hidden mb-1">Category</FieldLabel>
                 <Select
                   value={line.category}
                   onChange={(e) => updateLine(line.id, { category: e.target.value })}
@@ -648,9 +639,7 @@ export default function ReceiptCreate() {
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  SKU / UPC
-                </div>
+                <FieldLabel className="md:hidden mb-1">SKU / UPC</FieldLabel>
                 <Input
                   value={line.sku}
                   onChange={(e) => updateLine(line.id, { sku: e.target.value, inventoryId: '' })}
@@ -662,9 +651,7 @@ export default function ReceiptCreate() {
                 />
               </div>
               <div className="md:col-span-2">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  Keyword
-                </div>
+                <FieldLabel className="md:hidden mb-1">Keyword</FieldLabel>
                 <Input
                   value={line.keyword}
                   onChange={(e) => updateLine(line.id, { keyword: e.target.value, inventoryId: '' })}
@@ -676,9 +663,7 @@ export default function ReceiptCreate() {
                 />
               </div>
               <div className="md:col-span-1">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  Qty
-                </div>
+                <FieldLabel className="md:hidden mb-1">Qty</FieldLabel>
                 <Input
                   value={line.qty}
                   onChange={(e) => updateLine(line.id, { qty: e.target.value })}
@@ -688,9 +673,7 @@ export default function ReceiptCreate() {
                 />
               </div>
               <div className="md:col-span-1">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  Unit Cost
-                </div>
+                <FieldLabel className="md:hidden mb-1">Unit Cost</FieldLabel>
                 <Input
                   value={line.unitCost}
                   onChange={(e) => updateLine(line.id, { unitCost: e.target.value })}
@@ -700,9 +683,7 @@ export default function ReceiptCreate() {
                 />
               </div>
               <div className="md:col-span-1 text-right text-xs font-mono text-slate-600">
-                <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 text-left">
-                  Line Total
-                </div>
+                <FieldLabel className="md:hidden mb-1 text-left">Line Total</FieldLabel>
                 ${Number.isFinite(lineTotal) ? lineTotal.toFixed(2) : '0.00'}
               </div>
               <div className="md:col-span-1 text-right">

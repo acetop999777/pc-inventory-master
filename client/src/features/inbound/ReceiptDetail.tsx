@@ -7,7 +7,7 @@ import { api } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Select, panel, panelDashed } from '../../shared/ui';
+import { Button, Field, FieldLabel, Input, Select, panel, panelDashed } from '../../shared/ui';
 
 export default function ReceiptDetail() {
   const nav = useNavigate();
@@ -187,57 +187,61 @@ export default function ReceiptDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Received At</div>
-          <Input
-            type="datetime-local"
-            value={receivedAt}
-            onChange={(e) => setReceivedAt(e.target.value)}
-            size="sm"
-            className="mt-2 text-xs font-bold text-slate-700"
-          />
+          <Field label="Received At">
+            <Input
+              type="datetime-local"
+              value={receivedAt}
+              onChange={(e) => setReceivedAt(e.target.value)}
+              size="sm"
+              className="text-xs font-bold text-slate-700"
+            />
+          </Field>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor</div>
-          <Input
-            value={vendor}
-            onChange={(e) => setVendor(e.target.value)}
-            size="sm"
-            className="mt-2 text-xs font-bold text-slate-700"
-            placeholder="-"
-          />
+          <Field label="Vendor">
+            <Input
+              value={vendor}
+              onChange={(e) => setVendor(e.target.value)}
+              size="sm"
+              className="text-xs font-bold text-slate-700"
+              placeholder="-"
+            />
+          </Field>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mode</div>
-          <Select
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-            size="sm"
-            variant="soft"
-            className="w-full text-xs font-bold text-slate-700 uppercase"
-            wrapperClassName="mt-2"
-          >
-            {['MANUAL', 'SCAN', 'SUMMARY'].map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
+          <Field label="Mode">
+            <Select
+              value={mode}
+              onChange={(e) => setMode(e.target.value)}
+              size="sm"
+              variant="soft"
+              className="w-full text-xs font-bold text-slate-700 uppercase"
+              wrapperClassName="w-full"
+            >
+              {['MANUAL', 'SCAN', 'SUMMARY'].map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</div>
-          <Input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            size="sm"
-            className="mt-2 text-xs font-bold text-slate-700"
-            placeholder="optional"
-          />
+          <Field label="Notes">
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              size="sm"
+              className="text-xs font-bold text-slate-700"
+              placeholder="optional"
+            />
+          </Field>
         </div>
       </div>
 
       <div className={`${panel} p-5 mb-6`}>
         <div className="flex items-center justify-between">
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Receipt Photos</div>
+          <FieldLabel>Receipt Photos</FieldLabel>
           <Button
             onClick={() => uploadRef.current?.click()}
             size="xs"

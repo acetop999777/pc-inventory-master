@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import {
   Button,
+  Field,
   Input,
   Modal,
   ModalBody,
@@ -120,10 +121,7 @@ export function StockAdjustModal(props: {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Action
-            </div>
+          <Field label="Action">
             <div className="flex gap-2">
               <Button
                 onClick={() => setMode('add')}
@@ -150,13 +148,13 @@ export function StockAdjustModal(props: {
                 Remove Stock
               </Button>
             </div>
-          </div>
+          </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                {mode === 'add' ? 'Add Quantity' : 'Remove Quantity'}
-              </div>
+            <Field
+              label={mode === 'add' ? 'Add Quantity' : 'Remove Quantity'}
+              helpText="Integer ≥ 1"
+            >
               <Input
                 size="sm"
                 className="font-bold"
@@ -164,13 +162,9 @@ export function StockAdjustModal(props: {
                 onChange={(e) => setQtyInput(e.target.value)}
                 inputMode="numeric"
               />
-              <div className="text-[11px] text-slate-400">Integer ≥ 1</div>
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Unit Cost (this update)
-              </div>
+            <Field label="Unit Cost (this update)" helpText="Used to compute new WAC (add or remove)">
               <Input
                 size="sm"
                 className="font-bold text-slate-900"
@@ -178,10 +172,7 @@ export function StockAdjustModal(props: {
                 onChange={(e) => setUnitCostInput(e.target.value)}
                 inputMode="decimal"
               />
-              <div className="text-[11px] text-slate-400">
-                Used to compute new WAC (add or remove)
-              </div>
-            </div>
+            </Field>
           </div>
         </div>
 

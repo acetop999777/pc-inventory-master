@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createQueryClient } from '../query/queryClient';
+import { createQueryClient } from './queryClient';
 import { SaveQueueProvider, useSaveQueue } from '../saveQueue/SaveQueueProvider';
 import { ConfirmProvider } from '../confirm/ConfirmProvider';
 import { ToastProvider } from '../../shared/ui';

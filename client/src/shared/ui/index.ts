@@ -1,5 +1,6 @@
 export { Button } from './Button';
 export { CompactInput } from './CompactInput';
+export { Field, FieldHelp, FieldLabel } from './Field';
 export { Input } from './Input';
 export { FinancialCard } from './FinancialCard';
 export { Select } from './Select';
