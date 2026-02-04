@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Cpu, ExternalLink, Copy, Check, X } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client/client.types';
+import { ClientEntity } from '../../../../domain/client';
 import type { UpdateClientField } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';

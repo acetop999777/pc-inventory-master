@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trash2, Archive } from 'lucide-react';
-import type { ClientEntity } from '../../../domain/client/client.types';
-import { calculateFinancials } from '../../../domain/client/client.logic';
+import type { ClientEntity } from '../../../domain/client';
+import { calculateFinancials } from '../../../domain/client';
 import { formatDateShort, formatDateYMD, formatMoney } from '../../../shared/lib/format';
 import { Button } from '../../../shared/ui';
 

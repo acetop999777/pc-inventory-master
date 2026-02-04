@@ -1,6 +1,6 @@
 import React from 'react';
 import { DollarSign, Wallet, HandCoins } from 'lucide-react';
-import { ClientEntity, ClientFinancials } from '../../../../domain/client/client.types';
+import { ClientEntity, ClientFinancials } from '../../../../domain/client';
 import type { UpdateClientField } from '../../types';
 import { FinancialCard } from '../../../../shared/ui';
 import { formatMoney } from '../../../../shared/lib/format';

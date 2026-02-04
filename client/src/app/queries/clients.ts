@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { asArray, asRecord, tryParseJsonObject } from '../../shared/api/response';
-import { ClientEntity, ClientSpecs } from '../../domain/client/client.types';
+import { ClientEntity, ClientSpecs } from '../../domain/client';
 
 export const clientsQueryKey = ['clients'] as const;
 

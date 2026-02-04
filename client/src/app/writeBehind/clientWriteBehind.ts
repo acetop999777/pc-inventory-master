@@ -1,7 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
-import { ClientEntity } from '../../domain/client/client.types';
-import { calculateFinancials } from '../../domain/client/client.logic';
+import { ClientEntity, calculateFinancials } from '../../domain/client';
 import { clientsQueryKey } from '../queries/clients';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 

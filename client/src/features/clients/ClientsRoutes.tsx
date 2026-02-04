@@ -10,8 +10,7 @@ import React, {
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { ClientEntity } from '../../domain/client/client.types';
-import { calculateFinancials, createEmptyClient } from '../../domain/client/client.logic';
+import { ClientEntity, calculateFinancials, createEmptyClient } from '../../domain/client';
 import { generateId } from '../../shared/lib/id';
 
 import { useClientsQuery } from '../../app/queries/clients';

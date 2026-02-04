@@ -1,6 +1,6 @@
 import React from 'react';
 import { Camera, X } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client/client.types';
+import { ClientEntity } from '../../../../domain/client';
 import type { UpdateClientField } from '../../types';
 import { CompactInput, Button, panelSoftMd } from '../../../../shared/ui';
 

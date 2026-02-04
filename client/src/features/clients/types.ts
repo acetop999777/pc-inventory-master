@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { ClientEntity, ClientFinancials } from '../../domain/client/client.types';
+import type { ClientEntity, ClientFinancials } from '../../domain/client';
 import type { InventoryItem } from '../../domain/inventory/inventory.types';
 
 /**

@@ -1,5 +1,5 @@
 import React, { act } from 'react';
-import type { ClientEntity } from '../../../domain/client/client.types';
+import type { ClientEntity } from '../../../domain/client';
 import { createRoot } from 'react-dom/client';
 import { ConfirmProvider } from '../../../app/confirm/ConfirmProvider';
 const { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } = require('../ClientsRoutes');

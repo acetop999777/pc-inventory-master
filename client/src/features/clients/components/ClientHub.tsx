@@ -1,8 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Search, Plus, ChevronDown, Archive } from 'lucide-react';
 import { ClientRow } from './ClientRow';
-import { ClientEntity } from '../../../domain/client/client.types';
-import { calculateFinancials } from '../../../domain/client/client.logic';
+import { ClientEntity } from '../../../domain/client';
+import { calculateFinancials } from '../../../domain/client';
 import { formatMoney } from '../../../shared/lib/format';
 import { Button } from '../../../shared/ui';
 

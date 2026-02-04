@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, ChevronUp, ChevronDown } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client/client.types';
+import { ClientEntity } from '../../../../domain/client';
 import type { UpdateClientField } from '../../types';
 import { Button, panelMd } from '../../../../shared/ui';
 
