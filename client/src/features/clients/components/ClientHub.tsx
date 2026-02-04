@@ -27,16 +27,15 @@ const STATUS_FILTER_OPTIONS = ['All', 'Pending', 'Deposit', 'Building', 'Ready',
 function norm(v: unknown) {
   return String(v ?? '').trim().toLowerCase();
 }
-type ClientWithCreated = ClientEntity & { createdAt?: string; created_at?: string };
-function isDelivered(c: ClientWithCreated) {
+function isDelivered(c: ClientEntity) {
   return norm(c.status) === 'delivered';
 }
 function toTime(s: unknown) {
   const t = Date.parse(String(s ?? ''));
   return Number.isFinite(t) ? t : 0;
 }
-function getFilterTime(c: ClientWithCreated) {
-  const raw = c.orderDate ?? c.deliveryDate ?? c.createdAt ?? c.created_at;
+function getFilterTime(c: ClientEntity) {
+  const raw = c.orderDate ?? c.deliveryDate ?? c.createdAt;
   return toTime(raw);
 }
 function parseDateInput(value: string, endOfDay = false) {
@@ -86,8 +85,8 @@ function sortActive(a: ClientEntity, b: ClientEntity) {
   const bT = toTime(b.orderDate);
   if (aT !== bT) return bT - aT;
 
-  const aC = toTime((a as ClientWithCreated).createdAt ?? (a as ClientWithCreated).created_at);
-  const bC = toTime((b as ClientWithCreated).createdAt ?? (b as ClientWithCreated).created_at);
+  const aC = toTime(a.createdAt);
+  const bC = toTime(b.createdAt);
   return bC - aC;
 }
 
@@ -101,8 +100,8 @@ function sortArchived(a: ClientEntity, b: ClientEntity) {
   const bO = toTime(b.orderDate);
   if (aO !== bO) return bO - aO;
 
-  const aC = toTime((a as ClientWithCreated).createdAt ?? (a as ClientWithCreated).created_at);
-  const bC = toTime((b as ClientWithCreated).createdAt ?? (b as ClientWithCreated).created_at);
+  const aC = toTime(a.createdAt);
+  const bC = toTime(b.createdAt);
   return bC - aC;
 }
 
@@ -227,7 +226,7 @@ export default function ClientHub({
   const matches = (c: ClientEntity) => {
     if (statusFilter !== 'All' && norm(c.status) !== norm(statusFilter)) return false;
     if (dateFromTs || dateToTs) {
-      const t = getFilterTime(c as ClientWithCreated);
+      const t = getFilterTime(c);
       if (!t) return false;
       if (dateFromTs && t < dateFromTs) return false;
       if (dateToTs && t > dateToTs) return false;

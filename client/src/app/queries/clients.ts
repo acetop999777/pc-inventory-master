@@ -21,9 +21,52 @@ function coerceClientSpecs(raw: Record<string, unknown>): ClientSpecs {
   return out;
 }
 
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const cleaned = value.trim();
+    if (!cleaned) return null;
+    const normalized = cleaned.replace(/[^0-9.-]/g, '');
+    if (!normalized || normalized === '-' || normalized === '.') return null;
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function firstNumber(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    const n = toNumber(v);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
 export function normalizeClientRow(row: unknown): ClientEntity {
   const r = asRecord(row);
   const specs = coerceClientSpecs(tryParseJsonObject(r.specs));
+  const createdAt =
+    typeof r.createdAt === 'string'
+      ? r.createdAt
+      : typeof r.created_at === 'string'
+        ? r.created_at
+        : undefined;
+
+  const paidAmount =
+    firstNumber(r.paidAmount, r.amountPaid, r.paid, r.depositPaid, r.deposit) ?? 0;
+
+  const totalPrice =
+    firstNumber(
+      r.totalPrice,
+      r.total_price,
+      r.orderTotal,
+      r.total,
+      r.order_total,
+      r.price,
+      r.orderAmount,
+      r.order_amount,
+    ) ?? 0;
   return {
     id: String(r.id ?? ''),
     wechatName: String(r.wechatName ?? ''),
@@ -37,8 +80,9 @@ export function normalizeClientRow(row: unknown): ClientEntity {
     photos: Array.isArray(r.photos) ? (r.photos as string[]) : [],
 
     status: String(r.status ?? 'Pending'),
-    orderDate: String(r.orderDate ?? ''),
-    deliveryDate: String(r.deliveryDate ?? ''),
+    orderDate: String(r.orderDate ?? r.order_date ?? ''),
+    deliveryDate: String(r.deliveryDate ?? r.delivery_date ?? ''),
+    createdAt,
     isShipping: Boolean(r.isShipping),
     trackingNumber: String(r.trackingNumber ?? ''),
     address: String(r.address ?? ''),
@@ -46,8 +90,8 @@ export function normalizeClientRow(row: unknown): ClientEntity {
     state: String(r.state ?? ''),
     zip: String(r.zip ?? ''),
 
-    totalPrice: Number(r.totalPrice ?? 0) || 0,
-    paidAmount: Number(r.paidAmount ?? 0) || 0,
+    totalPrice,
+    paidAmount,
 
     specs,
     pcppLink: String(r.pcppLink ?? ''),

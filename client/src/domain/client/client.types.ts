@@ -25,6 +25,7 @@ export interface ClientEntity {
   status: string;
   orderDate: string; // ISO String YYYY-MM-DD
   deliveryDate: string; // ISO String YYYY-MM-DD
+  createdAt?: string; // optional: server created_at -> createdAt
   isShipping: boolean;
   trackingNumber: string;
   address: string;
