@@ -5,7 +5,7 @@ import type { ClientSpecsTableProps } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
 import { parsePcppText } from '../pcpp';
-import { Button } from '../../../../shared/ui';
+import { Button, Input } from '../../../../shared/ui';
 
 type SpecRow = {
   name?: string;
@@ -347,8 +347,10 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
               </div>
 
               <div className="mt-3 relative">
-                <input
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300"
+                <Input
+                  size="sm"
+                  variant="soft"
+                  className="w-full text-sm font-semibold text-slate-700 placeholder:text-slate-300"
                   placeholder={isShippingRow ? 'Tracking / URL (optional)' : 'Component Name...'}
                   value={nameVal}
                   onChange={(e) => updateSpec(cat, 'name', e.target.value)}
@@ -398,9 +400,11 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
                     </Button>
                   ) : null}
                   <span className="text-[11px] text-slate-400 mr-1">$</span>
-                  <input
+                  <Input
                     inputMode="decimal"
-                    className="w-full text-right font-mono font-bold text-slate-600 bg-transparent outline-none text-sm"
+                    size="sm"
+                    variant="ghost"
+                    className="w-full text-right font-mono font-bold text-slate-600 bg-transparent px-0 text-sm"
                     value={costStr}
                     onClick={(e) => e.stopPropagation()}
                     onFocus={(e) => {
@@ -476,8 +480,10 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
               </div>
 
               <div className="col-span-7 relative">
-                <input
-                  className="w-full font-bold text-slate-700 outline-none bg-transparent placeholder:text-slate-200 pr-8"
+                <Input
+                  size="sm"
+                  variant="ghost"
+                  className="w-full font-bold text-slate-700 bg-transparent placeholder:text-slate-200 pr-8 px-0"
                   placeholder={isShippingRow ? 'Tracking / URL (optional)' : 'Component Name...'}
                   value={nameVal}
                   onChange={(e) => updateSpec(cat, 'name', e.target.value)}
@@ -538,9 +544,11 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
                 ) : null}
                 <div className="flex items-center bg-slate-50 rounded px-2 py-1 border border-slate-100">
                   <span className="text-[10px] text-slate-400 mr-1">$</span>
-                  <input
+                  <Input
                     inputMode="decimal"
-                    className="w-20 text-right font-mono font-bold text-slate-600 bg-transparent outline-none text-xs"
+                    size="sm"
+                    variant="ghost"
+                    className="w-20 text-right font-mono font-bold text-slate-600 bg-transparent px-0 text-xs"
                     value={costStr}
                     onClick={(e) => e.stopPropagation()}
                     onFocus={(e) => {

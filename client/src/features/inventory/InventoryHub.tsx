@@ -66,10 +66,12 @@ const InlineEditor = <T extends string | number>({
 
   if (editing) {
     return (
-      <input
+      <Input
         ref={inputRef}
         type={type}
-        className="w-full bg-blue-50 border border-blue-300 rounded px-1 text-slate-900 outline-none font-bold"
+        size="sm"
+        variant="soft"
+        className="w-full bg-blue-50 border border-blue-300 rounded px-1 text-slate-900 font-bold"
         value={tempVal}
         onChange={(e) => {
           const next = e.target.value;

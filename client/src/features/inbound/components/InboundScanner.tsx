@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Scan, Box, Loader2 } from 'lucide-react';
-import { Button, panelXl } from '../../../shared/ui';
+import { Button, Input, panelXl } from '../../../shared/ui';
 
 interface Props {
   onScan: (code: string) => Promise<void>;
@@ -33,9 +33,11 @@ export const InboundScanner: React.FC<Props> = ({ onScan, onParse, loading }) =>
           ) : (
             <Scan className="absolute left-4 top-3.5 text-slate-400" size={20} />
           )}
-          <input
+          <Input
             autoFocus
-            className="w-full bg-slate-50 pl-12 pr-4 py-3.5 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-300"
+            size="md"
+            variant="soft"
+            className="w-full bg-slate-50 pl-12 pr-4 py-3.5 rounded-xl font-bold text-sm placeholder:text-slate-300"
             placeholder="Scan SKU / UPC..."
             value={scanVal}
             onChange={(e) => setScanVal(e.target.value)}

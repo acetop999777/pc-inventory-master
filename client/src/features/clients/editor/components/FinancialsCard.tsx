@@ -1,7 +1,7 @@
 import React from 'react';
 import { DollarSign, Wallet, HandCoins } from 'lucide-react';
 import type { ClientFinancialsCardProps } from '../../types';
-import { FinancialCard } from '../../../../shared/ui';
+import { FinancialCard, Input } from '../../../../shared/ui';
 import { formatMoney } from '../../../../shared/lib/format';
 
 function parseMoney(raw: string, fallback: number): number {
@@ -47,8 +47,10 @@ export const FinancialsCard: React.FC<ClientFinancialsCardProps> = ({
         </span>
         <div className="flex items-center">
           <span className="text-xl font-black mr-1 text-slate-400">$</span>
-          <input
-            className="text-xl font-black text-slate-800 bg-transparent outline-none w-full"
+          <Input
+            size="sm"
+            variant="ghost"
+            className="text-xl font-black text-slate-800 bg-transparent w-full px-0"
             value={totalText}
             inputMode="decimal"
             placeholder="0.00"
@@ -71,8 +73,10 @@ export const FinancialsCard: React.FC<ClientFinancialsCardProps> = ({
         </span>
         <div className="flex items-center">
           <span className="text-xl font-black mr-1 text-blue-300">$</span>
-          <input
-            className="text-xl font-black text-blue-700 bg-transparent outline-none w-full"
+          <Input
+            size="sm"
+            variant="ghost"
+            className="text-xl font-black text-blue-700 bg-transparent w-full px-0"
             value={paidText}
             inputMode="decimal"
             placeholder="0.00"

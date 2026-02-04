@@ -1,7 +1,7 @@
 import React from 'react';
 import { Camera, X } from 'lucide-react';
 import type { ClientIdentityCardProps } from '../../types';
-import { CompactInput, Button, panelSoftMd } from '../../../../shared/ui';
+import { CompactInput, Button, Input, panelSoftMd } from '../../../../shared/ui';
 
 export const IdentityCard: React.FC<ClientIdentityCardProps> = ({
   data,
@@ -14,8 +14,10 @@ export const IdentityCard: React.FC<ClientIdentityCardProps> = ({
       <div className="mb-6">
         {/* 只有用户名，没有箭头了 */}
         <div className="flex items-center gap-2 mb-4">
-          <input
-            className="text-xl md:text-2xl font-black text-slate-800 bg-transparent outline-none w-full placeholder:text-slate-300"
+          <Input
+            size="lg"
+            variant="ghost"
+            className="text-xl md:text-2xl font-black text-slate-800 bg-transparent placeholder:text-slate-300 px-0"
             placeholder="Client Name"
             value={data.wechatName}
             onChange={(e) => update('wechatName', e.target.value)}

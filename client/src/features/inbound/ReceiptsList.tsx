@@ -7,7 +7,7 @@ import type { ReceiptListItem } from '../../shared/api/types';
 import { api } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
-import { Button, panel } from '../../shared/ui';
+import { Button, Input, panel } from '../../shared/ui';
 
 function toDateStart(value?: string) {
   if (!value) return null;
@@ -96,22 +96,24 @@ export default function ReceiptsList() {
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Start Date
               </div>
-              <input
+              <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                size="sm"
+                className="mt-2 text-xs font-bold text-slate-700"
               />
             </div>
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 End Date
               </div>
-              <input
+              <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+                size="sm"
+                className="mt-2 text-xs font-bold text-slate-700"
               />
             </div>
           </div>
