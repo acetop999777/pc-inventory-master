@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
+import { asArray } from '../../shared/api/response';
 import type { ReceiptDetail, ReceiptListItem } from '../../shared/api/types';
 
 export const receiptsQueryKey = ['receipts'] as const;
@@ -9,7 +10,7 @@ export function useReceiptsQuery(limit = 50) {
     queryKey: [...receiptsQueryKey, limit],
     queryFn: async () => {
       const raw = await apiCallOrThrow<unknown>(`/inbound/receipts?limit=${limit}`);
-      return Array.isArray(raw) ? raw : [];
+      return asArray(raw);
     },
   });
 }

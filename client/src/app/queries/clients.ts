@@ -1,22 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
+import { asArray, asRecord, tryParseJsonObject } from '../../shared/api/response';
 import { ClientEntity, ClientSpecs } from '../../domain/client/client.types';
 
 export const clientsQueryKey = ['clients'] as const;
-
-function tryParseJsonObject(x: unknown): Record<string, unknown> {
-  if (x == null) return {};
-  if (typeof x === 'object') return x as Record<string, unknown>;
-  if (typeof x === 'string') {
-    try {
-      const v = JSON.parse(x);
-      return typeof v === 'object' && v != null ? (v as Record<string, unknown>) : {};
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
 
 function coerceClientSpecs(raw: Record<string, unknown>): ClientSpecs {
   const out: ClientSpecs = {};
@@ -35,7 +22,7 @@ function coerceClientSpecs(raw: Record<string, unknown>): ClientSpecs {
 }
 
 export function normalizeClientRow(row: unknown): ClientEntity {
-  const r = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
+  const r = asRecord(row);
   const specs = coerceClientSpecs(tryParseJsonObject(r.specs));
   return {
     id: String(r.id ?? ''),
@@ -72,8 +59,7 @@ export function useClientsQuery() {
     queryKey: clientsQueryKey,
     queryFn: async () => {
       const raw = await apiCallOrThrow<unknown>('/clients');
-      const arr = Array.isArray(raw) ? raw : [];
-      return arr.map(normalizeClientRow);
+      return asArray(raw).map(normalizeClientRow);
     },
   });
 }

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
+import { asArray, asRecord } from '../../shared/api/response';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 
 export const inventoryQueryKey = ['inventory'] as const;
 
 export function normalizeInventoryRow(row: unknown): InventoryItem {
-  const r = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
+  const r = asRecord(row);
   const cost = Number(r.cost ?? 0);
   const quantity = Number(r.quantity ?? 0);
 
@@ -35,8 +36,7 @@ export function useInventoryQuery() {
     queryKey: inventoryQueryKey,
     queryFn: async () => {
       const raw = await apiCallOrThrow<unknown>('/inventory');
-      const arr = Array.isArray(raw) ? raw : [];
-      return arr.map(normalizeInventoryRow);
+      return asArray(raw).map(normalizeInventoryRow);
     },
   });
 }
