@@ -5,6 +5,8 @@ export interface ClientSpecs {
     cost: number;
     qty: number;
     needsPurchase?: boolean;
+    inventoryId?: string;
+    matchedBy?: 'auto' | 'manual' | 'none';
   };
 }
 

@@ -5,6 +5,12 @@ import type { ClientSpecsTableProps } from '../../types';
 import { InventoryItem } from '../../../../domain/inventory/inventory.types';
 import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
 import { parsePcppText } from '../pcpp';
+import {
+  getInventorySuggestions,
+  matchInventoryStrict,
+  normalizeCategoryKey,
+  filterInventoryByCategoryStrict,
+} from '../matchInventory';
 import { Button, Input } from '../../../../shared/ui';
 
 type SpecRow = {
@@ -13,6 +19,8 @@ type SpecRow = {
   cost?: number | string;
   qty?: number;
   needsPurchase?: boolean;
+  inventoryId?: string;
+  matchedBy?: 'auto' | 'manual' | 'none';
 };
 
 const SHIPPING_KEY = 'SHIPPING';
@@ -71,6 +79,8 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
         cost: Number.isFinite(costNum) ? costNum : 0,
         qty: Number.isFinite(qtyNum) ? qtyNum : 0,
         needsPurchase: Boolean(row.needsPurchase),
+        inventoryId: row.inventoryId ? String(row.inventoryId) : undefined,
+        matchedBy: row.matchedBy,
       };
     }
     return out;
@@ -118,7 +128,11 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
   const updateSpec = <K extends keyof SpecRow>(cat: string, field: K, val: SpecRow[K]) => {
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
     const nextRow: SpecRow = { ...cur, [field]: val };
-    const next = { ...specsObj, [cat]: nextRow };
+    if (field === 'name' || field === 'sku') {
+      nextRow.inventoryId = undefined;
+      nextRow.matchedBy = 'none';
+    }
+    const next: Record<string, SpecRow> = { ...specsObj, [cat]: nextRow };
     update('specs', normalizeSpecs(next));
     onCalculate?.();
   };
@@ -138,38 +152,37 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
 
   const selectInventoryItem = (cat: string, item: InventoryItem) => {
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
-    const next = {
-      ...specsObj,
-      [cat]: {
-        ...cur,
-        name: item.name,
-        sku: item.sku || '',
-        cost: Number(item.cost || 0),
-      },
+    const nextRow: SpecRow = {
+      ...cur,
+      name: item.name,
+      sku: item.sku || '',
+      cost: Number(item.cost || 0),
+      inventoryId: item.id,
+      matchedBy: 'manual',
+      needsPurchase: false,
     };
+    const next: Record<string, SpecRow> = { ...specsObj, [cat]: nextRow };
     update('specs', normalizeSpecs(next));
     setActiveDrop(null);
     onCalculate?.();
   };
 
-  const normalizeKey = (v: string) => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-
-  const isMissingInInventory = (spec: SpecRow) => {
+  const isMissingInInventory = (cat: string, spec: SpecRow) => {
     const name = String(spec.name || '').trim();
     const sku = String(spec.sku || '').trim();
     if (!name && !sku) return false;
 
-    const nameNorm = normalizeKey(name);
-    const skuNorm = normalizeKey(sku);
+    const baseCat = normalizeCategoryKey(cat);
+    if (!CORE_CATS.includes(baseCat)) return false;
+    const candidates = filterInventoryByCategoryStrict(inventory, baseCat);
 
-    return !inventory.some((it) => {
-      const invName = normalizeKey(String(it.name || ''));
-      const invSku = normalizeKey(String(it.sku || ''));
-      if (skuNorm && invSku && invSku === skuNorm) return true;
-      if (nameNorm && invName && invName === nameNorm) return true;
-      if (skuNorm && invName && invName.includes(skuNorm)) return true;
-      return false;
-    });
+    if (spec.inventoryId) {
+      return !candidates.some((it) => it.id === spec.inventoryId);
+    }
+
+    if (!name && !sku) return false;
+    const strictMatch = matchInventoryStrict(name || sku, candidates, baseCat);
+    return !strictMatch;
   };
 
   const copyLink = async () => {
@@ -296,11 +309,7 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
 
           const suggestions =
             dropdownOpen && !isShippingRow
-              ? inventory
-                  .filter((i) =>
-                    String(i.name || '').toLowerCase().includes(nameVal.toLowerCase()),
-                  )
-                  .slice(0, 5)
+              ? getInventorySuggestions(nameVal, inventory, cat, 5)
               : [];
 
           const rawCostNum = typeof spec.cost === 'number' ? spec.cost : Number(spec.cost || 0);
@@ -323,7 +332,7 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
                       x{spec.qty}
                     </span>
                   ) : null}
-                  {isMissingInInventory(spec) ? (
+                  {isMissingInInventory(cat, spec) ? (
                     <span
                       className="inline-flex w-1.5 h-1.5 rounded-full border-[0.5px] border-amber-400"
                       title="Needs purchase"
@@ -444,11 +453,7 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
 
           const suggestions =
             dropdownOpen && !isShippingRow
-              ? inventory
-                  .filter((i) =>
-                    String(i.name || '').toLowerCase().includes(nameVal.toLowerCase()),
-                  )
-                  .slice(0, 5)
+              ? getInventorySuggestions(nameVal, inventory, cat, 5)
               : [];
 
           const rawCostNum = typeof spec.cost === 'number' ? spec.cost : Number(spec.cost || 0);
@@ -470,7 +475,7 @@ export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
                     x{spec.qty}
                   </span>
                 ) : null}
-                {isMissingInInventory(spec) ? (
+                {isMissingInInventory(cat, spec) ? (
                   <span
                     className="inline-flex w-1 h-1 rounded-full border-[0.5px] border-amber-400"
                     title="Needs purchase"

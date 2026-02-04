@@ -9,7 +9,6 @@ import React, {
   useState,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
 import { ClientEntity, calculateFinancials, createEmptyClient } from '../../domain/client';
 import { generateId } from '../../shared/lib/id';
 
@@ -18,7 +17,11 @@ import { useInventoryQuery } from '../../app/queries/inventory';
 import { useClientWriteBehind } from '../../app/writeBehind/clientWriteBehind';
 import { useSaveQueue } from '../../app/saveQueue/SaveQueueProvider';
 import { useNavigationGuard } from '../../app/navigation/NavigationGuard';
-import { useConfirm } from '../../app/confirm/ConfirmProvider';
+import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
+import { api } from '../../shared/api/http';
+import { decodeInventoryBatchResult } from '../../shared/api/decoders';
+import { CORE_CATS } from '../../domain/inventory/inventory.utils';
+import { matchInventoryStrict, normalizeCategoryKey } from './editor/matchInventory';
 
 import { ClientsListPage } from './ClientsListPage';
 import { ClientDetailPage } from './ClientDetailPage';
@@ -137,11 +140,12 @@ export function ClientDetailRoute() {
   const { id } = useParams();
   const clientId = String(id ?? '');
   const confirmDialog = useConfirm();
+  const alert = useAlert();
 
   const { data: clientsData } = useClientsQuery();
   const clients = useMemo(() => clientsData ?? [], [clientsData]);
 
-  const { data: invData } = useInventoryQuery();
+  const { data: invData, refetch: refetchInventory } = useInventoryQuery();
   const inventory = useMemo(() => invData ?? [], [invData]);
 
   const { update: updateClient } = useClientWriteBehind();
@@ -221,12 +225,9 @@ export function ClientDetailRoute() {
    * - wechatName 从空 -> 非空：把 draft 当前所有字段一次性 POST 落库
    * - 落库后：恢复“随时填随时存”
    */
-  const onUpdateField = useCallback<UpdateClientField>(
-    (field, val) => {
+  const commitUpdate = useCallback(
+    (field: keyof ClientEntity, val: ClientEntity[keyof ClientEntity], shouldAutoPaid: boolean) => {
       if (!clientId) return;
-
-      const shouldAutoPaid =
-        field === 'status' && String(val ?? '').toLowerCase() === 'delivered';
 
       const curDraft = draftRef.current;
       if (curDraft && curDraft.id === clientId) {
@@ -279,6 +280,122 @@ export function ClientDetailRoute() {
       } as Partial<ClientEntity>);
     },
     [clientId, fromCache, isDraftOnly, setDraft, updateClient],
+  );
+
+  const maybeConsumeInventory = useCallback(
+    async (client: ClientEntity): Promise<boolean> => {
+      const specs = client.specs || {};
+      const matches = new Map<
+        string,
+        { item: (typeof inventory)[number]; count: number }
+      >();
+
+      for (const [cat, spec] of Object.entries(specs)) {
+        const baseCat = normalizeCategoryKey(cat);
+        if (!CORE_CATS.includes(baseCat)) continue;
+
+        const specName = String(spec.name || '').trim();
+        const specSku = String(spec.sku || '').trim();
+
+        let matched = null as (typeof inventory)[number] | null;
+        if (spec.inventoryId) {
+          matched = inventory.find((it) => it.id === spec.inventoryId) ?? null;
+        }
+        if (!matched) {
+          const query = specName || specSku;
+          if (!query) continue;
+          matched = matchInventoryStrict(query, inventory, baseCat);
+        }
+        if (!matched) continue;
+
+        const entry = matches.get(matched.id) || { item: matched, count: 0 };
+        entry.count += 1;
+        matches.set(matched.id, entry);
+      }
+
+      const entries = Array.from(matches.values());
+      if (entries.length === 0) return true;
+
+      const lines = entries.map((entry) => {
+        const nextQty = Number(entry.item.quantity || 0) - entry.count;
+        const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+        return `• ${entry.item.name}${suffix} — 库存: ${entry.item.quantity} → ${nextQty}`;
+      });
+
+      const ok = await confirmDialog({
+        title: 'Confirm Inventory Deduction',
+        message: `将扣减以下库存（Delivered 自动出库）：\n${lines.join('\n')}\n\n确认后将执行库存扣减。`,
+        confirmText: 'Confirm',
+        cancelText: 'Cancel',
+      });
+
+      if (!ok) return false;
+
+      const operationId = `invconsume:${client.id}:${Date.now()}`;
+      const payload = {
+        operationId,
+        items: entries.map((entry) => ({
+          id: entry.item.id,
+          qtyDelta: -entry.count,
+          reason: 'CONSUME',
+        })),
+      };
+
+      try {
+        const url = '/inventory/batch';
+        const raw = await api.post<unknown>(url, payload);
+        decodeInventoryBatchResult(url, raw, 'POST');
+        if (refetchInventory) await refetchInventory();
+      } catch (err: unknown) {
+        await alert({
+          title: 'Inventory Deduction Failed',
+          message:
+            typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+              ? String((err as { userMessage?: unknown }).userMessage)
+              : 'Failed to deduct inventory. Please try again.',
+        });
+        return false;
+      }
+
+      return true;
+    },
+    [alert, confirmDialog, inventory, refetchInventory],
+  );
+
+  const onUpdateField = useCallback<UpdateClientField>(
+    (field, val) => {
+      if (!clientId) return;
+
+      const shouldAutoPaid =
+        field === 'status' && String(val ?? '').toLowerCase() === 'delivered';
+
+      if (field === 'status' && shouldAutoPaid) {
+        const base =
+          (draftRef.current && draftRef.current.id === clientId
+            ? draftRef.current
+            : fromCache) ?? null;
+        const hasWechat = base ? !isBlank(base.wechatName) : false;
+        if (!base || !hasWechat) {
+          commitUpdate(field, val, shouldAutoPaid);
+          return;
+        }
+
+        void (async () => {
+          const next: ClientEntity = {
+            ...base,
+            status: String(val ?? ''),
+            paidAmount: Number(base.totalPrice) || 0,
+          };
+          const ok = await maybeConsumeInventory(next);
+          if (!ok) return;
+          commitUpdate(field, val, shouldAutoPaid);
+        })();
+        return;
+      }
+
+      commitUpdate(field, val, shouldAutoPaid);
+    },
+    [clientId, commitUpdate, fromCache, maybeConsumeInventory],
   );
 
   const retry = useCallback(async () => {

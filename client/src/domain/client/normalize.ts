@@ -12,6 +12,12 @@ function coerceClientSpecs(raw: Record<string, unknown>): ClientSpecs {
       cost: Number(row.cost ?? 0) || 0,
       qty: Number(row.qty ?? 0) || 0,
       needsPurchase: row.needsPurchase === undefined ? undefined : Boolean(row.needsPurchase),
+      inventoryId:
+        row.inventoryId === undefined ? undefined : String(row.inventoryId ?? ''),
+      matchedBy:
+        row.matchedBy === undefined
+          ? undefined
+          : (String(row.matchedBy ?? '') as 'auto' | 'manual' | 'none'),
     };
   });
   return out;

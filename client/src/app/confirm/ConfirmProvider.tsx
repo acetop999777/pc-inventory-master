@@ -119,7 +119,7 @@ function ConfirmDialog({
         <ModalTitle className="text-[11px] uppercase tracking-widest text-slate-400">
           {title}
         </ModalTitle>
-        <ModalSubtitle>{message}</ModalSubtitle>
+        <ModalSubtitle className="whitespace-pre-line">{message}</ModalSubtitle>
       </ModalHeader>
       <ModalFooter className="flex items-center justify-end gap-3">
         {hasCancel ? (
