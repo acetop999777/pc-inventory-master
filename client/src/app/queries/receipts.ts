@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { asArray } from '../../shared/api/response';
 import type { ReceiptDetail, ReceiptListItem } from '../../shared/api/types';
 
@@ -9,7 +9,7 @@ export function useReceiptsQuery(limit = 50) {
   return useQuery<ReceiptListItem[]>({
     queryKey: [...receiptsQueryKey, limit],
     queryFn: async () => {
-      const raw = await apiCallOrThrow<unknown>(`/inbound/receipts?limit=${limit}`);
+      const raw = await api.get<unknown>(`/inbound/receipts?limit=${limit}`);
       return asArray(raw);
     },
   });
@@ -19,7 +19,7 @@ export function useReceiptDetailQuery(id: string) {
   return useQuery<ReceiptDetail>({
     queryKey: ['receipt', id],
     queryFn: async () => {
-      return await apiCallOrThrow<ReceiptDetail>(`/inbound/receipts/${id}`);
+      return await api.get<ReceiptDetail>(`/inbound/receipts/${id}`);
     },
     enabled: Boolean(id),
   });

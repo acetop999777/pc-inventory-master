@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 import { inventoryQueryKey, normalizeInventoryRow } from '../queries/inventory';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
@@ -45,10 +45,10 @@ export function useInventoryWriteBehind() {
       merge: mergeInventoryWrite,
       write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await apiCallOrThrow(`/inventory/${id}`, 'DELETE', { operationId: ctx.operationId });
+          await api.delete(`/inventory/${id}`, { operationId: ctx.operationId });
           return;
         }
-        const updatedRow = await apiCallOrThrow<unknown>(`/inventory/${id}`, 'PUT', {
+        const updatedRow = await api.put<unknown>(`/inventory/${id}`, {
           ...w.fields,
           operationId: ctx.operationId,
         });
@@ -70,7 +70,7 @@ export function useInventoryWriteBehind() {
       patch: { op: 'delete' },
       merge: mergeInventoryWrite,
       write: async (_w, ctx) => {
-        await apiCallOrThrow(`/inventory/${id}`, 'DELETE', { operationId: ctx.operationId });
+        await api.delete(`/inventory/${id}`, { operationId: ctx.operationId });
       },
       debounceMs: 0,
     });

@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { StagedItem } from '../../../domain/inventory/inbound.logic';
 import { InventoryItem } from '../../../domain/inventory/inventory.types';
 import { ALL_CATS } from '../../../domain/inventory/inventory.utils';
-import { Button, panelSoft, panelXl } from '../../../shared/ui';
+import { Button, Select, panelSoft, panelXl } from '../../../shared/ui';
 
 interface Props {
   batch: StagedItem[];
@@ -140,8 +140,9 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
                   </span>
                 )}
 
-                <select
-                  className="text-[10px] font-bold bg-slate-50 text-slate-500 rounded-lg px-2 py-1 outline-none uppercase cursor-pointer hover:bg-slate-100 transition-colors"
+                <Select
+                  selectSize="sm"
+                  className="text-[10px] font-bold bg-slate-50 text-slate-500 rounded-lg px-2 py-1 uppercase cursor-pointer hover:bg-slate-100 transition-colors"
                   value={item.category}
                   onChange={(e) => updateItem(i, 'category', e.target.value)}
                 >
@@ -150,7 +151,7 @@ export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCom
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Row 3: Qty & Cost Inputs */}

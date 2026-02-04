@@ -1,4 +1,4 @@
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { InventoryItem } from './inventory.types';
 
 export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];
@@ -56,7 +56,7 @@ export async function lookupBarcode(
   code: string,
 ): Promise<{ name: string; category: string } | null> {
   try {
-    const data = await apiCallOrThrow<LookupResponse>(`/lookup/${encodeURIComponent(code)}`);
+    const data = await api.get<LookupResponse>(`/lookup/${encodeURIComponent(code)}`);
     if (data && Array.isArray(data.items) && data.items.length > 0) {
       const item = data.items[0];
       const title = String(item.title ?? '').trim();

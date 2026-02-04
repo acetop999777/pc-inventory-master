@@ -34,6 +34,14 @@
     color: var(--ui-input-placeholder);
   }
 
+  .ui-select {
+    border-radius: 0.75rem;
+    border-width: 1px;
+    border-color: var(--ui-input-border);
+    background-color: var(--ui-input-bg);
+    color: var(--ui-input-text);
+  }
+
   .ui-btn {
     border-radius: 9999px;
     border-width: 1px;

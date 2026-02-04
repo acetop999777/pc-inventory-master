@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { History, Minus, Plus, Search, Trash2, X } from 'lucide-react';
 import { ALL_CATS } from '../../domain/inventory/inventory.utils';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 import { useInventoryQuery } from '../../app/queries/inventory';
 import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBehind';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
-import { Button, panelDashed } from '../../shared/ui';
+import { Button, Select, panelDashed } from '../../shared/ui';
 
 type InlineEditorProps<T extends string | number> = {
   value: T | null | undefined;
@@ -188,7 +188,7 @@ export default function InventoryHub() {
     setLogLoading(true);
     setLogError(null);
     try {
-      const data = await apiCallOrThrow<MovementLog[]>(`/inventory/${item.id}/movements`);
+      const data = await api.get<MovementLog[]>(`/inventory/${item.id}/movements`);
       setLogMoves(data);
     } catch (err: unknown) {
       const msg =
@@ -433,8 +433,9 @@ export default function InventoryHub() {
                       </div>
                     </div>
                     <div className="shrink-0">
-                      <select
-                        className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-[10px] font-black uppercase text-slate-600 outline-none"
+                      <Select
+                        selectSize="sm"
+                        className="rounded-full border border-slate-200 bg-slate-100 text-[10px] font-black uppercase text-slate-600"
                         value={i.category}
                         onChange={(e) => updateItem(i, { category: e.target.value })}
                       >
@@ -443,7 +444,7 @@ export default function InventoryHub() {
                             {c}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   </div>
 
@@ -622,8 +623,9 @@ export default function InventoryHub() {
               </div>
 
               <div className="col-span-2">
-                <select
-                  className="bg-slate-100 rounded text-[10px] font-bold text-slate-500 uppercase px-2 py-1 outline-none"
+                <Select
+                  selectSize="sm"
+                  className="rounded text-[10px] font-bold uppercase px-2 text-slate-500 bg-slate-100"
                   value={i.category}
                   onChange={(e) => updateItem(i, { category: e.target.value })}
                 >
@@ -632,7 +634,7 @@ export default function InventoryHub() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="col-span-2 text-[11px] text-slate-600 space-y-1">

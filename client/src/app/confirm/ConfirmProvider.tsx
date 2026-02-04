@@ -1,5 +1,12 @@
 import React from 'react';
-import { Button } from '../../shared/ui';
+import {
+  Button,
+  Modal,
+  ModalHeader,
+  ModalFooter,
+  ModalTitle,
+  ModalSubtitle,
+} from '../../shared/ui';
 
 export type ConfirmOptions = {
   title?: string;
@@ -107,52 +114,39 @@ function ConfirmDialog({
       : 'bg-slate-900 text-white hover:bg-slate-800';
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-slate-900/30 backdrop-blur-[6px]"
-      role="dialog"
-      aria-modal="true"
-      onMouseDown={() => onClose(dismissValue)}
-    >
-      <div
-        className="w-full max-w-md rounded-[2rem] bg-white border border-slate-200 shadow-2xl overflow-hidden"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="px-6 pt-6 pb-4">
-          <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
-            {title}
-          </div>
-          <div className="mt-2 text-[14px] font-semibold text-slate-800 leading-snug">
-            {message}
-          </div>
-        </div>
-
-        <div className="px-6 pb-6 flex items-center justify-end gap-3">
-          {hasCancel ? (
-            <Button
-              ref={cancelRef}
-              onClick={() => onClose(false)}
-              size="lg"
-              variant="outline"
-              className="text-slate-700"
-            >
-              {cancelText}
-            </Button>
-          ) : null}
+    <Modal open onClose={() => onClose(dismissValue)} size="md">
+      <ModalHeader>
+        <ModalTitle className="text-[11px] uppercase tracking-widest text-slate-400">
+          {title}
+        </ModalTitle>
+        <ModalSubtitle>{message}</ModalSubtitle>
+      </ModalHeader>
+      <ModalFooter className="flex items-center justify-end gap-3">
+        {hasCancel ? (
           <Button
-            type="button"
-            onClick={() => onClose(true)}
+            ref={cancelRef}
+            onClick={() => onClose(false)}
             size="lg"
-            variant="ghost"
-            className={[
-              'h-10 px-5 rounded-full text-[12px] font-black',
-              'shadow-[0_8px_20px_rgba(15,23,42,0.16)]',
-              confirmCls,
-            ].join(' ')}
+            variant="outline"
+            className="text-slate-700"
           >
-            {confirmText}
+            {cancelText}
           </Button>
-        </div>
-      </div>
-    </div>
+        ) : null}
+        <Button
+          type="button"
+          onClick={() => onClose(true)}
+          size="lg"
+          variant="ghost"
+          className={[
+            'h-10 px-5 rounded-full text-[12px] font-black',
+            'shadow-[0_8px_20px_rgba(15,23,42,0.16)]',
+            confirmCls,
+          ].join(' ')}
+        >
+          {confirmText}
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 }

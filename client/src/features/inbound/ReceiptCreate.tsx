@@ -13,10 +13,10 @@ import {
   StagedItem,
 } from '../../domain/inventory/inbound.logic';
 import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
-import { Button, panel, panelDashed } from '../../shared/ui';
+import { Button, Select, panel, panelDashed } from '../../shared/ui';
 
 const MODES = ['MANUAL', 'SCAN', 'SUMMARY'];
 
@@ -301,7 +301,7 @@ export default function ReceiptCreate() {
       });
 
       try {
-        await apiCallOrThrow('/inventory/batch', 'POST', {
+        await api.post('/inventory/batch', {
           operationId,
           items: createItems,
         });
@@ -404,17 +404,19 @@ export default function ReceiptCreate() {
           </div>
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mode</div>
-            <select
+            <Select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
-              className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+              selectSize="sm"
+              className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2"
+              wrapperClassName="mt-2"
             >
               {MODES.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</div>
@@ -622,9 +624,10 @@ export default function ReceiptCreate() {
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                   Category
                 </div>
-                <select
+                <Select
                   value={line.category}
                   onChange={(e) => updateLine(line.id, { category: e.target.value })}
+                  selectSize="sm"
                   className="w-full text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200 rounded-xl px-3 py-2"
                 >
                   <option value="">Select</option>
@@ -633,7 +636,7 @@ export default function ReceiptCreate() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="md:col-span-2">
                 <div className="md:hidden text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">

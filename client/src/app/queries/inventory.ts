@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { asArray, asRecord } from '../../shared/api/response';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 
@@ -35,7 +35,7 @@ export function useInventoryQuery() {
   return useQuery<InventoryItem[]>({
     queryKey: inventoryQueryKey,
     queryFn: async () => {
-      const raw = await apiCallOrThrow<unknown>('/inventory');
+      const raw = await api.get<unknown>('/inventory');
       return asArray(raw).map(normalizeInventoryRow);
     },
   });

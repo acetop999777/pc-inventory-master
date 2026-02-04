@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
 import type { ReceiptListItem } from '../../shared/api/types';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { Button, panel } from '../../shared/ui';
@@ -57,7 +57,7 @@ export default function ReceiptsList() {
     });
     if (!ok) return;
     try {
-      await apiCallOrThrow(`/inbound/receipts/${id}`, 'DELETE');
+      await api.delete(`/inbound/receipts/${id}`);
       qc.setQueryData<ReceiptListItem[]>([...receiptsQueryKey, 100], (old = []) =>
         Array.isArray(old) ? old.filter((r) => r.id !== id) : old,
       );

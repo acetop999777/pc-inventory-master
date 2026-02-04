@@ -4,7 +4,7 @@ import { ClientRow } from './ClientRow';
 import { ClientEntity } from '../../../domain/client';
 import { calculateFinancials } from '../../../domain/client';
 import { formatMoney } from '../../../shared/lib/format';
-import { Button } from '../../../shared/ui';
+import { Button, Select } from '../../../shared/ui';
 import type { ClientHubProps } from '../types';
 
 const UI_TAG = 'UI_TAG: CLIENTHUB_V6_20260119';
@@ -470,38 +470,13 @@ export default function ClientHub({
   }
 
   // === measured height collapse ===
-  const archivedInnerRef = useRef<HTMLDivElement | null>(null);
-  const [archivedHeight, setArchivedHeight] = useState(0);
-
-  useLayoutEffect(() => {
-    if (!archivedRendered) return;
-    const el = archivedInnerRef.current;
-    if (!el) return;
-
-    const measure = () => setArchivedHeight(el.scrollHeight || 0);
-    measure();
-
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => measure());
-      ro.observe(el);
-    }
-
-    const raf = requestAnimationFrame(measure);
-    return () => {
-      cancelAnimationFrame(raf);
-      if (ro) ro.disconnect();
-    };
-  }, [archivedRendered, archived.length, search]);
-
-  const archivedPanelStyle: React.CSSProperties = {
-    height: archivedPanelOpen ? archivedHeight : 0,
-    opacity: archivedPanelOpen ? 1 : 0,
-    overflow: 'hidden',
-    willChange: 'height, opacity',
-    transition: reduceMotion ? 'none' : 'height 280ms ease, opacity 180ms ease',
-    pointerEvents: archivedPanelOpen ? 'auto' : 'none',
-  };
+  const archivedPanelClass = [
+    'grid transition-[grid-template-rows,opacity] ease-out',
+    reduceMotion ? 'transition-none' : 'duration-300',
+    archivedPanelOpen
+      ? 'grid-rows-[1fr] opacity-100 pointer-events-auto'
+      : 'grid-rows-[0fr] opacity-0 pointer-events-none',
+  ].join(' ');
 
   const totalCount = activeVisible.length + archivedVisible.length;
   const showFilteredCount = Boolean(search || statusFilter !== 'All' || dateFrom || dateTo);
@@ -596,10 +571,12 @@ export default function ClientHub({
               ].join(' ')}
             >
               <span>Status:</span>
-              <select
+              <Select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent text-[13px] font-semibold text-slate-700 outline-none"
+                selectSize="sm"
+                className="border-0 bg-transparent px-0 py-0 text-[13px] font-semibold text-slate-700 focus-visible:ring-0"
+                wrapperClassName="min-w-[120px]"
                 aria-label="Status filter"
               >
                 {STATUS_FILTER_OPTIONS.map((status) => (
@@ -607,7 +584,7 @@ export default function ClientHub({
                     {status}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="relative" ref={datePickerRef}>
               <Button
@@ -843,8 +820,8 @@ export default function ClientHub({
           sub="Delivered"
         />
 
-        <div style={archivedPanelStyle} aria-hidden={!archivedPanelOpen}>
-          <div ref={archivedInnerRef} className="pt-2">
+        <div className={archivedPanelClass} aria-hidden={!archivedPanelOpen}>
+          <div className="min-h-0 overflow-hidden pt-2">
             {archivedRendered ? (
               <div className="space-y-4 md:space-y-0 bg-transparent md:bg-white md:rounded-[1.6rem] md:border md:border-slate-200 md:shadow-sm overflow-visible md:overflow-hidden">
                 <TableHeader />

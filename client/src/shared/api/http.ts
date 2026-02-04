@@ -286,3 +286,17 @@ export async function apiCallOrThrow<T>(
     if (timer) clearTimeout(timer);
   }
 }
+
+type ApiOptions = { signal?: AbortSignal; timeoutMs?: number };
+
+export const api = {
+  get: <T>(url: string, opts?: ApiOptions) => apiCallOrThrow<T>(url, 'GET', null, opts),
+  post: <T>(url: string, body?: unknown, opts?: ApiOptions) =>
+    apiCallOrThrow<T>(url, 'POST', body ?? null, opts),
+  put: <T>(url: string, body?: unknown, opts?: ApiOptions) =>
+    apiCallOrThrow<T>(url, 'PUT', body ?? null, opts),
+  patch: <T>(url: string, body?: unknown, opts?: ApiOptions) =>
+    apiCallOrThrow<T>(url, 'PATCH', body ?? null, opts),
+  delete: <T>(url: string, body?: unknown, opts?: ApiOptions) =>
+    apiCallOrThrow<T>(url, 'DELETE', body ?? null, opts),
+};

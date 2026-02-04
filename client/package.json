@@ -33,6 +33,13 @@
     "prettier": "^3.8.0",
     "tailwindcss": "^3.4.19"
   },
+  "overrides": {
+    "@peculiar/x509": "1.13.0",
+    "nth-check": "^2.1.1",
+    "postcss": "^8.5.6",
+    "resolve-url-loader": "^5.0.0",
+    "webpack-dev-server": "^5.2.1"
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",

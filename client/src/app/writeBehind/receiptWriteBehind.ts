@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 import { receiptsQueryKey } from '../queries/receipts';
 import type { ReceiptDetail, ReceiptListItem } from '../../shared/api/types';
@@ -24,7 +24,7 @@ export function useReceiptWriteBehind() {
       patch: payload,
       merge: (_prev, next) => next,
       write: async (patch, ctx) => {
-        await apiCallOrThrow<ReceiptDetail>('/inbound/receipts', 'POST', {
+        await api.post<ReceiptDetail>('/inbound/receipts', {
           ...patch,
           operationId: ctx.operationId,
         });

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { ClientEntity, calculateFinancials } from '../../domain/client';
 import { clientsQueryKey } from '../queries/clients';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
@@ -60,7 +60,7 @@ export function useClientWriteBehind() {
       merge: mergeClientWrite,
       write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await apiCallOrThrow(`/clients/${id}`, 'DELETE', { operationId: ctx.operationId });
+          await api.delete(`/clients/${id}`, { operationId: ctx.operationId });
           return;
         }
 
@@ -71,7 +71,7 @@ export function useClientWriteBehind() {
         const merged: ClientEntity = { ...cur, ...w.fields };
         const fin = calculateFinancials(merged);
 
-        await apiCallOrThrow('/clients', 'POST', {
+        await api.post('/clients', {
           ...merged,
           actualCost: fin.totalCost,
           profit: merged.totalPrice > 0 ? fin.profit : null,
@@ -92,7 +92,7 @@ export function useClientWriteBehind() {
       patch: { op: 'delete' },
       merge: mergeClientWrite,
       write: async (_w, ctx) => {
-        await apiCallOrThrow(`/clients/${id}`, 'DELETE', { operationId: ctx.operationId });
+        await api.delete(`/clients/${id}`, { operationId: ctx.operationId });
       },
       debounceMs: 0,
     });

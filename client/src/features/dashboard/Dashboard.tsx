@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { formatMoney } from '../../shared/lib/format';
 import { FinancialCard, panelDashedXl } from '../../shared/ui';
 
@@ -16,7 +16,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     let active = true;
-    apiCallOrThrow<DashboardStats>('/dashboard/stats')
+    api.get<DashboardStats>('/dashboard/stats')
       .then((data) => {
         if (!active) return;
         setStats(data);

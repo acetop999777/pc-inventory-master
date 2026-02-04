@@ -3,11 +3,11 @@ import { Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useReceiptDetailQuery } from '../../app/queries/receipts';
 import type { ReceiptDetail as ReceiptDetailType } from '../../shared/api/types';
-import { apiCallOrThrow } from '../../shared/api/http';
+import { api } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, panel, panelDashed } from '../../shared/ui';
+import { Button, Select, panel, panelDashed } from '../../shared/ui';
 
 export default function ReceiptDetail() {
   const nav = useNavigate();
@@ -87,7 +87,7 @@ export default function ReceiptDetail() {
     if (!id) return;
     setSaving(true);
     try {
-      const res = await apiCallOrThrow<ReceiptDetailType>(`/inbound/receipts/${id}`, 'PATCH', {
+      const res = await api.patch<ReceiptDetailType>(`/inbound/receipts/${id}`, {
         images: next,
       });
       if (res?.receipt) {
@@ -148,7 +148,7 @@ export default function ReceiptDetail() {
       if (receivedAt) {
         payload.receivedAt = new Date(receivedAt).toISOString();
       }
-      const res = await apiCallOrThrow<ReceiptDetailType>(`/inbound/receipts/${id}`, 'PATCH', payload);
+      const res = await api.patch<ReceiptDetailType>(`/inbound/receipts/${id}`, payload);
       if (res?.receipt) {
         qc.setQueryData(['receipt', id], res);
       }
@@ -206,17 +206,19 @@ export default function ReceiptDetail() {
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mode</div>
-          <select
+          <Select
             value={mode}
             onChange={(e) => setMode(e.target.value)}
-            className="mt-2 w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 uppercase"
+            selectSize="sm"
+            className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 uppercase"
+            wrapperClassName="mt-2"
           >
             {['MANUAL', 'SCAN', 'SUMMARY'].map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</div>
