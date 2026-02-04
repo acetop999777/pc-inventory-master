@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'r
 
 import { MainLayout } from './shared/layouts/MainLayout';
 import Dashboard from './features/dashboard/Dashboard';
+import MetricsPage from './features/dashboard/MetricsPage';
 import InventoryHub from './features/inventory/InventoryHub';
 import InboundHub from './features/inbound/InboundHub';
 
@@ -52,6 +53,7 @@ function AppShell() {
           <Route path="/" element={<Navigate to="/clients" replace />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/metrics" element={<MetricsPage />} />
           <Route path="/inventory" element={<InventoryHub />} />
           <Route path="/inbound/*" element={<InboundHub />} />
 

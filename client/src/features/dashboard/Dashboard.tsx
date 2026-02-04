@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { api } from '../../shared/api/http';
 import { decodeDashboardStats } from '../../shared/api/decoders';
 import { formatMoney } from '../../shared/lib/format';
-import { FinancialCard, panelDashedXl } from '../../shared/ui';
+import { Button, FinancialCard, panelDashedXl } from '../../shared/ui';
 import type { DashboardStats } from '../../shared/api/types';
 
 export default function Dashboard() {
+  const nav = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +47,17 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto">
-      <h2 className="text-2xl font-black text-slate-800 mb-8">Overview</h2>
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-2xl font-black text-slate-800">Overview</h2>
+        <Button
+          onClick={() => nav('/dashboard/metrics')}
+          size="xs"
+          variant="ghost"
+          className="text-xs font-black uppercase tracking-widest"
+        >
+          Metrics
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <FinancialCard

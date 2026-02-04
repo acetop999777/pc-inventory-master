@@ -9,6 +9,15 @@ export type InventoryDeleteResponse = {
   item?: unknown | null;
 };
 
+export type LogEntry = {
+  id: string;
+  timestamp: number;
+  type: string | null;
+  title: string | null;
+  msg: string | null;
+  meta: Record<string, unknown> | null;
+};
+
 export type DashboardStats = {
   totalProfit: number;
   totalBalanceDue: number;

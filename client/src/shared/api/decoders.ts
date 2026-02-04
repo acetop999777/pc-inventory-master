@@ -8,6 +8,7 @@ import type {
   InventoryBatchResult,
   InventoryDeleteResponse,
   InventoryUpdate,
+  LogEntry,
   LookupResponse,
   MovementLog,
   ReceiptDetail,
@@ -106,6 +107,19 @@ function normalizeInventoryUpdate(row: unknown, url: string): InventoryUpdate {
   };
 }
 
+function normalizeLogEntry(row: unknown, url: string): LogEntry {
+  const r = ensureRecord(row, { url, expected: 'LogEntry' });
+  const meta = isRecord(r.meta) ? r.meta : null;
+  return {
+    id: toString(r.id ?? ''),
+    timestamp: toNumber(r.timestamp ?? 0),
+    type: toNullableString(r.type) ?? null,
+    title: toNullableString(r.title) ?? null,
+    msg: toNullableString(r.msg) ?? null,
+    meta,
+  };
+}
+
 export function decodeClients(url: string, raw: unknown): ClientEntity[] {
   const arr = ensureArray(raw, { url, expected: 'ClientEntity[]' });
   return arr.map(normalizeClientRow);
@@ -179,6 +193,15 @@ export function decodeLookupResponse(
       return { title: item.title, category: item.category };
     }),
   };
+}
+
+export function decodeLogs(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'GET',
+): LogEntry[] {
+  const arr = ensureArray(raw, { url, expected: 'LogEntry[]', method });
+  return arr.map((row) => normalizeLogEntry(row, url));
 }
 
 export function decodeInventoryBatchResult(

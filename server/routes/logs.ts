@@ -24,16 +24,46 @@ function logsRoutes({ pool }: RouteDeps) {
         typeof req.query?.type === 'string' && req.query.type.trim()
           ? req.query.type.trim()
           : null;
+      const event =
+        typeof req.query?.event === 'string' && req.query.event.trim()
+          ? req.query.event.trim()
+          : null;
+      const from = Number(req.query?.from);
+      const to = Number(req.query?.to);
       const limit = coerceLimit(req.query?.limit, { min: 1, max: 500, fallback: 200 });
+      const clauses: string[] = [];
+      const values: Array<string | number> = [];
+      let idx = 1;
+
       if (type) {
-        const { rows } = await pool.query(
-          'SELECT * FROM logs WHERE type = $1 ORDER BY timestamp DESC LIMIT $2',
-          [type, limit],
-        );
-        res.json(rows);
-        return;
+        clauses.push(`type = $${idx}`);
+        values.push(type);
+        idx += 1;
       }
-      const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT $1', [limit]);
+      if (Number.isFinite(from)) {
+        clauses.push(`timestamp >= $${idx}`);
+        values.push(Math.floor(from));
+        idx += 1;
+      }
+      if (Number.isFinite(to)) {
+        clauses.push(`timestamp <= $${idx}`);
+        values.push(Math.floor(to));
+        idx += 1;
+      }
+      if (event) {
+        clauses.push(`(title ILIKE $${idx} OR meta->>'event' ILIKE $${idx})`);
+        values.push(`%${event}%`);
+        idx += 1;
+      }
+
+      const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+      const limitIndex = idx;
+      values.push(limit);
+
+      const { rows } = await pool.query(
+        `SELECT * FROM logs ${where} ORDER BY timestamp DESC LIMIT $${limitIndex}`,
+        values,
+      );
       res.json(rows);
     } catch (e) {
       next(e);

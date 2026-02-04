@@ -670,6 +670,7 @@ npm run verify
 - 后端写入服务层会记录：`operationId`、`requestId`、`durationMs`、`idempotencyHit`（含 clients/inventory/receipts/logs）。
 - 写入指标会落到 `logs` 表（`type=metric`），可通过 `/api/logs?type=metric&limit=200` 查看。
 - 前端 SaveQueue 在失败时会记录：`retryable / non-retryable` 分类与操作信息。
+- 前端提供 Metrics 页面（`/dashboard/metrics`），支持时间/事件过滤与导出（CSV/JSON）。
 
 ---
 
