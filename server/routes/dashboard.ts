@@ -1,14 +1,14 @@
-const express = require('express');
+import express from 'express';
+import type { Pool } from 'pg';
+import type { RequestWithId } from '../middleware/requestId';
 
-/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+type RouteDeps = { pool: Pool };
+type ProfitRow = { label?: string; value?: string | number | null };
 
-/**
- * @param {RouteDeps} deps
- */
-module.exports = function dashboardRoutes({ pool }) {
+function dashboardRoutes({ pool }: RouteDeps) {
   const router = express.Router();
 
-  router.get('/dashboard/stats', async (req, res, next) => {
+  router.get('/dashboard/stats', async (req: RequestWithId, res, next) => {
     try {
       const invRes = await pool.query(
         'SELECT SUM(cost * quantity) as total_inv_value, SUM(quantity) as total_items FROM inventory',
@@ -29,7 +29,7 @@ module.exports = function dashboardRoutes({ pool }) {
     }
   });
 
-  router.post('/dashboard/profit', async (req, res, next) => {
+  router.post('/dashboard/profit', async (req: RequestWithId, res, next) => {
     const { start, end, group } = req.body || {};
     let trunc = 'day',
       fmt = 'YYYY-MM-DD';
@@ -49,8 +49,7 @@ module.exports = function dashboardRoutes({ pool }) {
       );
       res.json(
         rows.map((r) => {
-          /** @type {{ label?: string, value?: string | number | null }} */
-          const row = r;
+          const row = r as ProfitRow;
           return {
             date: row.label,
             profit: Number(row.value || 0),
@@ -63,4 +62,6 @@ module.exports = function dashboardRoutes({ pool }) {
   });
 
   return router;
-};
+}
+
+export default dashboardRoutes;

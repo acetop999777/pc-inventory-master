@@ -1,11 +1,11 @@
 // server/index.js
-const { bootstrap } = require('./bootstrap');
-const { pool } = require('./db/pool');
+import { bootstrap } from './bootstrap';
+import { pool } from './db/pool';
 
 /**
  * @param {unknown} err
  */
-function handleBootstrapError(err) {
+function handleBootstrapError(err: unknown) {
   console.error('[bootstrap] failed', err);
   process.exit(1);
 }

@@ -1,20 +1,26 @@
-const { mapPostgresError } = require('../errors/pg');
+import type { Response, NextFunction } from 'express';
+import { mapPostgresError } from '../errors/pg';
+import type { RequestWithId } from './requestId';
 
-/** @typedef {import('express').Request & { requestId?: string }} RequestWithId */
-/** @typedef {{ code?: unknown, message?: unknown, retryable?: unknown, httpStatus?: unknown, status?: unknown, statusCode?: unknown, details?: unknown, retryAfterMs?: unknown }} ErrorLike */
+type ErrorLike = {
+  code?: unknown;
+  message?: unknown;
+  retryable?: unknown;
+  httpStatus?: unknown;
+  status?: unknown;
+  statusCode?: unknown;
+  details?: unknown;
+  retryAfterMs?: unknown;
+};
 
-/**
- * @param {number} status
- */
-function isRetryableStatus(status) {
+function isRetryableStatus(status: number) {
   return status === 502 || status === 503 || status === 504;
 }
 
 /**
  * @param {number} status
- * @returns {string}
  */
-function inferCodeFromStatus(status) {
+function inferCodeFromStatus(status: number): string {
   if (status === 400) return 'INVALID_ARGUMENT';
   if (status === 404) return 'NOT_FOUND';
   if (status === 409) return 'CONFLICT';
@@ -26,13 +32,13 @@ function inferCodeFromStatus(status) {
 /**
  * @param {unknown} err
  * @param {RequestWithId} req
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
+ * @param {Response} res
+ * @param {NextFunction} next
  */
-function errorHandler(err, req, res, next) {
+function errorHandler(err: unknown, req: RequestWithId, res: Response, next: NextFunction) {
   // 1) 尝试把常见 PG 错误收口成业务 code
   const mapped = mapPostgresError(err);
-  const e = /** @type {ErrorLike} */ (mapped || err || {});
+  const e = (mapped || err || {}) as ErrorLike;
 
   // 2) 统一读 status：兼容 AppError.httpStatus / express err.status
   const status = Number(e?.httpStatus || e?.status || e?.statusCode || 500) || 500;
@@ -60,8 +66,16 @@ function errorHandler(err, req, res, next) {
   // 如果 headers 已经发出，交给 express 默认处理
   if (res.headersSent) return next(e);
 
-  /** @type {{ error: { code: string, message: string, retryable: boolean, requestId: string | null, details?: Record<string, unknown>, retryAfterMs?: number } }} */
-  const payload = {
+  const payload: {
+    error: {
+      code: string;
+      message: string;
+      retryable: boolean;
+      requestId: string | null;
+      details?: Record<string, unknown>;
+      retryAfterMs?: number;
+    };
+  } = {
     error: {
       code,
       message,
@@ -72,7 +86,7 @@ function errorHandler(err, req, res, next) {
 
   // 可选细节：只透出 object（避免把 Error/函数等奇怪东西塞给前端）
   if (e?.details && typeof e.details === 'object') {
-    payload.error.details = /** @type {Record<string, unknown>} */ (e.details);
+    payload.error.details = e.details as Record<string, unknown>;
   }
   if (typeof e?.retryAfterMs === 'number') {
     payload.error.retryAfterMs = e.retryAfterMs;
@@ -81,4 +95,4 @@ function errorHandler(err, req, res, next) {
   res.status(status).json(payload);
 }
 
-module.exports = errorHandler;
+export { errorHandler };

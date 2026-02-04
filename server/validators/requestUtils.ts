@@ -1,10 +1,10 @@
-const AppError = require('../errors/AppError');
+import AppError = require('../errors/AppError');
 
 /**
  * @param {unknown} v
  * @returns {string | null}
  */
-function asNonEmptyString(v) {
+function asNonEmptyString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
@@ -13,7 +13,7 @@ function asNonEmptyString(v) {
  * @param {string} field
  * @returns {string}
  */
-function requireNonEmptyString(v, field) {
+function requireNonEmptyString(v: unknown, field: string): string {
   const s = asNonEmptyString(v);
   if (!s) {
     throw new AppError({
@@ -32,7 +32,7 @@ function requireNonEmptyString(v, field) {
  * @param {string} field
  * @returns {number}
  */
-function requireNumber(v, field) {
+function requireNumber(v: unknown, field: string): number {
   const n = Number(v);
   if (!Number.isFinite(n)) {
     throw new AppError({
@@ -51,7 +51,7 @@ function requireNumber(v, field) {
  * @param {string} field
  * @returns {number}
  */
-function requireInt(v, field) {
+function requireInt(v: unknown, field: string): number {
   const n = Number(v);
   if (!Number.isFinite(n) || !Number.isInteger(n)) {
     throw new AppError({
@@ -70,7 +70,7 @@ function requireInt(v, field) {
  * @param {string} field
  * @returns {Record<string, unknown>}
  */
-function requireObject(v, field) {
+function requireObject(v: unknown, field: string): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) {
     throw new AppError({
       code: 'INVALID_ARGUMENT',
@@ -80,7 +80,7 @@ function requireObject(v, field) {
       details: { field },
     });
   }
-  return /** @type {Record<string, unknown>} */ (v);
+  return v as Record<string, unknown>;
 }
 
 /**
@@ -89,7 +89,7 @@ function requireObject(v, field) {
  * @param {{ nonEmpty?: boolean }} [opts]
  * @returns {unknown[]}
  */
-function requireArray(v, field, opts = {}) {
+function requireArray(v: unknown, field: string, opts: { nonEmpty?: boolean } = {}): unknown[] {
   if (!Array.isArray(v)) {
     throw new AppError({
       code: 'INVALID_ARGUMENT',
@@ -116,7 +116,10 @@ function requireArray(v, field, opts = {}) {
  * @param {{ min?: number, max?: number, fallback?: number }} [opts]
  * @returns {number}
  */
-function coerceLimit(v, opts = {}) {
+function coerceLimit(
+  v: unknown,
+  opts: { min?: number; max?: number; fallback?: number } = {},
+): number {
   const min = Number.isFinite(opts.min) ? Number(opts.min) : 1;
   const max = Number.isFinite(opts.max) ? Number(opts.max) : 200;
   const fallback = Number.isFinite(opts.fallback) ? Number(opts.fallback) : 50;
@@ -126,7 +129,7 @@ function coerceLimit(v, opts = {}) {
   return Math.min(safe, max);
 }
 
-module.exports = {
+export {
   asNonEmptyString,
   requireNonEmptyString,
   requireNumber,

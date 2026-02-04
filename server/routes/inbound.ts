@@ -1,39 +1,34 @@
-const express = require('express');
-const AppError = require('../errors/AppError');
-const {
+import express from 'express';
+import type { Pool } from 'pg';
+import AppError = require('../errors/AppError');
+import {
   createReceipt,
   listReceipts,
   getReceiptDetail,
   updateReceipt,
-} = require('../services/inboundReceiptService');
-const {
+} from '../services/inboundReceiptService';
+import {
   normalizeReceiptListLimit,
   assertReceiptCreatePayload,
   assertReceiptUpdatePayload,
-} = require('../validators/inboundValidator');
+} from '../validators/inboundValidator';
+import type { RequestWithId } from '../middleware/requestId';
 
-/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
-/** @typedef {{ code?: unknown, message?: unknown }} ErrorLike */
+type RouteDeps = { pool: Pool };
+type ErrorLike = { code?: unknown; message?: unknown };
 
-/**
- * @param {unknown} err
- * @returns {string}
- */
-function errorCode(err) {
+function errorCode(err: unknown): string {
   if (!err || typeof err !== 'object') return 'ERROR';
-  const e = /** @type {ErrorLike} */ (err);
+  const e = err as ErrorLike;
   if (typeof e.code === 'string' && e.code) return e.code;
   if (typeof e.message === 'string' && e.message) return e.message;
   return 'ERROR';
 }
 
-/**
- * @param {RouteDeps} deps
- */
-module.exports = function inboundRoutes({ pool }) {
+function inboundRoutes({ pool }: RouteDeps) {
   const router = express.Router();
 
-  router.get('/inbound/receipts', async (req, res, next) => {
+  router.get('/inbound/receipts', async (req: RequestWithId, res, next) => {
     try {
       const limit = normalizeReceiptListLimit(req.query.limit);
       const rows = await listReceipts({ pool, limit });
@@ -43,7 +38,7 @@ module.exports = function inboundRoutes({ pool }) {
     }
   });
 
-  router.get('/inbound/receipts/:id', async (req, res, next) => {
+  router.get('/inbound/receipts/:id', async (req: RequestWithId, res, next) => {
     try {
       const result = await getReceiptDetail({ pool, id: req.params.id });
       res.json(result);
@@ -52,7 +47,7 @@ module.exports = function inboundRoutes({ pool }) {
     }
   });
 
-  router.post('/inbound/receipts', async (req, res, next) => {
+  router.post('/inbound/receipts', async (req: RequestWithId, res, next) => {
     const endpoint = req.originalUrl || req.url;
     let payload;
     try {
@@ -113,7 +108,7 @@ module.exports = function inboundRoutes({ pool }) {
     }
   });
 
-  router.patch('/inbound/receipts/:id', async (req, res, next) => {
+  router.patch('/inbound/receipts/:id', async (req: RequestWithId, res, next) => {
     const id = req.params.id;
     let payload;
     try {
@@ -136,7 +131,7 @@ module.exports = function inboundRoutes({ pool }) {
     }
   });
 
-  router.delete('/inbound/receipts/:id', async (req, res, next) => {
+  router.delete('/inbound/receipts/:id', async (req: RequestWithId, res, next) => {
     const id = req.params.id;
     const endpoint = req.originalUrl || req.url;
     console.log(
@@ -192,4 +187,6 @@ module.exports = function inboundRoutes({ pool }) {
   });
 
   return router;
-};
+}
+
+export default inboundRoutes;

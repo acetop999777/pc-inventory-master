@@ -1,11 +1,11 @@
-const { requireNonEmptyString, requireArray, requireObject, coerceLimit } = require('./requestUtils');
-const AppError = require('../errors/AppError');
+import { requireNonEmptyString, requireArray, requireObject, coerceLimit } from './requestUtils';
+import AppError = require('../errors/AppError');
 
 /**
  * @param {unknown} limit
  * @returns {number}
  */
-function normalizeReceiptListLimit(limit) {
+function normalizeReceiptListLimit(limit: unknown): number {
   return coerceLimit(limit, { min: 1, max: 200, fallback: 50 });
 }
 
@@ -13,7 +13,9 @@ function normalizeReceiptListLimit(limit) {
  * @param {unknown} v
  * @returns {string | number | Date | null | undefined}
  */
-function normalizeReceiptDateInput(v) {
+function normalizeReceiptDateInput(
+  v: unknown,
+): string | number | Date | null | undefined {
   if (v === undefined) return undefined;
   if (v === null) return null;
   if (v instanceof Date) return v;
@@ -33,7 +35,17 @@ function normalizeReceiptDateInput(v) {
  *   images?: unknown
  * } & Record<string, unknown>}
  */
-function assertReceiptCreatePayload(body) {
+function assertReceiptCreatePayload(
+  body: unknown,
+): {
+  operationId: string;
+  items: unknown[];
+  receivedAt?: string | number | Date | null;
+  vendor?: unknown;
+  mode?: unknown;
+  notes?: unknown;
+  images?: unknown;
+} & Record<string, unknown> {
   const payload = requireObject(body, 'body');
   const operationId = requireNonEmptyString(payload.operationId, 'operationId');
   const items = requireArray(payload.items, 'items', { nonEmpty: true });
@@ -45,7 +57,7 @@ function assertReceiptCreatePayload(body) {
  * @param {unknown} body
  * @returns {Record<string, unknown>}
  */
-function assertReceiptUpdatePayload(body) {
+function assertReceiptUpdatePayload(body: unknown): Record<string, unknown> {
   const payload = requireObject(body, 'body');
   if (Object.prototype.hasOwnProperty.call(payload, 'items') && !Array.isArray(payload.items)) {
     throw new AppError({
@@ -59,7 +71,7 @@ function assertReceiptUpdatePayload(body) {
   return payload;
 }
 
-module.exports = {
+export {
   normalizeReceiptListLimit,
   assertReceiptCreatePayload,
   assertReceiptUpdatePayload,

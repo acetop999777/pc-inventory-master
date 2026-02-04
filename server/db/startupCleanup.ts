@@ -1,7 +1,9 @@
+import type { Pool } from 'pg';
+
 /**
- * @param {import('pg').Pool} pool
+ * @param {Pool} pool
  */
-async function startupCleanupIfEnabled(pool) {
+async function startupCleanupIfEnabled(pool: Pool) {
   const on = String(process.env.STARTUP_CLEANUP || '').toLowerCase() === 'true';
   if (!on) return;
 
@@ -28,4 +30,4 @@ async function startupCleanupIfEnabled(pool) {
   console.log(`[cleanup] Video Card -> GPU: updated=${r.rowCount || 0}`);
 }
 
-module.exports = { startupCleanupIfEnabled };
+export { startupCleanupIfEnabled };

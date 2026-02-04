@@ -1,28 +1,23 @@
-const express = require('express');
-const { createLog } = require('../services/logService');
+import express from 'express';
+import type { Pool } from 'pg';
+import { createLog } from '../services/logService';
+import type { RequestWithId } from '../middleware/requestId';
 
-/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
-/** @typedef {{ code?: unknown, message?: unknown }} ErrorLike */
+type RouteDeps = { pool: Pool };
+type ErrorLike = { code?: unknown; message?: unknown };
 
-/**
- * @param {unknown} err
- * @returns {string}
- */
-function errorCode(err) {
+function errorCode(err: unknown): string {
   if (!err || typeof err !== 'object') return 'ERROR';
-  const e = /** @type {ErrorLike} */ (err);
+  const e = err as ErrorLike;
   if (typeof e.code === 'string' && e.code) return e.code;
   if (typeof e.message === 'string' && e.message) return e.message;
   return 'ERROR';
 }
 
-/**
- * @param {RouteDeps} deps
- */
-module.exports = function logsRoutes({ pool }) {
+function logsRoutes({ pool }: RouteDeps) {
   const router = express.Router();
 
-  router.get('/logs', async (req, res, next) => {
+  router.get('/logs', async (req: RequestWithId, res, next) => {
     try {
       const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 200');
       res.json(rows);
@@ -31,7 +26,7 @@ module.exports = function logsRoutes({ pool }) {
     }
   });
 
-  router.post('/logs', async (req, res, next) => {
+  router.post('/logs', async (req: RequestWithId, res, next) => {
     const endpoint = req.originalUrl || req.url;
     const { operationId, ...log } = req.body || {};
     console.log(
@@ -83,4 +78,6 @@ module.exports = function logsRoutes({ pool }) {
   });
 
   return router;
-};
+}
+
+export default logsRoutes;

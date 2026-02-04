@@ -1,7 +1,9 @@
+import type { Pool } from 'pg';
+
 /**
- * @param {import('pg').Pool} pool
+ * @param {Pool} pool
  */
-async function seedIfEnabled(pool) {
+async function seedIfEnabled(pool: Pool) {
   const on = String(process.env.SEED || '').toLowerCase() === 'true';
   if (!on) {
     console.log('[seed] disabled (set SEED=true to enable)');
@@ -49,4 +51,4 @@ async function seedIfEnabled(pool) {
   console.log('[seed] ✅ done');
 }
 
-module.exports = { seedIfEnabled };
+export { seedIfEnabled };

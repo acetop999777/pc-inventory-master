@@ -38,9 +38,9 @@
     "services/**/*.js",
     "services/**/*.ts",
     "services/**/*.d.ts",
-    "app.js",
-    "bootstrap.js",
-    "index.js",
+    "app.ts",
+    "bootstrap.ts",
+    "index.ts",
     "types/**/*.d.ts"
   ],
   "exclude": ["node_modules", "dist"]

@@ -1,7 +1,6 @@
-const { Pool } = require('pg');
+import { Pool, type PoolConfig } from 'pg';
 
-/** @type {import('pg').PoolConfig} */
-const config = {
+const config: PoolConfig = {
   user: process.env.POSTGRES_USER || 'admin',
   host: process.env.POSTGRES_HOST || 'db',
   database: process.env.POSTGRES_DB || 'inventory_db',
@@ -12,4 +11,4 @@ const config = {
 
 const pool = new Pool(config);
 
-module.exports = { pool };
+export { pool };

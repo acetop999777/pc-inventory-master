@@ -1,9 +1,9 @@
-const { createApp } = require('./app');
-const { pool } = require('./db/pool');
-const { runMigrations } = require('./db/migrate');
-const { waitForDb } = require('./db/waitForDb');
-const { seedIfEnabled } = require('./db/seed');
-const { startupCleanupIfEnabled } = require('./db/startupCleanup');
+import { createApp } from './app';
+import { pool } from './db/pool';
+import { runMigrations } from './db/migrate';
+import { waitForDb } from './db/waitForDb';
+import { seedIfEnabled } from './db/seed';
+import { startupCleanupIfEnabled } from './db/startupCleanup';
 
 function isInitDbRequested() {
   const raw = String(process.env.INIT_DB || '').toLowerCase();
@@ -25,4 +25,4 @@ async function bootstrap() {
   return { app, server };
 }
 
-module.exports = { bootstrap };
+export { bootstrap };

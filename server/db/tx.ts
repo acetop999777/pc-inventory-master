@@ -1,11 +1,9 @@
-/**
- * @typedef {import('pg').Pool} DbPool
- * @typedef {import('pg').PoolClient} DbClient
- * @param {DbPool} pool
- * @param {(client: DbClient) => Promise<unknown>} fn
- * @returns {Promise<unknown>}
- */
-async function withTransaction(pool, fn) {
+import type { Pool, PoolClient } from 'pg';
+
+type DbPool = Pool;
+type DbClient = PoolClient;
+
+async function withTransaction<T>(pool: DbPool, fn: (client: DbClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -25,4 +23,4 @@ async function withTransaction(pool, fn) {
   }
 }
 
-module.exports = { withTransaction };
+export { withTransaction };

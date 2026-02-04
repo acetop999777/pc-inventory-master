@@ -1,14 +1,12 @@
-const express = require('express');
-const AppError = require('../errors/AppError');
-const { assertClientInput } = require('../validators/clientValidator');
-const { mapClient } = require('../mappers/clientMapper');
+import express from 'express';
+import type { Pool } from 'pg';
+import AppError = require('../errors/AppError');
+import { assertClientInput } from '../validators/clientValidator';
+import { mapClient } from '../mappers/clientMapper';
 
-/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+type RouteDeps = { pool: Pool };
 
-/**
- * @param {RouteDeps} deps
- */
-module.exports = function clientsRoutes({ pool }) {
+function clientsRoutes({ pool }: RouteDeps) {
   const router = express.Router();
 
   router.get('/clients', async (req, res, next) => {
@@ -149,4 +147,6 @@ module.exports = function clientsRoutes({ pool }) {
   });
 
   return router;
-};
+}
+
+export default clientsRoutes;

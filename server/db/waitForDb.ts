@@ -1,8 +1,10 @@
+import type { Pool } from 'pg';
+
 /**
- * @param {import('pg').Pool} pool
+ * @param {Pool} pool
  * @param {{ attempts?: number, delayMs?: number }} opts
  */
-async function waitForDb(pool, { attempts = 30, delayMs = 1000 } = {}) {
+async function waitForDb(pool: Pool, { attempts = 30, delayMs = 1000 } = {}) {
   for (let i = 1; i <= attempts; i++) {
     try {
       await pool.query('SELECT 1');
@@ -15,4 +17,4 @@ async function waitForDb(pool, { attempts = 30, delayMs = 1000 } = {}) {
   throw new Error('DB not ready after retries');
 }
 
-module.exports = { waitForDb };
+export { waitForDb };

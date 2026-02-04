@@ -1,9 +1,5 @@
 // Contract: date-only YYYY-MM-DD
-/**
- * @param {unknown} d
- * @returns {string}
- */
-function fmtDate(d) {
+function fmtDate(d: unknown): string {
   if (!d) return '';
   // pg DATE often returns 'YYYY-MM-DD' string; keep stable
   if (typeof d === 'string') return d.slice(0, 10);
@@ -24,10 +20,7 @@ function fmtDate(d) {
   return '';
 }
 
-/**
- * @param {Record<string, unknown>} r
- */
-const mapClient = (r) => ({
+const mapClient = (r: Record<string, unknown>) => ({
   id: r.id,
   wechatName: r.wechat_name,
   wechatId: r.wechat_id || '',
@@ -56,4 +49,4 @@ const mapClient = (r) => ({
   photos: r.photos || [],
 });
 
-module.exports = { mapClient };
+export { mapClient };

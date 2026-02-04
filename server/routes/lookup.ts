@@ -1,11 +1,9 @@
-const express = require('express');
+import express from 'express';
+import type { Pool } from 'pg';
 
-/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
+type RouteDeps = { pool: Pool };
 
-/**
- * @param {RouteDeps} deps
- */
-module.exports = function lookupRoutes({ pool }) {
+function lookupRoutes({ pool }: RouteDeps) {
   const router = express.Router();
 
   router.get('/lookup/:code', async (req, res) => {
@@ -16,9 +14,9 @@ module.exports = function lookupRoutes({ pool }) {
 
       const apiRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
       if (!apiRes.ok) throw new Error('API Failed');
-      const data = await apiRes.json();
+      const data = (await apiRes.json()) as { items?: unknown[] };
 
-      if (data.items && data.items.length > 0) {
+      if (Array.isArray(data.items) && data.items.length > 0) {
         await pool.query(
           `INSERT INTO product_cache (barcode, data)
            VALUES ($1, $2)
@@ -33,4 +31,6 @@ module.exports = function lookupRoutes({ pool }) {
   });
 
   return router;
-};
+}
+
+export default lookupRoutes;

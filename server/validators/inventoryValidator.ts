@@ -1,10 +1,12 @@
-const { requireNonEmptyString, requireArray, requireObject } = require('./requestUtils');
+import { requireNonEmptyString, requireArray, requireObject } from './requestUtils';
 
 /**
  * @param {unknown} body
  * @returns {{ operationId: string, items: unknown[] } & Record<string, unknown>}
  */
-function assertInventoryBatchPayload(body) {
+function assertInventoryBatchPayload(
+  body: unknown,
+): { operationId: string; items: unknown[] } & Record<string, unknown> {
   const payload = requireObject(body, 'body');
   const operationId = requireNonEmptyString(payload.operationId, 'operationId');
   const items = requireArray(payload.items, 'items');
@@ -15,13 +17,15 @@ function assertInventoryBatchPayload(body) {
  * @param {unknown} body
  * @returns {{ operationId: string } & Record<string, unknown>}
  */
-function assertInventoryUpdatePayload(body) {
+function assertInventoryUpdatePayload(
+  body: unknown,
+): { operationId: string } & Record<string, unknown> {
   const payload = requireObject(body, 'body');
   const operationId = requireNonEmptyString(payload.operationId, 'operationId');
   return { ...payload, operationId };
 }
 
-module.exports = {
+export {
   assertInventoryBatchPayload,
   assertInventoryUpdatePayload,
 };

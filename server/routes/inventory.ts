@@ -1,32 +1,27 @@
-const express = require('express');
-const { applyInventoryBatch, updateInventoryItem } = require('../services/inventoryService');
-const {
+import express from 'express';
+import type { Pool } from 'pg';
+import { applyInventoryBatch, updateInventoryItem } from '../services/inventoryService';
+import {
   assertInventoryBatchPayload,
   assertInventoryUpdatePayload,
-} = require('../validators/inventoryValidator');
+} from '../validators/inventoryValidator';
+import type { RequestWithId } from '../middleware/requestId';
 
-/** @typedef {{ pool: import('pg').Pool }} RouteDeps */
-/** @typedef {{ code?: unknown, message?: unknown }} ErrorLike */
+type RouteDeps = { pool: Pool };
+type ErrorLike = { code?: unknown; message?: unknown };
 
-/**
- * @param {unknown} err
- * @returns {string}
- */
-function errorCode(err) {
+function errorCode(err: unknown): string {
   if (!err || typeof err !== 'object') return 'ERROR';
-  const e = /** @type {ErrorLike} */ (err);
+  const e = err as ErrorLike;
   if (typeof e.code === 'string' && e.code) return e.code;
   if (typeof e.message === 'string' && e.message) return e.message;
   return 'ERROR';
 }
 
-/**
- * @param {RouteDeps} deps
- */
-module.exports = function inventoryRoutes({ pool }) {
+function inventoryRoutes({ pool }: RouteDeps) {
   const router = express.Router();
 
-  router.get('/inventory', async (req, res, next) => {
+  router.get('/inventory', async (req: RequestWithId, res, next) => {
     try {
       const includeArchivedRaw = String(req.query.includeArchived || '').toLowerCase();
       const includeArchived =
@@ -43,7 +38,7 @@ module.exports = function inventoryRoutes({ pool }) {
     }
   });
 
-  router.get('/inventory/:id/movements', async (req, res, next) => {
+  router.get('/inventory/:id/movements', async (req: RequestWithId, res, next) => {
     const id = req.params.id;
     try {
       const { rows } = await pool.query(
@@ -58,8 +53,7 @@ module.exports = function inventoryRoutes({ pool }) {
 
       let prevCost = 0;
       const normalized = rows.map((row) => {
-        /** @type {Record<string, unknown>} */
-        const entry = row;
+        const entry = row as Record<string, unknown>;
         const qtyDelta = Number(entry.qty_delta ?? 0);
         const onHandAfter = Number(entry.on_hand_after ?? 0);
         const avgCostAfter = Number(entry.avg_cost_after ?? 0);
@@ -92,7 +86,7 @@ module.exports = function inventoryRoutes({ pool }) {
     }
   });
 
-  router.post('/inventory/batch', async (req, res, next) => {
+  router.post('/inventory/batch', async (req: RequestWithId, res, next) => {
     const endpoint = req.originalUrl || req.url;
     let payload;
     try {
@@ -149,7 +143,7 @@ module.exports = function inventoryRoutes({ pool }) {
     }
   });
 
-  router.put('/inventory/:id', async (req, res, next) => {
+  router.put('/inventory/:id', async (req: RequestWithId, res, next) => {
     const id = req.params.id;
     let body;
     try {
@@ -209,7 +203,7 @@ module.exports = function inventoryRoutes({ pool }) {
     }
   });
 
-  router.delete('/inventory/:id', async (req, res, next) => {
+  router.delete('/inventory/:id', async (req: RequestWithId, res, next) => {
     const endpoint = req.originalUrl || req.url;
     const operationId = req?.body?.operationId || req?.query?.operationId || null;
     console.log(
@@ -286,4 +280,6 @@ module.exports = function inventoryRoutes({ pool }) {
   });
 
   return router;
-};
+}
+
+export default inventoryRoutes;

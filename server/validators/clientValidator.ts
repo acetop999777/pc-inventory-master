@@ -1,25 +1,19 @@
-const AppError = require('../errors/AppError');
+import AppError = require('../errors/AppError');
 
-/**
- * @typedef {{
- *   [key: string]: unknown,
- *   id: unknown,
- *   wechatName: unknown,
- *   orderDate: unknown,
- *   deliveryDate: unknown,
- *   totalPrice: unknown,
- *   actualCost: unknown,
- *   profit: unknown,
- *   paidAmount: unknown,
- *   rating: unknown
- * }} ClientInput
- */
+type ClientInput = {
+  [key: string]: unknown;
+  id: unknown;
+  wechatName: unknown;
+  orderDate: unknown;
+  deliveryDate: unknown;
+  totalPrice: unknown;
+  actualCost: unknown;
+  profit: unknown;
+  paidAmount: unknown;
+  rating: unknown;
+};
 
-/**
- * @param {unknown} v
- * @returns {string | null}
- */
-function asNonEmptyString(v) {
+function asNonEmptyString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
@@ -27,7 +21,7 @@ function asNonEmptyString(v) {
  * @param {unknown} v
  * @returns {string | null}
  */
-function normalizeDateOnly(v) {
+function normalizeDateOnly(v: unknown): string | null {
   if (!v) return null;
   if (typeof v !== 'string') return null;
   const s = v.slice(0, 10);
@@ -39,8 +33,10 @@ function normalizeDateOnly(v) {
  * @param {ClientInput} c
  * @returns {{ id: string, wechatName: string, orderDate: string, deliveryDate: string | null }}
  */
-function assertClientInput(c) {
-  const fields = [];
+function assertClientInput(
+  c: ClientInput,
+): { id: string; wechatName: string; orderDate: string; deliveryDate: string | null } {
+  const fields: Array<{ field: string; message: string }> = [];
 
   const id = asNonEmptyString(c.id);
   if (!id) fields.push({ field: 'id', message: 'id is required' });
@@ -72,14 +68,11 @@ function assertClientInput(c) {
   }
 
   return {
-    id: /** @type {string} */ (id),
-    wechatName: /** @type {string} */ (wechatName),
-    orderDate: /** @type {string} */ (orderDate),
+    id: id!,
+    wechatName: wechatName!,
+    orderDate: orderDate!,
     deliveryDate,
   };
 }
 
-module.exports = {
-  assertClientInput,
-  normalizeDateOnly,
-};
+export { assertClientInput, normalizeDateOnly };

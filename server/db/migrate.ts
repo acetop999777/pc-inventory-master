@@ -1,13 +1,14 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import type { Pool } from 'pg';
 
 /**
  * Runs SQL migrations in server/db/migrations/*.sql
  * - Idempotent via schema_migrations table (filename PK)
  * - Protected by pg_advisory_lock to avoid concurrent runners
- * @param {import('pg').Pool} pool
+ * @param {Pool} pool
  */
-async function runMigrations(pool) {
+async function runMigrations(pool: Pool) {
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = fs.existsSync(migrationsDir)
     ? fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
@@ -32,7 +33,7 @@ async function runMigrations(pool) {
     `);
 
     const doneRes = await client.query('SELECT filename FROM schema_migrations');
-    const done = new Set(doneRes.rows.map((r) => r.filename));
+    const done = new Set(doneRes.rows.map((r) => r.filename as string));
 
     for (const file of files) {
       if (done.has(file)) continue;
@@ -61,4 +62,4 @@ async function runMigrations(pool) {
   }
 }
 
-module.exports = { runMigrations };
+export { runMigrations };
