@@ -7,10 +7,13 @@ cd "$ROOT"
 CRON_MARK="# pc-inventory-master backups"
 JOB_DAILY="10 3 * * * cd $ROOT && KEEP_DUMPS=30 KEEP_SQLS=30 MAX_DAYS=14 ./scripts/backup_rotate.sh >> $ROOT/backups/cron.log 2>&1"
 JOB_WEEKLY="30 3 * * 0 cd $ROOT && ./scripts/pgdata_backup.sh >> $ROOT/backups/cron.log 2>&1"
+JOB_LOGS="50 3 * * * cd $ROOT && LOG_RETENTION_DAYS=90 ./scripts/logs_cleanup.sh >> $ROOT/backups/cron.log 2>&1"
 
-( crontab -l 2>/dev/null | grep -v "$CRON_MARK"  echo "$CRON_MARK"
+( crontab -l 2>/dev/null | grep -v "$CRON_MARK"
+  echo "$CRON_MARK"
   echo "$JOB_DAILY"
   echo "$JOB_WEEKLY"
+  echo "$JOB_LOGS"
 ) | crontab -
 
 echo "[cron] ✅ installed"
