@@ -6,12 +6,18 @@ import { FinancialCard } from '../../shared/ui/FinancialCard';
 import { panelDashedXl } from '../../shared/ui/panel';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<any>(null);
+  type DashboardStats = {
+    totalProfit: number;
+    totalBalanceDue: number;
+    inventoryValue: number;
+    totalItems: number;
+  };
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    apiCallOrThrow('/dashboard/stats')
+    apiCallOrThrow<DashboardStats>('/dashboard/stats')
       .then((data) => {
         if (!active) return;
         setStats(data);

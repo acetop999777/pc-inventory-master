@@ -11,9 +11,9 @@ import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format
 import { Button } from '../../shared/ui/Button';
 import { panelDashed } from '../../shared/ui/panel';
 
-type InlineEditorProps = {
-  value: any;
-  onChange: (v: any) => void;
+type InlineEditorProps<T extends string | number> = {
+  value: T | null | undefined;
+  onChange: (v: T) => void;
   type?: 'text' | 'number';
 };
 
@@ -35,7 +35,11 @@ type MovementLog = {
   prevCost: number;
 };
 
-const InlineEditor = ({ value, onChange, type = 'text' }: InlineEditorProps) => {
+const InlineEditor = <T extends string | number>({
+  value,
+  onChange,
+  type = 'text',
+}: InlineEditorProps<T>) => {
   const [editing, setEditing] = useState(false);
   const [tempVal, setTempVal] = useState(String(value ?? ''));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,14 +55,14 @@ const InlineEditor = ({ value, onChange, type = 'text' }: InlineEditorProps) => 
   const commit = (raw: string) => {
     if (type === 'number') {
       if (raw.trim() === '') {
-        onChange(0);
+        onChange(0 as T);
         return;
       }
       const n = Number(raw);
-      if (Number.isFinite(n)) onChange(n);
+      if (Number.isFinite(n)) onChange(n as T);
       return;
     }
-    onChange(raw);
+    onChange(raw as T);
   };
 
   if (editing) {
@@ -164,7 +168,7 @@ export default function InventoryHub() {
       item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
         ? item.metadata
         : {};
-    const next = { ...base } as Record<string, any>;
+    const next = { ...base } as Record<string, unknown>;
     const cleaned = String(raw || '').trim();
     if (cleaned) next[key] = cleaned;
     else delete next[key];
@@ -187,8 +191,11 @@ export default function InventoryHub() {
     try {
       const data = await apiCallOrThrow<MovementLog[]>(`/inventory/${item.id}/movements`);
       setLogMoves(data);
-    } catch (err: any) {
-      const msg = err?.userMessage || 'Failed to load history.';
+    } catch (err: unknown) {
+      const msg =
+        typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+          ? String((err as { userMessage?: unknown }).userMessage)
+          : 'Failed to load history.';
       setLogError(msg);
       await alert({ title: 'Inventory History', message: msg });
     } finally {

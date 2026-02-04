@@ -43,7 +43,7 @@ export function useReceiptsQuery(limit = 50) {
   return useQuery<ReceiptListItem[]>({
     queryKey: [...receiptsQueryKey, limit],
     queryFn: async () => {
-      const raw = await apiCallOrThrow<any>(`/inbound/receipts?limit=${limit}`);
+      const raw = await apiCallOrThrow<unknown>(`/inbound/receipts?limit=${limit}`);
       return Array.isArray(raw) ? raw : [];
     },
   });

@@ -13,8 +13,8 @@ function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
 }
 
 function coerceFields(fields: Partial<ClientEntity>): Partial<ClientEntity> {
-  const f: any = { ...fields };
-  const toMoney = (v: any) => {
+  const f: Partial<ClientEntity> = { ...fields };
+  const toMoney = (v: unknown) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };

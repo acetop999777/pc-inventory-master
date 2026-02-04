@@ -104,7 +104,7 @@ export const processScan = async (
 
 const NEWEGG_ITEM_MIN_LEN = 8;
 
-function sanitizeNeweggItem(value: any): string {
+function sanitizeNeweggItem(value: unknown): string {
   const tokens = String(value || '')
     .toUpperCase()
     .match(/[A-Z0-9]+/g);
@@ -117,7 +117,7 @@ function sanitizeNeweggItem(value: any): string {
   return '';
 }
 
-export function normalizeNeweggItem(value: any): string {
+export function normalizeNeweggItem(value: unknown): string {
   return sanitizeNeweggItem(value);
 }
 
@@ -144,9 +144,9 @@ function findInventoryByNeweggItem(
 }
 
 function mergeNeweggMetadata(
-  base: Record<string, any> | undefined,
+  base: Record<string, unknown> | undefined,
   itemNumber: string,
-): Record<string, any> | undefined {
+): Record<string, unknown> | undefined {
   const next =
     base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
   const cleaned = sanitizeNeweggItem(itemNumber);
@@ -154,16 +154,16 @@ function mergeNeweggMetadata(
   return next;
 }
 
-export function normalizeSerialNumber(value: any): string {
+export function normalizeSerialNumber(value: unknown): string {
   const raw = String(value || '').trim();
   if (!raw) return '';
   return raw.replace(/^(?:s\/n|sn|serial(?:\s*number)?)[:#]?\s*/i, '').trim();
 }
 
 function mergeSerialMetadata(
-  base: Record<string, any> | undefined,
+  base: Record<string, unknown> | undefined,
   serial: string,
-): Record<string, any> | undefined {
+): Record<string, unknown> | undefined {
   const next =
     base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
   const cleaned = normalizeSerialNumber(serial);

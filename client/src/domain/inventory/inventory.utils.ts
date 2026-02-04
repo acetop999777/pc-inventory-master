@@ -4,6 +4,10 @@ import { InventoryItem } from './inventory.types';
 export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];
 export const ALL_CATS = [...CORE_CATS, 'FAN', 'MONITOR', 'CUSTOM', 'OTHER'];
 
+type LookupResponse = {
+  items?: Array<{ title?: unknown; category?: unknown }>;
+};
+
 export const guessCategory = (name: string): string => {
   if (!name) return 'OTHER';
   const n = name.toLowerCase();
@@ -52,7 +56,7 @@ export async function lookupBarcode(
   code: string,
 ): Promise<{ name: string; category: string } | null> {
   try {
-    const data: any = await apiCallOrThrow(`/lookup/${encodeURIComponent(code)}`);
+    const data = await apiCallOrThrow<LookupResponse>(`/lookup/${encodeURIComponent(code)}`);
     if (data && Array.isArray(data.items) && data.items.length > 0) {
       const item = data.items[0];
       const title = String(item.title ?? '').trim();

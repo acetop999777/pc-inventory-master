@@ -4,28 +4,29 @@ import { InventoryItem } from '../../domain/inventory/inventory.types';
 
 export const inventoryQueryKey = ['inventory'] as const;
 
-export function normalizeInventoryRow(row: any): InventoryItem {
-  const cost = Number(row?.cost ?? 0);
-  const quantity = Number(row?.quantity ?? 0);
+export function normalizeInventoryRow(row: unknown): InventoryItem {
+  const r = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
+  const cost = Number(r.cost ?? 0);
+  const quantity = Number(r.quantity ?? 0);
 
   return {
-    id: String(row?.id ?? ''),
-    sku: String(row?.sku ?? ''),
-    name: String(row?.name ?? ''),
-    category: String(row?.category ?? ''),
+    id: String(r.id ?? ''),
+    sku: String(r.sku ?? ''),
+    name: String(r.name ?? ''),
+    category: String(r.category ?? ''),
     cost: Number.isFinite(cost) ? cost : 0,
     quantity: Number.isFinite(quantity) ? quantity : 0,
-    lastUpdated: Number(row?.lastUpdated ?? row?.last_updated ?? row?.updated_at ?? Date.now()),
-    keyword: row?.keyword ?? undefined,
-    price: row?.price !== undefined ? Number(row.price) : undefined,
-    location: row?.location ?? undefined,
-    status: row?.status ?? undefined,
-    notes: row?.notes ?? undefined,
+    lastUpdated: Number(r.lastUpdated ?? r.last_updated ?? r.updated_at ?? Date.now()),
+    keyword: typeof r.keyword === 'string' ? r.keyword : undefined,
+    price: r.price !== undefined ? Number(r.price) : undefined,
+    location: typeof r.location === 'string' ? r.location : undefined,
+    status: typeof r.status === 'string' ? r.status : undefined,
+    notes: typeof r.notes === 'string' ? r.notes : undefined,
     metadata:
-      row?.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-        ? row.metadata
+      r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata)
+        ? (r.metadata as Record<string, unknown>)
         : {},
-    photos: Array.isArray(row?.photos) ? row.photos : undefined,
+    photos: Array.isArray(r.photos) ? (r.photos as string[]) : undefined,
   };
 }
 
@@ -33,7 +34,7 @@ export function useInventoryQuery() {
   return useQuery<InventoryItem[]>({
     queryKey: inventoryQueryKey,
     queryFn: async () => {
-      const raw = await apiCallOrThrow<any>('/inventory');
+      const raw = await apiCallOrThrow<unknown>('/inventory');
       const arr = Array.isArray(raw) ? raw : [];
       return arr.map(normalizeInventoryRow);
     },

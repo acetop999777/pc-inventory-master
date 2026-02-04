@@ -16,7 +16,7 @@ interface Props {
 export const StagingArea: React.FC<Props> = ({ batch, inventory, setBatch, onCommit }) => {
   const [activeDrop, setActiveDrop] = useState<number | null>(null);
 
-  const updateItem = (idx: number, field: keyof StagedItem, val: any) => {
+  const updateItem = <K extends keyof StagedItem>(idx: number, field: K, val: StagedItem[K]) => {
     const newBatch = [...batch];
     newBatch[idx] = { ...newBatch[idx], [field]: val };
     setBatch(newBatch);

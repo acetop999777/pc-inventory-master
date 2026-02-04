@@ -30,7 +30,7 @@ type Line = {
   keyword: string;
   qty: string;
   unitCost: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 function makeId() {
@@ -174,7 +174,7 @@ export default function ReceiptCreate() {
     }));
   };
 
-  const mergeSerialValue = (existingRaw: any, incomingRaw: any) => {
+  const mergeSerialValue = (existingRaw: unknown, incomingRaw: unknown) => {
     const incoming = normalizeSerialNumber(incomingRaw);
     if (!incoming) return { value: existingRaw, changed: false };
     const existing = typeof existingRaw === 'string' ? existingRaw : '';
@@ -188,7 +188,7 @@ export default function ReceiptCreate() {
   };
 
   const syncLineMetadata = (sourceLines: Line[], createdMap: Map<string, string>) => {
-    const updates = new Map<string, Record<string, any>>();
+    const updates = new Map<string, Record<string, unknown>>();
 
     for (const line of sourceLines) {
       const inventoryId = line.inventoryId || createdMap.get(line.id) || '';
@@ -201,7 +201,7 @@ export default function ReceiptCreate() {
         inv.metadata && typeof inv.metadata === 'object' && !Array.isArray(inv.metadata)
           ? inv.metadata
           : {};
-      let nextMeta: Record<string, any> | null = null;
+      let nextMeta: Record<string, unknown> | null = null;
 
       if (parsedItem && !existingItem) {
         nextMeta = { ...(nextMeta || baseMeta), neweggItem: parsedItem };
@@ -313,10 +313,13 @@ export default function ReceiptCreate() {
               : l,
           ),
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         await alert({
           title: 'Inventory Create Failed',
-          message: err?.userMessage || 'Failed to create new inventory items. Please try again.',
+          message:
+            typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+              ? String((err as { userMessage?: unknown }).userMessage)
+              : 'Failed to create new inventory items. Please try again.',
         });
         return;
       }

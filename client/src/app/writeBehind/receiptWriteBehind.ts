@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
-import { receiptsQueryKey, ReceiptDetail } from '../queries/receipts';
+import { receiptsQueryKey, ReceiptDetail, ReceiptListItem } from '../queries/receipts';
 
 export type ReceiptCreatePayload = {
   receivedAt?: string;
@@ -27,7 +27,9 @@ export function useReceiptWriteBehind() {
           ...patch,
           operationId: ctx.operationId,
         });
-        qc.setQueryData(receiptsQueryKey, (old: any) => old || []);
+        qc.setQueryData<ReceiptListItem[]>(receiptsQueryKey, (old) =>
+          Array.isArray(old) ? old : [],
+        );
         qc.invalidateQueries({ queryKey: receiptsQueryKey });
       },
       debounceMs: 0,

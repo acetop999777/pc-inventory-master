@@ -2,6 +2,7 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useReceiptDetailQuery } from '../../app/queries/receipts';
+import type { ReceiptDetail as ReceiptDetailType } from '../../app/queries/receipts';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
@@ -27,6 +28,20 @@ export default function ReceiptDetail() {
   const [itemsDraft, setItemsDraft] = React.useState<
     { id: number; qtyReceived: string; unitCost: string; remove?: boolean }[]
   >([]);
+  type ReceiptItemUpdate = {
+    id: number;
+    remove?: boolean;
+    qtyReceived?: number;
+    unitCost?: number;
+  };
+  type ReceiptUpdatePayload = {
+    vendor?: string;
+    mode?: string;
+    notes?: string;
+    receivedAt?: string;
+    items?: ReceiptItemUpdate[];
+    images?: string[];
+  };
 
   React.useEffect(() => {
     if (!data?.receipt) return;
@@ -73,7 +88,7 @@ export default function ReceiptDetail() {
     if (!id) return;
     setSaving(true);
     try {
-      const res = await apiCallOrThrow<any>(`/inbound/receipts/${id}`, 'PATCH', {
+      const res = await apiCallOrThrow<ReceiptDetailType>(`/inbound/receipts/${id}`, 'PATCH', {
         images: next,
       });
       if (res?.receipt) {
@@ -81,10 +96,13 @@ export default function ReceiptDetail() {
         const updated = Array.isArray(res.receipt.images) ? res.receipt.images : next;
         setImages(updated);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       await alert({
         title: 'Upload Failed',
-        message: err?.userMessage || 'Failed to save receipt images.',
+        message:
+          typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+            ? String((err as { userMessage?: unknown }).userMessage)
+            : 'Failed to save receipt images.',
       });
     } finally {
       setSaving(false);
@@ -114,7 +132,7 @@ export default function ReceiptDetail() {
     if (!id) return;
     setSaving(true);
     try {
-      const payload: any = {
+      const payload: ReceiptUpdatePayload = {
         vendor,
         mode,
         notes,
@@ -131,14 +149,17 @@ export default function ReceiptDetail() {
       if (receivedAt) {
         payload.receivedAt = new Date(receivedAt).toISOString();
       }
-      const res = await apiCallOrThrow<any>(`/inbound/receipts/${id}`, 'PATCH', payload);
+      const res = await apiCallOrThrow<ReceiptDetailType>(`/inbound/receipts/${id}`, 'PATCH', payload);
       if (res?.receipt) {
         qc.setQueryData(['receipt', id], res);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       await alert({
         title: 'Save Failed',
-        message: err?.userMessage || 'Failed to update receipt.',
+        message:
+          typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+            ? String((err as { userMessage?: unknown }).userMessage)
+            : 'Failed to update receipt.',
       });
     } finally {
       setSaving(false);

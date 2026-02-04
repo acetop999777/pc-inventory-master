@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
+import type { ReceiptListItem } from '../../app/queries/receipts';
 import { apiCallOrThrow } from '../../shared/api/http';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
@@ -58,13 +59,16 @@ export default function ReceiptsList() {
     if (!ok) return;
     try {
       await apiCallOrThrow(`/inbound/receipts/${id}`, 'DELETE');
-      qc.setQueryData<any>([...receiptsQueryKey, 100], (old = []) =>
-        Array.isArray(old) ? old.filter((r: any) => r.id !== id) : old,
+      qc.setQueryData<ReceiptListItem[]>([...receiptsQueryKey, 100], (old = []) =>
+        Array.isArray(old) ? old.filter((r) => r.id !== id) : old,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       await alert({
         title: 'Delete Failed',
-        message: err?.userMessage || 'Failed to delete receipt.',
+        message:
+          typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+            ? String((err as { userMessage?: unknown }).userMessage)
+            : 'Failed to delete receipt.',
       });
     }
   };

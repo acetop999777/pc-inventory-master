@@ -45,8 +45,8 @@ type KeyState<P> = {
   merge?: (prev: P, next: P) => P;
   debounceMs: number;
 
-  timer: any;
-  retryTimer: any;
+  timer: ReturnType<typeof setTimeout> | null;
+  retryTimer: ReturnType<typeof setTimeout> | null;
   retryCount: number;
   inFlight: Promise<void> | null;
   lastError: unknown;
@@ -63,7 +63,7 @@ export type SaveQueueSnapshot = {
 };
 
 export class SaveQueue {
-  private states = new Map<SaveKey, KeyState<any>>();
+  private states = new Map<SaveKey, KeyState<unknown>>();
   private listeners = new Set<() => void>();
 
   // IMPORTANT for useSyncExternalStore:
@@ -94,10 +94,14 @@ export class SaveQueue {
     this.listeners.forEach((cb) => cb());
   }
 
-  private isRetryableError(err: any): boolean {
-    if (typeof err?.retryable === 'boolean') return err.retryable;
-    if (typeof err?.retriable === 'boolean') return err.retriable;
-    const status = err?.status ?? err?.httpStatus;
+  private isRetryableError(err: unknown): boolean {
+    const errObj = err as
+      | { retryable?: unknown; retriable?: unknown; status?: unknown; httpStatus?: unknown }
+      | null
+      | undefined;
+    if (typeof errObj?.retryable === 'boolean') return errObj.retryable;
+    if (typeof errObj?.retriable === 'boolean') return errObj.retriable;
+    const status = errObj?.status ?? errObj?.httpStatus;
     if (typeof status === 'number') return status >= 500 || status === 429 || status === 408;
     return true;
   }
@@ -183,7 +187,7 @@ export class SaveQueue {
         updatedAt: now,
         waiters: new Set(),
       };
-      this.states.set(req.key, st);
+      this.states.set(req.key, st as KeyState<unknown>);
     } else {
       st.label = req.label ?? st.label;
       st.write = req.write;
@@ -205,7 +209,7 @@ export class SaveQueue {
     return waiter.promise;
   }
 
-  private schedule(key: SaveKey, st: KeyState<any>) {
+  private schedule<P>(key: SaveKey, st: KeyState<P>) {
     // Hold patches while non-retryable error (user must fix inputs / retry).
     if (st.lastError != null && !this.isRetryableError(st.lastError)) {
       this.emit();
@@ -371,7 +375,7 @@ export class SaveQueue {
     this.emit();
   }
 
-  private resolveIfIdle(st: KeyState<any>) {
+  private resolveIfIdle<P>(st: KeyState<P>) {
     const idle = st.patch === undefined && !st.inFlight;
     if (!idle) return;
     if (st.waiters.size === 0) return;

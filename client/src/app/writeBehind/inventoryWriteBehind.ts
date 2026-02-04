@@ -12,7 +12,7 @@ function mergeInventoryWrite(a: InventoryWrite, b: InventoryWrite): InventoryWri
 }
 
 function coerceFields(fields: Partial<InventoryItem>): Partial<InventoryItem> {
-  const f: any = { ...fields };
+  const f: Partial<InventoryItem> = { ...fields };
   if (Object.prototype.hasOwnProperty.call(f, 'cost')) f.cost = Number(f.cost ?? 0);
   if (Object.prototype.hasOwnProperty.call(f, 'quantity')) f.quantity = Number(f.quantity ?? 0);
   return f;
@@ -48,7 +48,7 @@ export function useInventoryWriteBehind() {
           await apiCallOrThrow(`/inventory/${id}`, 'DELETE', { operationId: ctx.operationId });
           return;
         }
-        const updatedRow = await apiCallOrThrow<any>(`/inventory/${id}`, 'PUT', {
+        const updatedRow = await apiCallOrThrow<unknown>(`/inventory/${id}`, 'PUT', {
           ...w.fields,
           operationId: ctx.operationId,
         });
