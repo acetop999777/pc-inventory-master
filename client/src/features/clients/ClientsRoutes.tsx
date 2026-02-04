@@ -71,7 +71,7 @@ function useDraftStore() {
   return ctx;
 }
 
-function isBlank(v: any) {
+function isBlank(v: unknown) {
   return String(v ?? '').trim().length === 0;
 }
 
@@ -198,7 +198,7 @@ export function ClientDetailRoute() {
   // busy->idle Saved flash（只对落库对象）
   const [flashSaved, setFlashSaved] = useState(false);
   const prevBusyRef = useRef(false);
-  const tRef = useRef<any>(null);
+  const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!activeKey) return;

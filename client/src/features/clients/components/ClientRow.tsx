@@ -29,21 +29,21 @@ type ClientLegacyFields = ClientEntity & {
   order_amount?: number | string;
 };
 
-function norm(v: any) {
+function norm(v: unknown) {
   return String(v ?? '').trim().toLowerCase();
 }
 
 const formatMoneyRounded = (n: number | undefined) =>
   formatMoney(n, { maximumFractionDigits: 0 });
 
-function toNum(v: any): number | null {
+function toNum(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'string' && v.trim() === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
-function firstNum(...vals: any[]): number | null {
+function firstNum(...vals: unknown[]): number | null {
   for (const v of vals) {
     const n = toNum(v);
     if (n !== null) return n;

@@ -24,14 +24,14 @@ const LS_KEY = 'pcinv.clients.archivedOpen.v2';
 const LS_ACTIVE_ROW = 'pcinv.clients.lastActiveRow.v1';
 const STATUS_FILTER_OPTIONS = ['All', 'Pending', 'Deposit', 'Building', 'Ready', 'Delivered'];
 
-function norm(v: any) {
+function norm(v: unknown) {
   return String(v ?? '').trim().toLowerCase();
 }
 type ClientWithCreated = ClientEntity & { createdAt?: string; created_at?: string };
 function isDelivered(c: ClientWithCreated) {
   return norm(c.status) === 'delivered';
 }
-function toTime(s: any) {
+function toTime(s: unknown) {
   const t = Date.parse(String(s ?? ''));
   return Number.isFinite(t) ? t : 0;
 }

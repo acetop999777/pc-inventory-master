@@ -118,7 +118,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
     onCalculate?.();
   };
 
-  const updateSpec = (cat: string, field: keyof SpecRow, val: any) => {
+  const updateSpec = <K extends keyof SpecRow>(cat: string, field: K, val: SpecRow[K]) => {
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
     const nextRow: SpecRow = { ...cur, [field]: val };
     const next = { ...specsObj, [cat]: nextRow };
