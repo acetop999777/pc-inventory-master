@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/api/http';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 import { inventoryQueryKey } from '../queries/inventory';
-import { normalizeInventoryRow } from '../../domain/inventory/normalize';
+import { decodeInventoryDeleteResponse, decodeInventoryUpdateResponse } from '../../shared/api/decoders';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 
 type InventoryWrite = { op: 'patch'; fields: Partial<InventoryItem> } | { op: 'delete' };
@@ -46,18 +46,22 @@ export function useInventoryWriteBehind() {
       merge: mergeInventoryWrite,
       write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await api.delete(`/inventory/${id}`, { operationId: ctx.operationId });
+          const url = `/inventory/${id}`;
+          const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+          decodeInventoryDeleteResponse(url, raw, 'DELETE');
           return;
         }
-        const updatedRow = await api.put<unknown>(`/inventory/${id}`, {
+        const url = `/inventory/${id}`;
+        const updatedRaw = await api.put<unknown>(url, {
           ...w.fields,
           operationId: ctx.operationId,
         });
-        const normalized = normalizeInventoryRow(updatedRow);
-
-        qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
-          old.map((it) => (it.id === id ? { ...it, ...normalized } : it)),
-        );
+        const normalized = decodeInventoryUpdateResponse(url, updatedRaw, 'PUT');
+        if (normalized) {
+          qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
+            old.map((it) => (it.id === id ? { ...it, ...normalized } : it)),
+          );
+        }
       },
       debounceMs: 500,
     });
@@ -71,7 +75,9 @@ export function useInventoryWriteBehind() {
       patch: { op: 'delete' },
       merge: mergeInventoryWrite,
       write: async (_w, ctx) => {
-        await api.delete(`/inventory/${id}`, { operationId: ctx.operationId });
+        const url = `/inventory/${id}`;
+        const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+        decodeInventoryDeleteResponse(url, raw, 'DELETE');
       },
       debounceMs: 0,
     });

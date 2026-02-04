@@ -1,13 +1,25 @@
-import { ApiCallError } from './http';
+import { ApiCallError, HttpMethod } from './http';
 import { normalizeClientRow } from '../../domain/client';
 import type { ClientEntity } from '../../domain/client';
 import type { InventoryItem } from '../../domain/inventory/inventory.types';
 import { normalizeInventoryRow } from '../../domain/inventory/normalize';
-import type { InventoryUpdate, ReceiptDetail, ReceiptItem, ReceiptListItem } from './types';
+import type {
+  DashboardStats,
+  InventoryBatchResult,
+  InventoryDeleteResponse,
+  InventoryUpdate,
+  LookupResponse,
+  MovementLog,
+  ReceiptDetail,
+  ReceiptItem,
+  ReceiptListItem,
+  SuccessResponse,
+} from './types';
 
 type DecodeContext = {
   url: string;
   expected: string;
+  method?: HttpMethod;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -17,7 +29,7 @@ function decodeError(ctx: DecodeContext, body: unknown): never {
   throw new ApiCallError({
     message: `Invalid response for ${ctx.expected}`,
     url: ctx.url,
-    method: 'GET',
+    method: ctx.method ?? 'GET',
     kind: 'PARSE',
     status: 200,
     responseBody: body,
@@ -50,6 +62,12 @@ const toString = (value: unknown, fallback = ''): string =>
 
 const toNullableString = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
+
+const toNullableNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
 
 function normalizeReceiptListItem(row: unknown, url: string): ReceiptListItem {
   const r = ensureRecord(row, { url, expected: 'ReceiptListItem' });
@@ -103,13 +121,134 @@ export function decodeReceipts(url: string, raw: unknown): ReceiptListItem[] {
   return arr.map((row) => normalizeReceiptListItem(row, url));
 }
 
-export function decodeReceiptDetail(url: string, raw: unknown): ReceiptDetail {
-  const root = ensureRecord(raw, { url, expected: 'ReceiptDetail' });
-  const receipt = ensureRecord(root.receipt, { url, expected: 'ReceiptDetail.receipt' });
-  const items = ensureArray(root.items, { url, expected: 'ReceiptDetail.items[]' });
+export function decodeDashboardStats(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'GET',
+): DashboardStats {
+  const r = ensureRecord(raw, { url, expected: 'DashboardStats', method });
+  return {
+    totalProfit: toNumber(r.totalProfit ?? r.total_profit ?? 0),
+    totalBalanceDue: toNumber(r.totalBalanceDue ?? r.total_balance_due ?? r.total_balance ?? 0),
+    inventoryValue: toNumber(r.inventoryValue ?? r.inventory_value ?? 0),
+    totalItems: toNumber(r.totalItems ?? r.total_items ?? 0),
+    totalClients: toNumber(r.totalClients ?? r.total_clients ?? 0),
+  };
+}
+
+export function decodeInventoryMovements(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'GET',
+): MovementLog[] {
+  const arr = ensureArray(raw, { url, expected: 'MovementLog[]', method });
+  return arr.map((row) => {
+    const r = ensureRecord(row, { url, expected: 'MovementLog', method });
+    return {
+      id: toNumber(r.id),
+      inventoryId: toString(r.inventoryId ?? r.inventory_id ?? ''),
+      qtyDelta: toNumber(r.qtyDelta ?? r.qty_delta ?? 0),
+      reason: toString(r.reason ?? ''),
+      unitCost: toNullableNumber(r.unitCost ?? r.unit_cost ?? null),
+      unitCostUsed: toNullableNumber(r.unitCostUsed ?? r.unit_cost_used ?? null),
+      onHandAfter: toNumber(r.onHandAfter ?? r.on_hand_after ?? 0),
+      avgCostAfter: toNumber(r.avgCostAfter ?? r.avg_cost_after ?? 0),
+      occurredAt: toString(r.occurredAt ?? r.occurred_at ?? ''),
+      refType: toNullableString(r.refType ?? r.ref_type ?? null),
+      refId: toNullableString(r.refId ?? r.ref_id ?? null),
+      vendor: toNullableString(r.vendor ?? r.receipt_vendor ?? null),
+      receiptReceivedAt: toNullableString(
+        r.receiptReceivedAt ?? r.receipt_received_at ?? null,
+      ),
+      prevQty: toNumber(r.prevQty ?? r.prev_qty ?? 0),
+      prevCost: toNumber(r.prevCost ?? r.prev_cost ?? 0),
+    };
+  });
+}
+
+export function decodeLookupResponse(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'GET',
+): LookupResponse {
+  const r = ensureRecord(raw, { url, expected: 'LookupResponse', method });
+  const itemsRaw = Array.isArray(r.items) ? r.items : [];
+  return {
+    items: itemsRaw.map((item) => {
+      if (!isRecord(item)) return {};
+      return { title: item.title, category: item.category };
+    }),
+  };
+}
+
+export function decodeInventoryBatchResult(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'POST',
+): InventoryBatchResult {
+  const r = ensureRecord(raw, { url, expected: 'InventoryBatchResult', method });
+  if (r.success !== true) decodeError({ url, expected: 'InventoryBatchResult', method }, raw);
+  const updated = r.updatedIds ?? r.updated_ids;
+  const idsRaw = Array.isArray(updated) ? updated : [];
+  return {
+    success: true,
+    updatedIds: idsRaw.map((id: unknown) => String(id)),
+  };
+}
+
+export function decodeSuccessResponse(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'POST',
+): SuccessResponse {
+  const r = ensureRecord(raw, { url, expected: 'SuccessResponse', method });
+  if (r.success !== true) decodeError({ url, expected: 'SuccessResponse', method }, raw);
+  return { success: true };
+}
+
+export function decodeInventoryDeleteResponse(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'DELETE',
+): InventoryDeleteResponse {
+  const r = ensureRecord(raw, { url, expected: 'InventoryDeleteResponse', method });
+  if (r.archived === true) {
+    const item = r.item ? normalizeInventoryRow(r.item) : null;
+    return {
+      success: true,
+      archived: true,
+      refCount: toNumber(r.refCount ?? r.ref_count ?? 0),
+      item,
+    };
+  }
+  if (r.success !== true) decodeError({ url, expected: 'InventoryDeleteResponse', method }, raw);
+  return { success: true };
+}
+
+export function decodeInventoryUpdateResponse(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'PUT',
+): InventoryItem | null {
+  const r = ensureRecord(raw, { url, expected: 'InventoryUpdateResponse', method });
+  if (r.success === true) return null;
+  return normalizeInventoryRow(r);
+}
+
+export function decodeReceiptDetail(
+  url: string,
+  raw: unknown,
+  method: HttpMethod = 'GET',
+): ReceiptDetail {
+  const root = ensureRecord(raw, { url, expected: 'ReceiptDetail', method });
+  const receipt = ensureRecord(root.receipt, { url, expected: 'ReceiptDetail.receipt', method });
+  const items = ensureArray(root.items, { url, expected: 'ReceiptDetail.items[]', method });
 
   const updatesRaw = root.inventoryUpdates ?? root.inventory_updates;
-  const updates = updatesRaw === undefined ? [] : ensureArray(updatesRaw, { url, expected: 'InventoryUpdate[]' });
+  const updates =
+    updatesRaw === undefined
+      ? []
+      : ensureArray(updatesRaw, { url, expected: 'InventoryUpdate[]', method });
 
   return {
     receipt: {

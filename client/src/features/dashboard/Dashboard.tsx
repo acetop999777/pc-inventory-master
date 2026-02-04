@@ -1,24 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
 import { api } from '../../shared/api/http';
+import { decodeDashboardStats } from '../../shared/api/decoders';
 import { formatMoney } from '../../shared/lib/format';
 import { FinancialCard, panelDashedXl } from '../../shared/ui';
+import type { DashboardStats } from '../../shared/api/types';
 
 export default function Dashboard() {
-  type DashboardStats = {
-    totalProfit: number;
-    totalBalanceDue: number;
-    inventoryValue: number;
-    totalItems: number;
-  };
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    api.get<DashboardStats>('/dashboard/stats')
-      .then((data) => {
+    const url = '/dashboard/stats';
+    api.get<unknown>(url)
+      .then((raw) => {
         if (!active) return;
+        const data = decodeDashboardStats(url, raw);
         setStats(data);
         setError(null);
       })

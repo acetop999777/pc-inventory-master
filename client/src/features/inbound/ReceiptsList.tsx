@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useReceiptsQuery, receiptsQueryKey } from '../../app/queries/receipts';
 import type { ReceiptListItem } from '../../shared/api/types';
 import { api } from '../../shared/api/http';
+import { decodeSuccessResponse } from '../../shared/api/decoders';
 import { formatDateYMD, formatMoney } from '../../shared/lib/format';
 import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { Button, Input, panel } from '../../shared/ui';
@@ -57,7 +58,9 @@ export default function ReceiptsList() {
     });
     if (!ok) return;
     try {
-      await api.delete(`/inbound/receipts/${id}`);
+      const url = `/inbound/receipts/${id}`;
+      const raw = await api.delete<unknown>(url);
+      decodeSuccessResponse(url, raw, 'DELETE');
       qc.setQueryData<ReceiptListItem[]>([...receiptsQueryKey, 100], (old = []) =>
         Array.isArray(old) ? old.filter((r) => r.id !== id) : old,
       );

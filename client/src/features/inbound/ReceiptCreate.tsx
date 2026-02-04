@@ -14,6 +14,7 @@ import {
 } from '../../domain/inventory/inbound.logic';
 import { ALL_CATS, guessCategory } from '../../domain/inventory/inventory.utils';
 import { api } from '../../shared/api/http';
+import { decodeInventoryBatchResult } from '../../shared/api/decoders';
 import { compressImage } from '../../shared/lib/image';
 import { generateId } from '../../shared/lib/id';
 import { Button, Field, FieldLabel, Input, Select, panel, panelDashed, useToast } from '../../shared/ui';
@@ -302,10 +303,12 @@ export default function ReceiptCreate() {
       });
 
       try {
-        await api.post('/inventory/batch', {
+        const url = '/inventory/batch';
+        const raw = await api.post<unknown>(url, {
           operationId,
           items: createItems,
         });
+        decodeInventoryBatchResult(url, raw, 'POST');
         setLines((prev) =>
           prev.map((l) =>
             createdMap.has(l.id)

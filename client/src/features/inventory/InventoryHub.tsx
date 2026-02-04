@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { History, Minus, Plus, Search, Trash2, X } from 'lucide-react';
 import { ALL_CATS } from '../../domain/inventory/inventory.utils';
 import { api } from '../../shared/api/http';
+import { decodeInventoryMovements } from '../../shared/api/decoders';
 import { InventoryItem } from '../../domain/inventory/inventory.types';
 import { useInventoryQuery } from '../../app/queries/inventory';
 import { useInventoryWriteBehind } from '../../app/writeBehind/inventoryWriteBehind';
@@ -9,29 +10,12 @@ import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
 import { StockAdjustModal } from './components/StockAdjustModal';
 import { formatDate, formatDateTime, formatMoney } from '../../shared/lib/format';
 import { Button, Input, Select, panelDashed, useToast } from '../../shared/ui';
+import type { MovementLog } from '../../shared/api/types';
 
 type InlineEditorProps<T extends string | number> = {
   value: T | null | undefined;
   onChange: (v: T) => void;
   type?: 'text' | 'number';
-};
-
-type MovementLog = {
-  id: number;
-  inventoryId: string;
-  qtyDelta: number;
-  reason: string;
-  unitCost: number | null;
-  unitCostUsed: number | null;
-  onHandAfter: number;
-  avgCostAfter: number;
-  occurredAt: string;
-  refType?: string | null;
-  refId?: string | null;
-  vendor?: string | null;
-  receiptReceivedAt?: string | null;
-  prevQty: number;
-  prevCost: number;
 };
 
 const InlineEditor = <T extends string | number>({
@@ -191,7 +175,9 @@ export default function InventoryHub() {
     setLogLoading(true);
     setLogError(null);
     try {
-      const data = await api.get<MovementLog[]>(`/inventory/${item.id}/movements`);
+      const url = `/inventory/${item.id}/movements`;
+      const raw = await api.get<unknown>(url);
+      const data = decodeInventoryMovements(url, raw);
       setLogMoves(data);
     } catch (err: unknown) {
       const msg =

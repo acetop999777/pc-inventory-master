@@ -4,8 +4,8 @@
 
 This repo is a small monorepo with two runtime services:
 
-- `server/`: Express API, Postgres persistence, basic migrations
-- `client/`: React UI (CRA), React Query cache + write-behind queue
+- `server/`: Express API (TypeScript), Postgres persistence, SQL migrations
+- `client/`: React UI (Vite), React Query cache + write-behind queue
 
 ## Directory map
 
@@ -37,7 +37,7 @@ This repo is a small monorepo with two runtime services:
     - `pcpp.ts`: PCPartPicker parsing
 - `shared/`
   - `layouts/MainLayout.tsx`: shell layout + nav
-  - `api/`: API fetch helpers
+  - `api/`: HTTP client + runtime decoders
   - `ui/`: shared UI components
   - `lib/`: shared utilities
 - `domain/`
@@ -45,12 +45,13 @@ This repo is a small monorepo with two runtime services:
 
 ### Server (`server/`)
 
-- `index.js`: bootstrap (wait for DB, run migrations, start server)
-- `app.js`: express app + routes + middleware wiring
+- `index.ts`: bootstrap (wait for DB, run migrations, start server)
+- `app.ts`: express app + routes + middleware wiring
+- `bootstrap.ts`: DB init + migrations + server start
 - `services/`: transactional business logic (inventory batch, logs)
 - `repositories/`: SQL-only data access helpers
-- `db/tx.js`: transaction helper (BEGIN/COMMIT/ROLLBACK)
-- `db/migrate.js`: migration runner
+- `db/tx.ts`: transaction helper (BEGIN/COMMIT/ROLLBACK)
+- `db/migrate.ts`: migration runner
 - `db/migrations/*.sql`: schema migrations
 - `middleware/*`: request id + error handling
 

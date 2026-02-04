@@ -3,6 +3,7 @@ import { api } from '../../shared/api/http';
 import { ClientEntity, calculateFinancials } from '../../domain/client';
 import { clientsQueryKey } from '../queries/clients';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
+import { decodeSuccessResponse } from '../../shared/api/decoders';
 
 type ClientWrite = { op: 'patch'; fields: Partial<ClientEntity> } | { op: 'delete' };
 
@@ -60,7 +61,9 @@ export function useClientWriteBehind() {
       merge: mergeClientWrite,
       write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await api.delete(`/clients/${id}`, { operationId: ctx.operationId });
+          const url = `/clients/${id}`;
+          const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+          decodeSuccessResponse(url, raw, 'DELETE');
           return;
         }
 
@@ -71,12 +74,14 @@ export function useClientWriteBehind() {
         const merged: ClientEntity = { ...cur, ...w.fields };
         const fin = calculateFinancials(merged);
 
-        await api.post('/clients', {
+        const url = '/clients';
+        const raw = await api.post<unknown>(url, {
           ...merged,
           actualCost: fin.totalCost,
           profit: merged.totalPrice > 0 ? fin.profit : null,
           operationId: ctx.operationId,
         });
+        decodeSuccessResponse(url, raw, 'POST');
 
         qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsert(old, merged));
       },
@@ -92,7 +97,9 @@ export function useClientWriteBehind() {
       patch: { op: 'delete' },
       merge: mergeClientWrite,
       write: async (_w, ctx) => {
-        await api.delete(`/clients/${id}`, { operationId: ctx.operationId });
+        const url = `/clients/${id}`;
+        const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+        decodeSuccessResponse(url, raw, 'DELETE');
       },
       debounceMs: 0,
     });

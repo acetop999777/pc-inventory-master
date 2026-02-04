@@ -1,12 +1,9 @@
 import { api } from '../../shared/api/http';
+import { decodeLookupResponse } from '../../shared/api/decoders';
 import { InventoryItem } from './inventory.types';
 
 export const CORE_CATS = ['CPU', 'COOLER', 'MB', 'RAM', 'SSD', 'GPU', 'CASE', 'PSU'];
 export const ALL_CATS = [...CORE_CATS, 'FAN', 'MONITOR', 'CUSTOM', 'OTHER'];
-
-type LookupResponse = {
-  items?: Array<{ title?: unknown; category?: unknown }>;
-};
 
 export const guessCategory = (name: string): string => {
   if (!name) return 'OTHER';
@@ -56,9 +53,11 @@ export async function lookupBarcode(
   code: string,
 ): Promise<{ name: string; category: string } | null> {
   try {
-    const data = await api.get<LookupResponse>(`/lookup/${encodeURIComponent(code)}`);
-    if (data && Array.isArray(data.items) && data.items.length > 0) {
-      const item = data.items[0];
+    const url = `/lookup/${encodeURIComponent(code)}`;
+    const raw = await api.get<unknown>(url);
+    const data = decodeLookupResponse(url, raw);
+    if (data.items.length > 0) {
+      const item = data.items[0] ?? {};
       const title = String(item.title ?? '').trim();
       const cat = item.category ? String(item.category) : '';
       return {

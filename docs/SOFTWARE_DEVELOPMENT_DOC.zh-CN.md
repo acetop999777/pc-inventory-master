@@ -14,6 +14,8 @@
 3. 接着看「3. 代码结构导览（从哪里开始读）」
 4. 然后根据你的工作方向跳读前端 / 后端 / 数据模型章节
 
+> 说明：后端已迁移至 TypeScript。文中若出现 `server/*.js` 的路径，实际对应 `server/*.ts`。
+
 ---
 
 ## 1. 系统定位与核心功能
@@ -93,8 +95,8 @@
 
 系统是一个小型 monorepo，运行时分为三个服务：
 - 数据库：Postgres
-- 后端：Node.js + Express
-- 前端：React（CRA）+ React Query
+- 后端：Node.js + Express（TypeScript）
+- 前端：React（Vite）+ React Query
 
 在 Docker Compose 下的关系可以理解为：
 
@@ -130,7 +132,7 @@
 ### 3.2 前端入口（React）
 
 从这条链开始读最顺：
-1. React 挂载入口：`client/src/index.js`
+1. React 挂载入口：`client/src/index.jsx`
 2. 应用入口：`client/src/App.tsx`
 3. 全局 Provider 装配：`client/src/app/providers/AppProviders.tsx`
 4. 路由与页面：`client/src/AppRouter.tsx`
@@ -139,13 +141,15 @@
 ### 3.3 后端入口（Express）
 
 后端几乎所有关键逻辑都从这里入手：
-- 入口与路由：`server/index.js`
+- 入口与引导：`server/index.ts` / `server/bootstrap.ts`
+- Express 装配：`server/app.ts`
+- 路由注册：`server/routes/*`
 
 然后按分层继续看：
-- 服务层（业务事务逻辑）：`server/services/*.js`
-- 仓储层（纯 SQL / 表操作）：`server/repositories/*.js`
-- 事务工具：`server/db/tx.js`
-- 迁移工具：`server/db/migrate.js`
+- 服务层（业务事务逻辑）：`server/services/*.ts`
+- 仓储层（纯 SQL / 表操作）：`server/repositories/*.ts`
+- 事务工具：`server/db/tx.ts`
+- 迁移工具：`server/db/migrate.ts`
 - 迁移 SQL（真正的 schema 来源）：`server/db/migrations/*.sql`
 
 ---
@@ -165,7 +169,7 @@
 实际执行的是：
 - `docker-compose.yml` + `docker-compose.dev.yml` 叠加
 - 后端使用 `node --watch index.js`
-- 前端使用 CRA dev server
+- 前端使用 Vite dev server
 
 端口：
 - 前端：`http://localhost:8090`
@@ -672,12 +676,13 @@ npm run verify
 如果你只能记住少量文件，请优先记住这些：
 
 后端关键文件：
-- 入口与路由：`server/index.js`
-- 库存服务：`server/services/inventoryService.js`
-- 入库单服务：`server/services/inboundReceiptService.js`
-- 幂等仓储：`server/repositories/idempotencyRepo.js`
-- 事务工具：`server/db/tx.js`
-- 迁移执行器：`server/db/migrate.js`
+- 入口与引导：`server/index.ts` / `server/bootstrap.ts`
+- Express 装配：`server/app.ts`
+- 库存服务：`server/services/inventoryService.ts`
+- 入库单服务：`server/services/inboundReceiptService.ts`
+- 幂等仓储：`server/repositories/idempotencyRepo.ts`
+- 事务工具：`server/db/tx.ts`
+- 迁移执行器：`server/db/migrate.ts`
 - 迁移 SQL：`server/db/migrations/000_init_schema.sql`
 
 前端关键文件：
@@ -687,7 +692,8 @@ npm run verify
 - 写入队列核心：`client/src/app/saveQueue/SaveQueue.ts`
 - 客户写入封装：`client/src/app/writeBehind/clientWriteBehind.ts`
 - 库存写入封装：`client/src/app/writeBehind/inventoryWriteBehind.ts`
-- 严格 API 调用：`client/src/utils.ts`
+- 严格 API 调用：`client/src/shared/api/http.ts`
+- API 响应解码：`client/src/shared/api/decoders.ts`
 
 编排与验证：
 - 编排：`docker-compose.yml`
@@ -713,25 +719,58 @@ npm run verify
 ### 14.2 如果你是后端工程师
 
 推荐顺序：
-1. `server/index.js`
-2. `server/services/inventoryService.js`
-3. `server/services/inboundReceiptService.js`
-4. `server/repositories/*.js`
+1. `server/index.ts`
+2. `server/services/inventoryService.ts`
+3. `server/services/inboundReceiptService.ts`
+4. `server/repositories/*.ts`
 5. `server/db/migrations/*.sql`
 
 ### 14.3 如果你是全栈 / 负责人
 
 推荐顺序：
 1. `docker-compose.yml`
-2. `server/index.js`
+2. `server/index.ts`
 3. `client/src/features/clients/ClientsRoutes.tsx`
 4. `client/src/app/saveQueue/SaveQueue.ts`
-5. `server/services/inventoryService.js`
+5. `server/services/inventoryService.ts`
 6. `server/db/migrations/005_add_inventory_movements.sql`
 
 ---
 
-## 15. 结语：这个系统最值得保护的三件事
+## 15. 当前架构快照与未来路线图（2026-02-04）
+
+### 15.1 当前架构快照
+
+- 前端：Vite + React + React Query，核心层级为 `app/`（queries/writeBehind/saveQueue）、`features/`（业务页面）、`shared/`（UI + API + 工具）、`domain/`（纯业务逻辑）。
+- 后端：TypeScript + Express，分层为 `routes/` → `services/` → `repositories/`，通过 `bootstrap.ts` 进行 DB 等待、迁移、启动。
+- 数据契约：所有 Query 与非 Query 写入均通过 `shared/api/decoders.ts` 进行统一解码，错误采用统一 `ApiCallError` 结构。
+- 运行基线：Node 20 + Docker Compose，迁移由 `server/db/migrate.ts` 统一执行，`INIT_DB` 已弃用。
+
+### 15.2 未来路线图（按优先级）
+
+Phase 1（可靠性/开发体验）
+- 让 dev/prod 更一致：`docker-compose.dev.yml` 直接跑 TS（如 tsx/ts-node），避免依赖根目录 `index.js`。
+- 为关键链路补齐集成测试（Receipt 创建、Inventory 调整、Client 写入）。
+退出条件：dev compose 可直接启动 TS；关键链路集成测试在 CI 稳定通过。
+
+Phase 2（契约与类型一致性）
+- 引入共享 API schema（zod 或 OpenAPI），生成前端解码器与类型。
+- 逐步移除“手写 normalize”。
+退出条件：所有 API 响应都来源于统一 schema，解码层自动生成。
+
+Phase 3（UI/流程收口）
+- 将剩余页面内的特殊表单/表格样式收敛到共享 UI 组件变体。
+- 持续减少 page-level class 手写，统一到组件变体参数。
+退出条件：除文件上传外，页面不再出现原生 input/select。
+
+Phase 4（可观测性与运维）
+- 结构化日志 + 指标（请求时延、错误率、写入队列状态）。
+- 数据修复工具化（库存/入库单对账脚本）。
+退出条件：有可用的可观测面板与数据修复流程。
+
+---
+
+## 16. 结语：这个系统最值得保护的三件事
 
 如果你后续要持续演进这个系统，请优先保护这三点：
 

@@ -2,8 +2,8 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useReceiptDetailQuery } from '../../app/queries/receipts';
-import type { ReceiptDetail as ReceiptDetailType } from '../../shared/api/types';
 import { api } from '../../shared/api/http';
+import { decodeReceiptDetail } from '../../shared/api/decoders';
 import { compressImage } from '../../shared/lib/image';
 import { useAlert } from '../../app/confirm/ConfirmProvider';
 import { useQueryClient } from '@tanstack/react-query';
@@ -87,9 +87,11 @@ export default function ReceiptDetail() {
     if (!id) return;
     setSaving(true);
     try {
-      const res = await api.patch<ReceiptDetailType>(`/inbound/receipts/${id}`, {
+      const url = `/inbound/receipts/${id}`;
+      const raw = await api.patch<unknown>(url, {
         images: next,
       });
+      const res = decodeReceiptDetail(url, raw, 'PATCH');
       if (res?.receipt) {
         qc.setQueryData(['receipt', id], res);
         const updated = Array.isArray(res.receipt.images) ? res.receipt.images : next;
@@ -148,10 +150,10 @@ export default function ReceiptDetail() {
       if (receivedAt) {
         payload.receivedAt = new Date(receivedAt).toISOString();
       }
-      const res = await api.patch<ReceiptDetailType>(`/inbound/receipts/${id}`, payload);
-      if (res?.receipt) {
-        qc.setQueryData(['receipt', id], res);
-      }
+      const url = `/inbound/receipts/${id}`;
+      const raw = await api.patch<unknown>(url, payload);
+      const res = decodeReceiptDetail(url, raw, 'PATCH');
+      qc.setQueryData(['receipt', id], res);
     } catch (err: unknown) {
       await alert({
         title: 'Save Failed',
