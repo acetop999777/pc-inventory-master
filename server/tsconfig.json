@@ -39,6 +39,7 @@
     "services/**/*.ts",
     "services/**/*.d.ts",
     "app.js",
+    "bootstrap.js",
     "index.js",
     "types/**/*.d.ts"
   ],

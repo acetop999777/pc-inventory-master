@@ -26,6 +26,7 @@
     "services/**/*.js",
     "services/**/*.ts",
     "app.js",
+    "bootstrap.js",
     "index.js",
     "types/**/*.d.ts"
   ],
