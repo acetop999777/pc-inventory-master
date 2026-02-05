@@ -131,3 +131,96 @@ describe('parseNeweggText', () => {
     expect(cpu?.qtyInput).toBe(1);
   });
 });
+
+const neweggSplitShipOrder = `
+Order Summary
+Order Date:
+2/2/2026 at 03:01PM
+Order #:
+579989471
+Invoice #:
+217667411
+Order 1Shipped by Newegg and Sold by Super Flower
+Shipped
+from CA, USA
+Tracking #:1ZE569860308367891
+Super Flower Combat DB 650W 80+ Bronze, 5 Years Warranty, Flexible Flat Cables, Fixed Cable Power Supply, SF-650C12DB, Black version
+Free Gift Item
+
+Super Flower Combat DB 650W 80+ Bronze, 5 Years Warranty, Flexible Flat Cables, Fixed Cable Power Supply, SF-650C12DB, ...
+Item #: 9SIAMNPK9A3292
+
+4
+$219.96
+($54.99 ea.)
+Shipped
+from CA, USA
+Tracking #:1ZE569860308371377
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Item #: 9SIAMNPK4P6477
+
+1
+$59.99
+Shipped
+from CA, USA
+Tracking #:1ZE569860308371386
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Item #: 9SIAMNPK4P6477
+
+1
+$59.99
+Shipped
+from CA, USA
+Tracking #:1ZE569860308371402
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Item #: 9SIAMNPK4P6477
+
+1
+$59.99
+Shipped
+from CA, USA
+Tracking #:1ZE569860308371395
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Super Flower Zillion M705 Airflow, Black Steel, Tempered Glass ATX Mid Tower Computer Case
+Item #: 9SIAMNPK4P6477
+
+1
+$59.99
+Discount(s)
+DISCOUNT FOR AUTOADD: 420714
+Applied to Item(s) #: 9SIAMNPK4P6477, 9SIAMNPK9A3292
+
+4
+-$219.96
+Grand Subtotal
+
+$239.96
+Total Discount(s)
+
+-$9.60
+Total Tax
+
+$0.00
+Total Shipping
+
+$0.00
+Grand Total
+
+$230.36
+`;
+
+describe('parseNeweggText (split shipments)', () => {
+  test('merges repeated items by item number and aggregates qty', () => {
+    const res = parseNeweggText(neweggSplitShipOrder, [] as InventoryItem[]);
+    expect(res.items).toHaveLength(2);
+    const gift = res.items.find((item) => item.metadata?.neweggItem === '9SIAMNPK9A3292');
+    expect(gift?.isGift).toBe(true);
+    expect(gift?.qtyInput).toBe(4);
+    const cases = res.items.find((item) => item.metadata?.neweggItem === '9SIAMNPK4P6477');
+    expect(cases?.qtyInput).toBe(4);
+    expect(cases?.name).toContain('Super Flower Zillion M705 Airflow');
+  });
+});

@@ -117,6 +117,14 @@ function sanitizeNeweggItem(value: unknown): string {
   return '';
 }
 
+function normalizeNeweggKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export function normalizeNeweggItem(value: unknown): string {
   return sanitizeNeweggItem(value);
 }
@@ -624,6 +632,7 @@ export const parseNeweggText = (text: string, inventory: InventoryItem[]): Parse
           .filter((l) => l.length > 0);
     const grandTotal = parseNeweggGrandTotal(lines);
     const items: StagedItem[] = [];
+    const itemsByKey = new Map<string, StagedItem>();
     const orderedAt = parseNeweggOrderDate(lines);
     const isNoiseLine = (line: string) =>
       /^(order\s+summary|order\s+date|order\s*#|order\s+\d+|sold and shipped|shipping|from\b|discount\(s\)|discount for|applied to item|grand subtotal|grand total|total discount|total tax|total shipping)/i.test(
@@ -742,7 +751,32 @@ export const parseNeweggText = (text: string, inventory: InventoryItem[]): Parse
           .slice(giftStart, giftEnd)
           .some((l) => l.includes('Free Gift Item'));
 
-        items.push({
+        const key = itemNumber
+          ? `ITEM:${itemNumber}`
+          : `NAME:${normalizeNeweggKey(name)}`;
+        const existing = itemsByKey.get(key);
+        if (existing) {
+          existing.qtyInput += qty;
+          existing.tempSubtotal = (existing.tempSubtotal || 0) + subtotal;
+          existing.isGift = existing.isGift || isGift;
+          existing.isMatch = existing.isMatch || !!dbMatch;
+          existing.metadata = mergeNeweggMetadata(existing.metadata, itemNumber);
+          if (!existing.name || existing.name === 'Unknown Item') {
+            existing.name = name;
+          }
+          if (existing.category === 'OTHER' && autoCat && autoCat !== 'OTHER') {
+            existing.category = autoCat;
+          }
+          if (!existing.keyword && dbMatch?.keyword) {
+            existing.keyword = dbMatch.keyword;
+          }
+          if (!existing.sku && dbMatch?.sku) {
+            existing.sku = dbMatch.sku;
+          }
+          continue;
+        }
+
+        const entry: StagedItem = {
           id: dbMatch?.id || generateId(),
           name: dbMatch?.name || name,
           category: autoCat,
@@ -764,7 +798,9 @@ export const parseNeweggText = (text: string, inventory: InventoryItem[]): Parse
           isMatch: !!dbMatch,
           costInput: 0,
           isApi: false,
-        });
+        };
+        items.push(entry);
+        itemsByKey.set(key, entry);
       }
     }
 
