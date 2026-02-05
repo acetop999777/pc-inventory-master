@@ -11,6 +11,7 @@ import React, {
 import { useNavigate, useParams } from 'react-router-dom';
 import { ClientEntity, calculateFinancials, createEmptyClient } from '../../domain/client';
 import { generateId } from '../../shared/lib/id';
+import { formatDateYMD } from '../../shared/lib/format';
 
 import { useClientsQuery } from '../../app/queries/clients';
 import { useInventoryQuery } from '../../app/queries/inventory';
@@ -226,7 +227,12 @@ export function ClientDetailRoute() {
    * - 落库后：恢复“随时填随时存”
    */
   const commitUpdate = useCallback(
-    (field: keyof ClientEntity, val: ClientEntity[keyof ClientEntity], shouldAutoPaid: boolean) => {
+    (
+      field: keyof ClientEntity,
+      val: ClientEntity[keyof ClientEntity],
+      shouldAutoPaid: boolean,
+      extra?: Partial<ClientEntity>,
+    ) => {
       if (!clientId) return;
 
       const curDraft = draftRef.current;
@@ -235,6 +241,7 @@ export function ClientDetailRoute() {
         const next: ClientEntity = {
           ...curDraft,
           [field]: val,
+          ...(extra ?? {}),
           ...(shouldAutoPaid ? { paidAmount: Number(curDraft.totalPrice) || 0 } : {}),
         };
         const prevHasWechat = !isBlank(prevWechat);
@@ -260,6 +267,7 @@ export function ClientDetailRoute() {
             clientId,
             {
               [field]: val,
+              ...(extra ?? {}),
               ...(shouldAutoPaid ? { paidAmount: Number(next.totalPrice) || 0 } : {}),
             } as Partial<ClientEntity>,
             next,
@@ -274,6 +282,7 @@ export function ClientDetailRoute() {
       // 已落库：正常 write-behind
       updateClient(clientId, {
         [field]: val,
+        ...(extra ?? {}),
         ...(shouldAutoPaid
           ? { paidAmount: Number(fromCache?.totalPrice ?? 0) || 0 }
           : {}),
@@ -368,6 +377,11 @@ export function ClientDetailRoute() {
 
       const shouldAutoPaid =
         field === 'status' && String(val ?? '').toLowerCase() === 'delivered';
+      const autoDeliveryDate =
+        field === 'status' && String(val ?? '').toLowerCase() === 'delivered'
+          ? formatDateYMD(new Date())
+          : null;
+      const extra = autoDeliveryDate ? ({ deliveryDate: autoDeliveryDate } as const) : undefined;
 
       if (field === 'status' && shouldAutoPaid) {
         const base =
@@ -376,7 +390,7 @@ export function ClientDetailRoute() {
             : fromCache) ?? null;
         const hasWechat = base ? !isBlank(base.wechatName) : false;
         if (!base || !hasWechat) {
-          commitUpdate(field, val, shouldAutoPaid);
+          commitUpdate(field, val, shouldAutoPaid, extra);
           return;
         }
 
@@ -384,16 +398,17 @@ export function ClientDetailRoute() {
           const next: ClientEntity = {
             ...base,
             status: String(val ?? ''),
+            ...(extra ?? {}),
             paidAmount: Number(base.totalPrice) || 0,
           };
           const ok = await maybeConsumeInventory(next);
           if (!ok) return;
-          commitUpdate(field, val, shouldAutoPaid);
+          commitUpdate(field, val, shouldAutoPaid, extra);
         })();
         return;
       }
 
-      commitUpdate(field, val, shouldAutoPaid);
+      commitUpdate(field, val, shouldAutoPaid, extra);
     },
     [clientId, commitUpdate, fromCache, maybeConsumeInventory],
   );
