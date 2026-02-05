@@ -1,0 +1,94 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DollarSign, Package, Wallet, TrendingUp } from 'lucide-react';
+import { api } from '../../shared/api/http';
+import { decodeDashboardStats } from '../../shared/api/decoders';
+import { formatMoney } from '../../shared/lib/format';
+import { Button, FinancialCard, panelDashedXl } from '../../shared/ui';
+import type { DashboardStats } from '../../shared/api/types';
+
+export default function Dashboard() {
+  const nav = useNavigate();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const url = '/dashboard/stats';
+    api.get<unknown>(url)
+      .then((raw) => {
+        if (!active) return;
+        const data = decodeDashboardStats(url, raw);
+        setStats(data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!active) return;
+        const msg =
+          typeof err?.userMessage === 'string' && err.userMessage
+            ? err.userMessage
+            : 'Failed to load dashboard stats';
+        setError(msg);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <div className="p-10 text-rose-600 font-semibold">
+        {error}
+      </div>
+    );
+  }
+
+  if (!stats) return <div className="p-10">Loading...</div>;
+
+  return (
+    <div className="p-8 max-w-[1600px] mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-2xl font-black text-slate-800">Overview</h2>
+        <Button
+          onClick={() => nav('/dashboard/metrics')}
+          size="xs"
+          variant="ghost"
+          className="text-xs font-black uppercase tracking-widest"
+        >
+          Metrics
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <FinancialCard
+          label="Total Profit"
+          amount={formatMoney(stats.totalProfit)}
+          icon={TrendingUp}
+          variant="green"
+        />
+        <FinancialCard
+          label="Balance Due"
+          amount={formatMoney(stats.totalBalanceDue)}
+          icon={Wallet}
+          variant="blue"
+        />
+        <FinancialCard
+          label="Inventory Value"
+          amount={formatMoney(stats.inventoryValue)}
+          icon={DollarSign}
+        />
+        <FinancialCard
+          label="Total Items"
+          amount={stats.totalItems}
+          icon={Package}
+          variant="slate"
+        />
+      </div>
+
+      {/* 这里以后可以放图表 */}
+      <div className={`bg-white border-slate-200 ${panelDashedXl} p-10 text-center text-slate-300 font-bold h-96 flex items-center justify-center uppercase tracking-widest`}>
+        Analytics Chart Module (Coming Soon)
+      </div>
+    </div>
+  );
+}

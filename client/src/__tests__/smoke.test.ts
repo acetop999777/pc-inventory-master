@@ -1,5 +1,5 @@
 export {};
 
-test('smoke: jest + ts works', () => {
+test('smoke: vitest + ts works', () => {
   expect(true).toBe(true);
 });

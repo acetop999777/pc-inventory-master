@@ -1,29 +1,30 @@
 import React, { useMemo, useState } from 'react';
-import { Cpu, ExternalLink, Copy, Check } from 'lucide-react';
-import { ClientEntity } from '../../../../domain/client/client.types';
-import { InventoryItem } from '../../../../types';
-import { CORE_CATS } from '../../../../utils';
-
-interface Props {
-  data: ClientEntity;
-  inventory: InventoryItem[];
-  update: (field: keyof ClientEntity, val: any) => void;
-  onCalculate?: () => void;
-}
+import { Cpu, ExternalLink, Copy, Check, X } from 'lucide-react';
+import type { ClientSpecs } from '../../../../domain/client';
+import type { ClientSpecsTableProps } from '../../types';
+import { InventoryItem } from '../../../../domain/inventory/inventory.types';
+import { CORE_CATS } from '../../../../domain/inventory/inventory.utils';
+import { parsePcppText } from '../pcpp';
+import {
+  getInventorySuggestions,
+  matchInventoryStrict,
+  normalizeCategoryKey,
+  filterInventoryByCategoryStrict,
+} from '../matchInventory';
+import { Button, Input } from '../../../../shared/ui';
 
 type SpecRow = {
   name?: string;
   sku?: string;
   cost?: number | string;
   qty?: number;
+  needsPurchase?: boolean;
+  inventoryId?: string;
+  matchedBy?: 'auto' | 'manual' | 'none';
 };
 
 const SHIPPING_KEY = 'SHIPPING';
-
-function extractPCPPLink(text: string): string {
-  const m = text.match(/https?:\/\/pcpartpicker\.com\/list\/\S+/i);
-  return m ? m[0] : '';
-}
+type ClientSpecRow = ClientSpecs[string];
 
 function upsUrlFromText(text: string): string | null {
   if (!text) return null;
@@ -42,65 +43,48 @@ function upsUrlFromText(text: string): string | null {
   return null;
 }
 
-function normTokens(s: string): string[] {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function findBestMatch(namePart: string, inventory: InventoryItem[]): InventoryItem | null {
-  const q = String(namePart || '').trim();
-  if (!q) return null;
-
-  const qTokens = new Set(normTokens(q));
-  const qLower = q.toLowerCase();
-
-  let best: { item: InventoryItem; score: number } | null = null;
-
-  for (const it of inventory) {
-    const n = String((it as any).name || '');
-    if (!n) continue;
-    const nLower = n.toLowerCase();
-
-    // fast path
-    let score = 0;
-    if (nLower === qLower) score += 100;
-    if (nLower.includes(qLower) || qLower.includes(nLower)) score += 25;
-
-    const tks = normTokens(n);
-    for (const t of tks) if (qTokens.has(t)) score += 2;
-
-    // small bonus if SKU matches tokens
-    const sku = String((it as any).sku || '').toLowerCase();
-    if (sku && qLower.includes(sku)) score += 6;
-
-    if (!best || score > best.score) best = { item: it, score };
-  }
-
-  // require some minimal confidence to avoid garbage matches
-  if (!best || best.score < 6) return null;
-  return best.item;
-}
-
-export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalculate }) => {
+export const SpecsTable: React.FC<ClientSpecsTableProps> = ({
+  data,
+  inventory,
+  update,
+  onCalculate,
+}) => {
   const [activeDrop, setActiveDrop] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // cost drafts so decimal typing isn't destroyed by parseFloat on each keystroke
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
 
-  const rawSpecs = (data as any)?.specs;
-
   const specsObj: Record<string, SpecRow> = useMemo(() => {
-    const s: any = rawSpecs;
+    const s = data.specs;
+    if (!s || typeof s !== 'object') return {};
 
-    return s && typeof s === 'object' ? s : {};
-  }, [rawSpecs]);
-  const shipRequired = Boolean((data as any).isShipping);
-  const pcppLink = String((data as any).pcppLink || '').trim();
+    const out: Record<string, SpecRow> = {};
+    for (const [key, val] of Object.entries(s)) {
+      out[key] = { ...(val as ClientSpecRow) };
+    }
+    return out;
+  }, [data.specs]);
+  const shipRequired = Boolean(data.isShipping);
+  const pcppLink = String(data.pcppLink || '').trim();
+
+  const normalizeSpecs = (specs: Record<string, SpecRow>): ClientSpecs => {
+    const out: ClientSpecs = {};
+    for (const [key, row] of Object.entries(specs)) {
+      const costNum = Number(row.cost ?? 0);
+      const qtyNum = Number(row.qty ?? 0);
+      out[key] = {
+        name: String(row.name ?? ''),
+        sku: String(row.sku ?? ''),
+        cost: Number.isFinite(costNum) ? costNum : 0,
+        qty: Number.isFinite(qtyNum) ? qtyNum : 0,
+        needsPurchase: Boolean(row.needsPurchase),
+        inventoryId: row.inventoryId ? String(row.inventoryId) : undefined,
+        matchedBy: row.matchedBy,
+      };
+    }
+    return out;
+  };
 
   const displayCats = useMemo(() => {
     const base = Array.from(new Set([...CORE_CATS, ...Object.keys(specsObj)]));
@@ -130,99 +114,75 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
 
   const parsePCPP = (text: string) => {
     if (!text) return;
+    const parsed = parsePcppText(text, inventory);
+    if (!parsed) return;
 
-    const initSpecs: Record<string, SpecRow> = {};
-    for (const c of CORE_CATS) initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 };
+    const newSpecs: Record<string, SpecRow> = { ...parsed.specs };
+    if (specsObj?.[SHIPPING_KEY]) newSpecs[SHIPPING_KEY] = specsObj[SHIPPING_KEY];
 
-    // merge existing specs so we don't wipe manual edits
-    const newSpecs: Record<string, SpecRow> = { ...initSpecs, ...(specsObj || {}) };
-
-    const map: Record<string, string> = {
-      CPU: 'CPU',
-      'CPU Cooler': 'COOLER',
-      Motherboard: 'MB',
-      Memory: 'RAM',
-      Storage: 'SSD',
-      'Video Card': 'GPU',
-      Case: 'CASE',
-      'Power Supply': 'PSU',
-      'Case Fan': 'FAN',
-      Monitor: 'MONITOR',
-      'Operating System': 'OTHER',
-    };
-
-    const lines = text.split('\n');
-    const link = extractPCPPLink(text);
-
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line || line.startsWith('Custom:')) continue;
-
-      for (const [pcppLabel, internalCat] of Object.entries(map)) {
-        if (!line.startsWith(pcppLabel + ':')) continue;
-
-        const content = line.substring(pcppLabel.length + 1).trim();
-        const namePart = content.split('($')[0].trim();
-
-        const dbMatch = findBestMatch(namePart, inventory);
-        const costToUse = dbMatch ? Number((dbMatch as any).cost || 0) : 0;
-
-        let targetKey = internalCat;
-        let counter = 2;
-
-        while (newSpecs[targetKey] && newSpecs[targetKey].name) {
-          if (newSpecs[targetKey].name === (dbMatch ? (dbMatch as any).name : namePart)) break;
-          targetKey = `${internalCat} ${counter}`;
-          counter++;
-        }
-
-        const existing = newSpecs[targetKey] || { name: '', sku: '', cost: 0, qty: 0 };
-
-        if (existing.name) {
-          newSpecs[targetKey] = {
-            ...existing,
-            cost: Number(existing.cost || 0) + costToUse,
-            qty: (Number(existing.qty || 1) || 1) + 1,
-          };
-        } else {
-          newSpecs[targetKey] = {
-            name: dbMatch ? String((dbMatch as any).name || namePart) : namePart,
-            sku: dbMatch ? String((dbMatch as any).sku || '') : '',
-            cost: costToUse,
-            qty: 1,
-          };
-        }
-
-        break;
-      }
-    }
-
-    update('specs' as keyof ClientEntity, newSpecs as any);
-    if (link) update('pcppLink' as keyof ClientEntity, link);
+    update('specs', normalizeSpecs(newSpecs));
+    if (parsed.link) update('pcppLink', parsed.link);
     onCalculate?.();
   };
 
-  const updateSpec = (cat: string, field: keyof SpecRow, val: any) => {
+  const updateSpec = <K extends keyof SpecRow>(cat: string, field: K, val: SpecRow[K]) => {
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
-    const next = { ...specsObj, [cat]: { ...cur, [field]: val } };
-    update('specs' as keyof ClientEntity, next as any);
+    const nextRow: SpecRow = { ...cur, [field]: val };
+    if (field === 'name' || field === 'sku') {
+      nextRow.inventoryId = undefined;
+      nextRow.matchedBy = 'none';
+    }
+    const next: Record<string, SpecRow> = { ...specsObj, [cat]: nextRow };
+    update('specs', normalizeSpecs(next));
+    onCalculate?.();
+  };
+
+  const removeSpec = (cat: string) => {
+    if (CORE_CATS.includes(cat) || cat === SHIPPING_KEY) return;
+    const next = { ...specsObj };
+    delete next[cat];
+    update('specs', normalizeSpecs(next));
+    setActiveDrop((cur) => (cur === cat ? null : cur));
+    setCostDraft((d) => {
+      const { [cat]: _, ...rest } = d;
+      return rest;
+    });
     onCalculate?.();
   };
 
   const selectInventoryItem = (cat: string, item: InventoryItem) => {
     const cur = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
-    const next = {
-      ...specsObj,
-      [cat]: {
-        ...cur,
-        name: (item as any).name,
-        sku: (item as any).sku || '',
-        cost: Number((item as any).cost || 0),
-      },
+    const nextRow: SpecRow = {
+      ...cur,
+      name: item.name,
+      sku: item.sku || '',
+      cost: Number(item.cost || 0),
+      inventoryId: item.id,
+      matchedBy: 'manual',
+      needsPurchase: false,
     };
-    update('specs' as keyof ClientEntity, next as any);
+    const next: Record<string, SpecRow> = { ...specsObj, [cat]: nextRow };
+    update('specs', normalizeSpecs(next));
     setActiveDrop(null);
     onCalculate?.();
+  };
+
+  const isMissingInInventory = (cat: string, spec: SpecRow) => {
+    const name = String(spec.name || '').trim();
+    const sku = String(spec.sku || '').trim();
+    if (!name && !sku) return false;
+
+    const baseCat = normalizeCategoryKey(cat);
+    if (!CORE_CATS.includes(baseCat)) return false;
+    const candidates = filterInventoryByCategoryStrict(inventory, baseCat);
+
+    if (spec.inventoryId) {
+      return !candidates.some((it) => it.id === spec.inventoryId);
+    }
+
+    if (!name && !sku) return false;
+    const strictMatch = matchInventoryStrict(name || sku, candidates, baseCat);
+    return !strictMatch;
   };
 
   const copyLink = async () => {
@@ -245,7 +205,53 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
       className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
       onClick={() => setActiveDrop(null)}
     >
-      <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
+      <div className="md:hidden bg-slate-50 px-4 py-4 border-b border-slate-200 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">
+            <Cpu size={14} /> Specifications
+          </h3>
+          {pcppLink ? (
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void copyLink();
+              }}
+              size="icon"
+              className="w-8 h-8 bg-white hover:bg-slate-100"
+              title={copied ? 'Copied' : 'Copy link'}
+            >
+              {copied ? (
+                <Check size={16} className="text-emerald-600" />
+              ) : (
+                <Copy size={16} className="text-slate-500" />
+              )}
+            </Button>
+          ) : null}
+        </div>
+
+        {pcppLink ? (
+          <a
+            href={pcppLink}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+            title={pcppLink}
+          >
+            <ExternalLink size={14} className="text-slate-400" />
+            pcpartpicker
+          </a>
+        ) : null}
+
+        <textarea
+          className="w-full h-16 bg-white border border-slate-200 rounded-xl text-[11px] px-3 py-2 resize-none outline-none focus:border-blue-400 transition-all placeholder:text-slate-300"
+          placeholder={headerPlaceholder}
+          onChange={(e) => parsePCPP(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+
+      <div className="hidden md:flex bg-slate-50 px-5 py-3 border-b border-slate-200 justify-between items-center gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">
             <Cpu size={14} /> Specifications
@@ -264,13 +270,14 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                 pcpartpicker
               </a>
 
-              <button
+              <Button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   void copyLink();
                 }}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100"
+                size="icon"
+                className="w-8 h-8 bg-white hover:bg-slate-100"
                 title={copied ? 'Copied' : 'Copy link'}
               >
                 {copied ? (
@@ -278,7 +285,7 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                 ) : (
                   <Copy size={16} className="text-slate-500" />
                 )}
-              </button>
+              </Button>
             </div>
           ) : null}
         </div>
@@ -292,22 +299,17 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
         />
       </div>
 
-      <div className="divide-y divide-slate-100">
+      <div className="md:hidden p-4 space-y-4">
         {displayCats.map((cat) => {
           const spec: SpecRow = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
           const dropdownOpen = activeDrop === cat;
           const nameVal = String(spec.name || '');
           const isShippingRow = cat === SHIPPING_KEY;
+          const canRemove = !CORE_CATS.includes(cat) && !isShippingRow;
 
           const suggestions =
             dropdownOpen && !isShippingRow
-              ? inventory
-                  .filter((i) =>
-                    String((i as any).name || '')
-                      .toLowerCase()
-                      .includes(nameVal.toLowerCase()),
-                  )
-                  .slice(0, 5)
+              ? getInventorySuggestions(nameVal, inventory, cat, 5)
               : [];
 
           const rawCostNum = typeof spec.cost === 'number' ? spec.cost : Number(spec.cost || 0);
@@ -320,7 +322,151 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
           return (
             <div
               key={cat}
-              className="grid grid-cols-12 gap-4 px-5 py-3 hover:bg-slate-50/50 items-center text-sm"
+              className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  {cat}
+                  {Number(spec.qty || 1) > 1 ? (
+                    <span className="bg-slate-200 text-slate-600 px-1.5 rounded text-[9px]">
+                      x{spec.qty}
+                    </span>
+                  ) : null}
+                  {isMissingInInventory(cat, spec) ? (
+                    <span
+                      className="inline-flex w-1.5 h-1.5 rounded-full border-[0.5px] border-amber-400"
+                      title="Needs purchase"
+                      aria-label="Needs purchase"
+                    />
+                  ) : null}
+                </div>
+
+                {trackingUrl ? (
+                  <a
+                    href={trackingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink size={12} />
+                    Track
+                  </a>
+                ) : null}
+              </div>
+
+              <div className="mt-3 relative">
+                <Input
+                  size="sm"
+                  variant="soft"
+                  className="w-full text-sm font-semibold text-slate-700 placeholder:text-slate-300"
+                  placeholder={isShippingRow ? 'Tracking / URL (optional)' : 'Component Name...'}
+                  value={nameVal}
+                  onChange={(e) => updateSpec(cat, 'name', e.target.value)}
+                  onFocus={() => setActiveDrop(isShippingRow ? null : cat)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+
+                {dropdownOpen && suggestions.length > 0 ? (
+                  <div className="absolute top-full left-0 w-full bg-white shadow-xl rounded-lg border border-slate-100 z-50 mt-1 overflow-hidden">
+                    {suggestions.map((s) => (
+                      <div
+                        key={s.id}
+                        className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between"
+                        onMouseDown={() => selectInventoryItem(cat, s)}
+                      >
+                        <span className="font-bold text-slate-700 truncate">
+                          {String(s.name || '')}
+                        </span>
+                        <span className="font-mono text-slate-400">
+                          ${Number(s.cost || 0)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-3">
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Cost
+                </div>
+                <div className="mt-1 flex items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                  {canRemove ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSpec(cat);
+                      }}
+                      className="mr-2 w-4 h-4 rounded-full text-slate-400 opacity-20 group-hover:opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                      title="Remove"
+                      aria-label="Remove"
+                    >
+                      <X size={10} />
+                    </Button>
+                  ) : null}
+                  <span className="text-[11px] text-slate-400 mr-1">$</span>
+                  <Input
+                    inputMode="decimal"
+                    size="sm"
+                    variant="ghost"
+                    className="w-full text-right font-mono font-bold text-slate-600 bg-transparent px-0 text-sm"
+                    value={costStr}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={(e) => {
+                      setCostDraft((d) => ({ ...d, [cat]: String(costStr ?? '') }));
+                      const target = e.currentTarget;
+                      setTimeout(() => target?.select(), 0);
+                    }}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!/^\d*\.?\d*$/.test(v)) return;
+                      setCostDraft((d) => ({ ...d, [cat]: v }));
+                    }}
+                    onBlur={() => {
+                      const v = costDraft[cat];
+                      const n = v === undefined || v === '' ? 0 : Number(v);
+                      updateSpec(cat, 'cost', Number.isFinite(n) ? n : 0);
+                      setCostDraft((d) => {
+                        const { [cat]: _, ...rest } = d;
+                        return rest;
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block divide-y divide-slate-100">
+        {displayCats.map((cat) => {
+          const spec: SpecRow = specsObj[cat] || { name: '', sku: '', cost: 0, qty: 1 };
+          const dropdownOpen = activeDrop === cat;
+          const nameVal = String(spec.name || '');
+          const isShippingRow = cat === SHIPPING_KEY;
+          const canRemove = !CORE_CATS.includes(cat) && !isShippingRow;
+
+          const suggestions =
+            dropdownOpen && !isShippingRow
+              ? getInventorySuggestions(nameVal, inventory, cat, 5)
+              : [];
+
+          const rawCostNum = typeof spec.cost === 'number' ? spec.cost : Number(spec.cost || 0);
+          const draft = costDraft[cat];
+          const costStr =
+            draft !== undefined ? draft : String(Number.isFinite(rawCostNum) ? rawCostNum : 0);
+
+          const trackingUrl = isShippingRow ? upsUrlFromText(nameVal) : null;
+
+          return (
+            <div
+              key={cat}
+              className="group grid grid-cols-12 gap-4 px-5 py-3 hover:bg-slate-50/50 items-center text-sm"
             >
               <div className="col-span-2 text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                 {cat}
@@ -329,11 +475,20 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                     x{spec.qty}
                   </span>
                 ) : null}
+                {isMissingInInventory(cat, spec) ? (
+                  <span
+                    className="inline-flex w-1 h-1 rounded-full border-[0.5px] border-amber-400"
+                    title="Needs purchase"
+                    aria-label="Needs purchase"
+                  />
+                ) : null}
               </div>
 
               <div className="col-span-7 relative">
-                <input
-                  className="w-full font-bold text-slate-700 outline-none bg-transparent placeholder:text-slate-200 pr-8"
+                <Input
+                  size="sm"
+                  variant="ghost"
+                  className="w-full font-bold text-slate-700 bg-transparent placeholder:text-slate-200 pr-8 px-0"
                   placeholder={isShippingRow ? 'Tracking / URL (optional)' : 'Component Name...'}
                   value={nameVal}
                   onChange={(e) => updateSpec(cat, 'name', e.target.value)}
@@ -359,15 +514,15 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
                   <div className="absolute top-full left-0 w-full bg-white shadow-xl rounded-lg border border-slate-100 z-50 mt-1 overflow-hidden">
                     {suggestions.map((s) => (
                       <div
-                        key={(s as any).id}
+                        key={s.id}
                         className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between"
                         onMouseDown={() => selectInventoryItem(cat, s)}
                       >
                         <span className="font-bold text-slate-700 truncate">
-                          {String((s as any).name || '')}
+                          {String(s.name || '')}
                         </span>
                         <span className="font-mono text-slate-400">
-                          ${Number((s as any).cost || 0)}
+                          ${Number(s.cost || 0)}
                         </span>
                       </div>
                     ))}
@@ -376,22 +531,38 @@ export const SpecsTable: React.FC<Props> = ({ data, inventory, update, onCalcula
               </div>
 
               <div className="col-span-3 flex justify-end items-center gap-2">
+                {canRemove ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSpec(cat);
+                    }}
+                    className="w-4 h-4 rounded-full text-slate-400 opacity-20 group-hover:opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    title="Remove"
+                    aria-label="Remove"
+                  >
+                    <X size={10} />
+                  </Button>
+                ) : null}
                 <div className="flex items-center bg-slate-50 rounded px-2 py-1 border border-slate-100">
                   <span className="text-[10px] text-slate-400 mr-1">$</span>
-                  <input
+                  <Input
                     inputMode="decimal"
-                    className="w-20 text-right font-mono font-bold text-slate-600 bg-transparent outline-none text-xs"
+                    size="sm"
+                    variant="ghost"
+                    className="w-20 text-right font-mono font-bold text-slate-600 bg-transparent px-0 text-xs"
                     value={costStr}
                     onClick={(e) => e.stopPropagation()}
                     onFocus={(e) => {
-                      // ensure user can type decimals smoothly
                       setCostDraft((d) => ({ ...d, [cat]: String(costStr ?? '') }));
-                      // auto-select all
-                      setTimeout(() => e.currentTarget.select(), 0);
+                      const target = e.currentTarget;
+                      setTimeout(() => target?.select(), 0);
                     }}
                     onChange={(e) => {
                       const v = e.target.value;
-                      // allow "" or digits + optional decimal
                       if (!/^\d*\.?\d*$/.test(v)) return;
                       setCostDraft((d) => ({ ...d, [cat]: v }));
                     }}

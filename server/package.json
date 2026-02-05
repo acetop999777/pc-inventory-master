@@ -3,10 +3,18 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "npm run build && node dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
     "verify": "npm run typecheck --if-present && npm test --if-present && npm run build --if-present",
-    "typecheck": "echo \"server: no TypeScript configured; skip typecheck\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:ci": "echo \"server: no tests; skip\""
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/node": "^20.19.30",
+    "@types/pg": "^8.16.0",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "cors": "^2.8.5",

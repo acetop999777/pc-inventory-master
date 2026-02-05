@@ -4,15 +4,13 @@
   "private": true,
   "dependencies": {
     "@tanstack/react-query": "^5.90.16",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.119",
+    "@types/node": "^20.11.24",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "lucide-react": "^0.471.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
-    "react-scripts": "5.0.1",
     "recharts": "^2.15.4",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
@@ -21,22 +19,41 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^14.3.1",
     "@testing-library/user-event": "^14.5.2",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
-    "eslint": "^8.57.1",
+    "@eslint/js": "^9.39.2",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "@vitejs/plugin-react": "^5.1.3",
+    "autoprefixer": "^10.4.23",
+    "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-jest-dom": "^5.4.0",
-    "eslint-plugin-testing-library": "^6.2.0",
-    "prettier": "^3.8.0"
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jest-dom": "^5.5.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-testing-library": "^7.15.4",
+    "globals": "^17.3.0",
+    "jsdom": "^28.0.0",
+    "postcss": "^8.5.6",
+    "prettier": "^3.8.0",
+    "tailwindcss": "^3.4.19",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "@peculiar/x509": "1.13.0",
+    "nth-check": "^2.1.1",
+    "postcss": "^8.5.6",
+    "resolve-url-loader": "^5.0.0",
+    "webpack-dev-server": "^5.2.1"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "build:ci": "CI=true react-scripts build",
-    "test": "react-scripts test",
-    "test:ci": "react-scripts test --watchAll=false --passWithNoTests",
-    "eject": "react-scripts eject",
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "build:ci": "CI=true vite build",
+    "test": "vitest",
+    "test:ci": "vitest run --passWithNoTests",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
@@ -44,42 +61,6 @@
     "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --max-warnings=0 --fix",
     "verify": "npm run typecheck && npm run format:check && npm run lint && npm run test:ci && CI=true npm run build",
     "verify:strict": "npm run format:check && npm run verify"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest",
-      "prettier"
-    ],
-    "rules": {
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "error",
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_",
-          "ignoreRestSiblings": true
-        }
-      ],
-      "no-debugger": "error",
-      "eqeqeq": "error",
-      "prefer-const": "error"
-    },
-    "overrides": [
-      {
-        "files": [
-          "**/*.test.*",
-          "**/__tests__/**"
-        ],
-        "rules": {
-          "react-hooks/exhaustive-deps": "off",
-          "import/first": "off",
-          "testing-library/no-unnecessary-act": "off",
-          "testing-library/render-result-naming-convention": "off"
-        }
-      }
-    ]
   },
   "browserslist": {
     "production": [

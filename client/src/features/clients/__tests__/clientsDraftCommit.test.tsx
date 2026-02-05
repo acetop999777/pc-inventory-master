@@ -1,80 +1,89 @@
 import React, { act } from 'react';
-import type { ClientEntity } from '../../../domain/client/client.types';
+import { vi } from 'vitest';
+import type { ClientEntity } from '../../../domain/client';
 import { createRoot } from 'react-dom/client';
-const { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } = require('../ClientsRoutes');
+import { ConfirmProvider } from '../../../app/confirm/ConfirmProvider';
+import { ClientsDraftProvider, ClientsListRoute, ClientDetailRoute } from '../ClientsRoutes';
 
 /* eslint-disable testing-library/no-unnecessary-act */
 
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
 // 让 React 知道我们在测试环境里（消除 “not configured to support act” 警告）
-(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mockClientsData: ClientEntity[] = [];
 let mockAutoCreateDraft = true;
-let mockLastDetailProps: any = null;
+type MockDetailProps = {
+  onUpdateField: <K extends keyof ClientEntity>(field: K, value: ClientEntity[K]) => void;
+};
+let mockLastDetailProps: MockDetailProps | null = null;
+const requireDetailProps = (): MockDetailProps => {
+  if (!mockLastDetailProps) throw new Error('Expected ClientDetailPage props');
+  return mockLastDetailProps;
+};
 
-const mockNavigate = jest.fn();
-const mockUpdateClient = jest.fn();
+const mockNavigate = vi.fn();
+const mockUpdateClient = vi.fn();
 
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
   useParams: () => ({ id: 'draft1' }),
 }));
 
-jest.mock('../../../utils', () => {
-  const actual = jest.requireActual('../../../utils');
-  return {
-    ...actual,
-    generateId: () => 'draft1',
-  };
-});
+vi.mock('../../../shared/lib/id', () => ({
+  generateId: () => 'draft1',
+}));
 
-jest.mock('../../../app/queries/clients', () => ({
+vi.mock('../../../app/queries/clients', () => ({
   useClientsQuery: () => ({ data: mockClientsData }),
 }));
 
-jest.mock('../../../app/queries/inventory', () => ({
+vi.mock('../../../app/queries/inventory', () => ({
   useInventoryQuery: () => ({ data: [] }),
 }));
 
-jest.mock('../../../app/writeBehind/clientWriteBehind', () => ({
+vi.mock('../../../app/writeBehind/clientWriteBehind', () => ({
   useClientWriteBehind: () => ({
     update: mockUpdateClient,
-    remove: jest.fn(),
+    remove: vi.fn(),
   }),
 }));
 
 const mockQueue = {
-  flushKey: jest.fn(async () => undefined),
-  getSnapshot: () => ({ keys: [] as any[] }),
+  flushKey: vi.fn(async () => undefined),
+  getSnapshot: () => ({ keys: [] as Array<unknown> }),
 };
 
-jest.mock('../../../app/saveQueue/SaveQueueProvider', () => ({
-  useSaveQueue: () => ({ queue: mockQueue, snapshot: { keys: [] as any[] } }),
+vi.mock('../../../app/saveQueue/SaveQueueProvider', () => ({
+  useSaveQueue: () => ({ queue: mockQueue, snapshot: { keys: [] as Array<unknown> } }),
 }));
 
 const mockGuard = {
-  setGuard: jest.fn(),
-  run: (fn: any) => fn(),
+  setGuard: vi.fn(),
+  run: <T,>(fn: () => T) => fn(),
 };
 
-jest.mock('../../../app/navigation/NavigationGuard', () => ({
+vi.mock('../../../app/navigation/NavigationGuard', () => ({
   useNavigationGuard: () => mockGuard,
 }));
 
-jest.mock('../ClientDetailPage', () => {
-  const React = require('react');
+vi.mock('../ClientDetailPage', async () => {
+  const React = await import('react');
   return {
-    ClientDetailPage: (props: any) => {
+    ClientDetailPage: (props: MockDetailProps) => {
       mockLastDetailProps = props;
       return React.createElement('div', { 'data-testid': 'detail' });
     },
   };
 });
 
-jest.mock('../ClientsListPage', () => {
-  const React = require('react');
+vi.mock('../ClientsListPage', async () => {
+  const React = await import('react');
   return {
-    ClientsListPage: (props: any) => {
+    ClientsListPage: (props: { onNewClient: () => void }) => {
       const { onNewClient } = props;
       React.useEffect(() => {
         if (mockAutoCreateDraft) onNewClient();
@@ -85,7 +94,7 @@ jest.mock('../ClientsListPage', () => {
 });
 
 function makeClient(id: string, overrides: Partial<ClientEntity> = {}): ClientEntity {
-  return {
+  const base: ClientEntity = {
     id,
     wechatName: '',
     wechatId: '',
@@ -95,13 +104,22 @@ function makeClient(id: string, overrides: Partial<ClientEntity> = {}): ClientEn
     orderDate: '',
     deliveryDate: '',
     isShipping: false,
-    tracking: '',
-    status: 'Pending' as any,
+    trackingNumber: '',
+    status: 'Pending',
     specs: {},
     pcppLink: '',
     notes: '',
-    ...(overrides as any),
-  } as ClientEntity;
+    phone: '',
+    rating: 0,
+    photos: [],
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    totalPrice: 0,
+    paidAmount: 0,
+  };
+  return { ...base, ...overrides };
 }
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -146,16 +164,19 @@ describe('Clients draft-only commit behavior', () => {
 
   test('draft-only: wechatName blank -> updates stay in draft, no updateClient call', async () => {
     const utils = await renderApp(
-      <ClientsDraftProvider>
-        <ClientsListRoute />
-        <ClientDetailRoute />
-      </ClientsDraftProvider>,
+      <ConfirmProvider>
+        <ClientsDraftProvider>
+          <ClientsListRoute />
+          <ClientDetailRoute />
+        </ClientsDraftProvider>
+      </ConfirmProvider>,
     );
 
     expect(mockLastDetailProps).toBeTruthy();
+    const detail = requireDetailProps();
 
     await act(async () => {
-      mockLastDetailProps.onUpdateField('realName', 'Alice');
+      detail.onUpdateField('realName', 'Alice');
       await flush();
     });
 
@@ -166,22 +187,25 @@ describe('Clients draft-only commit behavior', () => {
 
   test('draft-only: wechatName blank -> nonblank triggers commit once with full draft snapshot', async () => {
     const utils = await renderApp(
-      <ClientsDraftProvider>
-        <ClientsListRoute />
-        <ClientDetailRoute />
-      </ClientsDraftProvider>,
+      <ConfirmProvider>
+        <ClientsDraftProvider>
+          <ClientsListRoute />
+          <ClientDetailRoute />
+        </ClientsDraftProvider>
+      </ConfirmProvider>,
     );
 
     expect(mockLastDetailProps).toBeTruthy();
+    const detail = requireDetailProps();
 
     // 关键：分两次 act + flush，让 draft state 先真正写入 realName
     await act(async () => {
-      mockLastDetailProps.onUpdateField('realName', 'Alice');
+      detail.onUpdateField('realName', 'Alice');
       await flush();
     });
 
     await act(async () => {
-      mockLastDetailProps.onUpdateField('wechatName', '张三');
+      detail.onUpdateField('wechatName', '张三');
       await flush();
     });
 
@@ -202,15 +226,18 @@ describe('Clients draft-only commit behavior', () => {
     mockClientsData = [makeClient('draft1', { wechatName: '已落库' })];
 
     const utils = await renderApp(
-      <ClientsDraftProvider>
-        <ClientDetailRoute />
-      </ClientsDraftProvider>,
+      <ConfirmProvider>
+        <ClientsDraftProvider>
+          <ClientDetailRoute />
+        </ClientsDraftProvider>
+      </ConfirmProvider>,
     );
 
     expect(mockLastDetailProps).toBeTruthy();
+    const detail = requireDetailProps();
 
     await act(async () => {
-      mockLastDetailProps.onUpdateField('realName', 'Bob');
+      detail.onUpdateField('realName', 'Bob');
       await flush();
     });
 

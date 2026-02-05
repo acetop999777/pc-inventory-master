@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { MainLayout } from './presentation/layouts/MainLayout';
-import Dashboard from './presentation/modules/Dashboard/Dashboard';
-import InventoryHub from './presentation/modules/Inventory/InventoryHub';
-import InboundHub from './presentation/modules/Inbound/InboundHub';
+import { MainLayout } from './shared/layouts/MainLayout';
+import Dashboard from './features/dashboard/Dashboard';
+import MetricsPage from './features/dashboard/MetricsPage';
+import InventoryHub from './features/inventory/InventoryHub';
+import InboundHub from './features/inbound/InboundHub';
 
 import { NavigationGuardProvider, useNavigationGuard } from './app/navigation/NavigationGuard';
 import {
@@ -52,8 +53,9 @@ function AppShell() {
           <Route path="/" element={<Navigate to="/clients" replace />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/metrics" element={<MetricsPage />} />
           <Route path="/inventory" element={<InventoryHub />} />
-          <Route path="/inbound" element={<InboundHub />} />
+          <Route path="/inbound/*" element={<InboundHub />} />
 
           <Route path="/clients" element={<ClientsListRoute />} />
           <Route path="/clients/:id" element={<ClientDetailRoute />} />
@@ -65,9 +67,9 @@ function AppShell() {
   );
 }
 
-export default function AppLegacy() {
+export default function AppRouter() {
   return (
-    <HashRouter>
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <NavigationGuardProvider>
         <AppShell />
       </NavigationGuardProvider>

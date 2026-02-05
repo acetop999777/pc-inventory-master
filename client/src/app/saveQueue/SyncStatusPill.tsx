@@ -1,8 +1,41 @@
 import React, { useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle, X, Copy } from 'lucide-react';
 import { useSaveQueue } from './SaveQueueProvider';
+import { Button } from '../../shared/ui';
 
-function safeStringify(v: any) {
+type ErrShape = {
+  name?: unknown;
+  kind?: unknown;
+  status?: unknown;
+  httpStatus?: unknown;
+  code?: unknown;
+  requestId?: unknown;
+  retryable?: unknown;
+  retriable?: unknown;
+  userMessage?: unknown;
+  message?: unknown;
+  details?: unknown;
+  error?: unknown;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const asErrShape = (value: unknown): ErrShape | null => (isRecord(value) ? (value as ErrShape) : null);
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === 'boolean' ? value : undefined;
+
+const getRecord = (value: unknown): Record<string, unknown> | undefined =>
+  isRecord(value) ? value : undefined;
+
+function safeStringify(v: unknown) {
   try {
     return JSON.stringify(v, null, 2);
   } catch {
@@ -14,21 +47,20 @@ function safeStringify(v: any) {
   }
 }
 
-function normalizeErr(e: any) {
-  const kind = e?.name || e?.kind || 'ERROR';
-  const status = e?.status ?? e?.httpStatus ?? undefined;
-  const code = e?.code ?? undefined;
-  const requestId = e?.requestId ?? e?.error?.requestId ?? undefined;
-  const retryable =
-    typeof e?.retryable === 'boolean'
-      ? e.retryable
-      : typeof e?.retriable === 'boolean'
-        ? e.retriable
-        : undefined;
+function normalizeErr(e: unknown) {
+  const err = asErrShape(e);
+  const nested = getRecord(err?.error);
 
-  const message = e?.userMessage ?? e?.message ?? (typeof e === 'string' ? e : '') ?? '';
+  const kind = getString(err?.name) ?? getString(err?.kind) ?? 'ERROR';
+  const status = getNumber(err?.status) ?? getNumber(err?.httpStatus);
+  const code = err?.code ?? undefined;
+  const requestId = getString(err?.requestId) ?? getString(nested?.requestId);
+  const retryable = getBoolean(err?.retryable) ?? getBoolean(err?.retriable);
 
-  const details = e?.details ?? e?.error?.details ?? undefined;
+  const message =
+    getString(err?.userMessage) ?? getString(err?.message) ?? (typeof e === 'string' ? e : '');
+
+  const details = err?.details ?? nested?.details ?? undefined;
 
   return { kind, status, code, requestId, retryable, message, details, raw: e };
 }
@@ -46,7 +78,7 @@ export function SyncStatusPill() {
   const hasError = snap.errorCount > 0;
 
   const errorKeys = snap.keys.filter((k) => k.hasError);
-  const topErrRaw: any = (errorKeys[0]?.lastError as any) ?? null;
+  const topErrRaw = errorKeys[0]?.lastError ?? null;
   const topErr = normalizeErr(topErrRaw);
 
   const errorTitle = (() => {
@@ -62,17 +94,14 @@ export function SyncStatusPill() {
     const body = topErr.message ? `: ${topErr.message}` : '';
     return (head + body).slice(0, 240);
   })();
-  const anyRetriable = errorKeys.some((k) => {
-    const e: any = k.lastError as any;
-    const v = typeof e?.retryable === 'boolean' ? e.retryable : e?.retriable;
-    return v !== false; // default true
-  });
+  const anyRetriable = errorKeys.some((k) => normalizeErr(k.lastError).retryable !== false);
 
   const canRetry = hasError && !busy && anyRetriable;
+  const failureCount = errorKeys.length;
 
   const [showSaved, setShowSaved] = React.useState(false);
   const prevBusyRef = React.useRef(false);
-  const tRef = React.useRef<any>(null);
+  const tRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -128,6 +157,15 @@ export function SyncStatusPill() {
     }
   };
 
+  const formatTime = (ts: number) => {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleTimeString();
+    } catch {
+      return '';
+    }
+  };
+
   return (
     <>
       <div className="fixed top-4 right-4 z-[999]">
@@ -146,29 +184,33 @@ export function SyncStatusPill() {
           {hasError ? (
             <>
               <AlertTriangle size={14} />
-              <span>Needs Sync</span>
+              <span>Needs Sync ({failureCount})</span>
 
               {canRetry ? (
-                <button
+                <Button
                   onClick={retryAll}
+                  size="xs"
+                  variant="ghost"
                   className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
                   title="Apply pending changes"
                 >
                   Fix & retry
-                </button>
+                </Button>
               ) : (
                 <span className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200">
                   Fix inputs
                 </span>
               )}
 
-              <button
+              <Button
                 onClick={() => setDetailsOpen(true)}
+                size="xs"
+                variant="ghost"
                 className="ml-2 px-2 py-1 rounded-full bg-white border border-red-200 hover:bg-red-50"
                 title="Show error details"
               >
                 Details
-              </button>
+              </Button>
             </>
           ) : busy ? (
             <>
@@ -184,6 +226,66 @@ export function SyncStatusPill() {
         </div>
       </div>
 
+      {hasError ? (
+        <div className="fixed top-16 right-4 z-[998] w-[420px] max-w-[90vw]">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+            <div className="px-4 py-2 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Sync Errors • {failureCount}
+            </div>
+            <div className="max-h-[60vh] overflow-auto divide-y divide-slate-100">
+              {errorKeys.map((k) => {
+                const err = normalizeErr(k.lastError);
+                const retryable =
+                  typeof err.retryable === 'boolean' ? err.retryable : err.retryable == null;
+                const label = k.label || k.key;
+                const reqId = err.requestId ? String(err.requestId) : '';
+                const code = err.code ? String(err.code) : 'ERROR';
+                const message = err.message || 'Request failed';
+                return (
+                  <div key={k.key} className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-black text-slate-700 truncate">
+                        {label}
+                      </div>
+                      <div className="text-[10px] text-slate-400">{formatTime(k.updatedAt)}</div>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-600">{message}</div>
+                    <div className="mt-1 text-[10px] text-slate-400">
+                      {code}
+                      {reqId ? ` • rid:${reqId}` : ''}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      {retryable ? (
+                        <Button
+                          onClick={() => queue.retryKey(k.key)}
+                          size="xs"
+                          variant="outline"
+                          className="font-black uppercase tracking-wider"
+                        >
+                          Retry
+                        </Button>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                          Needs Fix
+                        </span>
+                      )}
+                      <Button
+                        onClick={() => queue.dismissKey(k.key)}
+                        size="xs"
+                        variant="outline"
+                        className="font-black uppercase tracking-wider"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {detailsOpen && (
         <div
           className="fixed inset-0 z-[1000] bg-slate-900/40 flex items-center justify-center p-4"
@@ -198,21 +300,25 @@ export function SyncStatusPill() {
                 Save Error Details
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={copyDetails}
-                  className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border border-slate-200 hover:bg-slate-50 flex items-center gap-2"
+                  size="xs"
+                  variant="outline"
+                  className="rounded-xl font-black uppercase tracking-wider flex items-center gap-2"
                   title="Copy JSON"
                 >
                   <Copy size={14} />
                   {copied ? 'Copied' : 'Copy'}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setDetailsOpen(false)}
-                  className="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center"
+                  size="icon"
+                  variant="outline"
+                  className="rounded-xl"
                   title="Close"
                 >
                   <X size={16} />
-                </button>
+                </Button>
               </div>
             </div>
 

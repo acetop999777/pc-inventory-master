@@ -1,0 +1,249 @@
+import React from 'react';
+import { X } from 'lucide-react';
+import { InventoryItem } from '../../../domain/inventory/inventory.types';
+import {
+  Button,
+  Field,
+  Input,
+  Modal,
+  ModalBody,
+  ModalHeader,
+  ModalTitle,
+  ModalSubtitle,
+} from '../../../shared/ui';
+
+type Mode = 'add' | 'remove';
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+function clampInt(n: number) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
+export function StockAdjustModal(props: {
+  open: boolean;
+  item: InventoryItem | null;
+  initialMode?: Mode;
+  onClose: () => void;
+  onApply: (payload: { quantity: number; cost: number }) => void;
+}) {
+  const { open, item, onClose, onApply } = props;
+
+  const [mode, setMode] = React.useState<Mode>(props.initialMode ?? 'add');
+  const [qtyInput, setQtyInput] = React.useState<string>('1');
+  const [unitCostInput, setUnitCostInput] = React.useState<string>('0');
+
+  React.useEffect(() => {
+    if (!open || !item) return;
+    setMode(props.initialMode ?? 'add');
+    setQtyInput('1');
+    setUnitCostInput(String(Number(item.cost ?? 0)));
+  }, [open, item, props.initialMode]);
+
+  if (!open || !item) return null;
+
+  const currentQty = clampInt(Number(item.quantity ?? 0));
+  const currentAvg = Number(item.cost ?? 0);
+
+  const qty = clampInt(Number(qtyInput));
+  const unitCostRaw = Number(unitCostInput);
+  const hasValidUnitCost = Number.isFinite(unitCostRaw) && unitCostRaw >= 0;
+  const unitCost = hasValidUnitCost ? unitCostRaw : currentAvg;
+  const effectiveQty = mode === 'remove' ? Math.min(qty, currentQty) : qty;
+
+  const previewQty =
+    mode === 'add' ? currentQty + effectiveQty : Math.max(0, currentQty - effectiveQty);
+
+  const previewAvg =
+    mode === 'add'
+      ? previewQty > 0
+        ? Math.max(0, (currentQty * currentAvg + effectiveQty * unitCost) / previewQty)
+        : 0
+      : previewQty > 0
+        ? Math.max(0, (currentQty * currentAvg - effectiveQty * unitCost) / previewQty)
+        : 0;
+
+  const canApply = effectiveQty > 0 && hasValidUnitCost;
+
+  const apply = () => {
+    if (!canApply) return;
+    onApply({ quantity: previewQty, cost: round2(previewAvg) });
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} size="lg">
+      <ModalHeader divider className="flex items-center justify-between">
+        <div>
+          <ModalTitle className="text-sm text-slate-900">Update Stock</ModalTitle>
+          <ModalSubtitle className="text-xs text-slate-500 font-bold mt-0.5">
+            {item.name} <span className="text-slate-300">·</span> {item.category}
+          </ModalSubtitle>
+        </div>
+        <Button
+          className="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-500"
+          onClick={onClose}
+          aria-label="Close"
+          variant="ghost"
+          size="icon"
+        >
+          <X size={18} />
+        </Button>
+      </ModalHeader>
+
+      <ModalBody className="grid grid-cols-12 gap-6">
+        {/* left: form */}
+        <div className="col-span-12 md:col-span-7 space-y-5">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Current
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Quantity
+                </div>
+                <div className="mt-1 font-mono text-lg font-black text-slate-800">
+                  {currentQty}
+                </div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  WAC Avg Cost
+                </div>
+                <div className="mt-1 font-mono text-lg font-black text-slate-800">
+                  ${round2(currentAvg)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Field label="Action">
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setMode('add')}
+                variant="ghost"
+                size="xs"
+                className={`px-3 py-2 rounded-xl border text-xs font-black uppercase tracking-wider ${
+                  mode === 'add'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                Add Stock
+              </Button>
+              <Button
+                onClick={() => setMode('remove')}
+                variant="ghost"
+                size="xs"
+                className={`px-3 py-2 rounded-xl border text-xs font-black uppercase tracking-wider ${
+                  mode === 'remove'
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                Remove Stock
+              </Button>
+            </div>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field
+              label={mode === 'add' ? 'Add Quantity' : 'Remove Quantity'}
+              helpText="Integer ≥ 1"
+            >
+              <Input
+                size="sm"
+                className="font-bold"
+                value={qtyInput}
+                onChange={(e) => setQtyInput(e.target.value)}
+                inputMode="numeric"
+              />
+            </Field>
+
+            <Field label="Unit Cost (this update)" helpText="Used to compute new WAC (add or remove)">
+              <Input
+                size="sm"
+                className="font-bold text-slate-900"
+                value={unitCostInput}
+                onChange={(e) => setUnitCostInput(e.target.value)}
+                inputMode="decimal"
+              />
+            </Field>
+          </div>
+        </div>
+
+        {/* right: preview */}
+        <div className="col-span-12 md:col-span-5">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sticky top-6">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Preview
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  New Quantity
+                </div>
+                <div className="mt-1 font-mono text-xl font-black text-slate-800">
+                  {previewQty}
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  New WAC Avg Cost
+                </div>
+                <div className="mt-1 font-mono text-xl font-black text-slate-800">
+                  ${round2(previewAvg)}
+                </div>
+                <div className="mt-2 text-[11px] text-slate-400">
+                  {mode === 'remove'
+                    ? 'WAC = (oldQty*oldAvg - removeQty*unitCost) / (oldQty-removeQty)'
+                    : 'WAC = (oldQty*oldAvg + addQty*unitCost) / (oldQty+addQty)'}
+                </div>
+              </div>
+
+              {!canApply && (
+                <div className="text-[11px] text-red-500 font-bold">
+                  Please enter a valid quantity and unit cost.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <Button
+                onClick={onClose}
+                variant="ghost"
+                size="xs"
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={apply}
+                disabled={!canApply}
+                variant="ghost"
+                size="xs"
+                className={`flex-1 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${
+                  canApply
+                    ? 'bg-slate-900 text-white hover:bg-slate-800'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                Apply
+              </Button>
+            </div>
+
+            <div className="mt-3 text-[10px] text-slate-400 font-bold">
+              Changes save in background (Syncing → Saved).
+            </div>
+          </div>
+        </div>
+      </ModalBody>
+    </Modal>
+  );
+}

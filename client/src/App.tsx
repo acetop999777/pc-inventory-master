@@ -1,11 +1,11 @@
 import React from 'react';
 import { AppProviders } from './app/providers/AppProviders';
-import AppLegacy from './AppLegacy';
+import AppRouter from './AppRouter';
 
 export default function App() {
   return (
     <AppProviders>
-      <AppLegacy />
+      <AppRouter />
     </AppProviders>
   );
 }

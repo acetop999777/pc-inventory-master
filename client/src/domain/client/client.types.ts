@@ -4,6 +4,9 @@ export interface ClientSpecs {
     sku: string;
     cost: number;
     qty: number;
+    needsPurchase?: boolean;
+    inventoryId?: string;
+    matchedBy?: 'auto' | 'manual' | 'none';
   };
 }
 
@@ -24,6 +27,7 @@ export interface ClientEntity {
   status: string;
   orderDate: string; // ISO String YYYY-MM-DD
   deliveryDate: string; // ISO String YYYY-MM-DD
+  createdAt?: string; // optional: server created_at -> createdAt
   isShipping: boolean;
   trackingNumber: string;
   address: string;

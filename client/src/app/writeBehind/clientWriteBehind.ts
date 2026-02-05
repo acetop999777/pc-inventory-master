@@ -1,9 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../utils';
-import { ClientEntity } from '../../domain/client/client.types';
-import { calculateFinancials } from '../../domain/client/client.logic';
+import { api } from '../../shared/api/http';
+import { ClientEntity, calculateFinancials } from '../../domain/client';
 import { clientsQueryKey } from '../queries/clients';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
+import { decodeSuccessResponse } from '../../shared/api/decoders';
 
 type ClientWrite = { op: 'patch'; fields: Partial<ClientEntity> } | { op: 'delete' };
 
@@ -13,8 +13,8 @@ function mergeClientWrite(a: ClientWrite, b: ClientWrite): ClientWrite {
 }
 
 function coerceFields(fields: Partial<ClientEntity>): Partial<ClientEntity> {
-  const f: any = { ...fields };
-  const toMoney = (v: any) => {
+  const f: Partial<ClientEntity> = { ...fields };
+  const toMoney = (v: unknown) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };
@@ -59,9 +59,11 @@ export function useClientWriteBehind() {
       label: 'Clients',
       patch: { op: 'patch', fields: coerceFields(fields) },
       merge: mergeClientWrite,
-      write: async (w) => {
+      write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await apiCallOrThrow(`/clients/${id}`, 'DELETE');
+          const url = `/clients/${id}`;
+          const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+          decodeSuccessResponse(url, raw, 'DELETE');
           return;
         }
 
@@ -72,11 +74,14 @@ export function useClientWriteBehind() {
         const merged: ClientEntity = { ...cur, ...w.fields };
         const fin = calculateFinancials(merged);
 
-        await apiCallOrThrow('/clients', 'POST', {
+        const url = '/clients';
+        const raw = await api.post<unknown>(url, {
           ...merged,
           actualCost: fin.totalCost,
           profit: merged.totalPrice > 0 ? fin.profit : null,
+          operationId: ctx.operationId,
         });
+        decodeSuccessResponse(url, raw, 'POST');
 
         qc.setQueryData<ClientEntity[]>(clientsQueryKey, (old = []) => upsert(old, merged));
       },
@@ -91,8 +96,10 @@ export function useClientWriteBehind() {
       label: 'Clients',
       patch: { op: 'delete' },
       merge: mergeClientWrite,
-      write: async () => {
-        await apiCallOrThrow(`/clients/${id}`, 'DELETE');
+      write: async (_w, ctx) => {
+        const url = `/clients/${id}`;
+        const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+        decodeSuccessResponse(url, raw, 'DELETE');
       },
       debounceMs: 0,
     });

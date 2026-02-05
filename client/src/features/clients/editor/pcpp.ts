@@ -1,7 +1,16 @@
-import { InventoryItem } from '../../../types';
-import { CORE_CATS, findBestMatch } from '../../../utils';
+import { InventoryItem } from '../../../domain/inventory/inventory.types';
+import { CORE_CATS } from '../../../domain/inventory/inventory.utils';
+import { matchInventoryStrict } from './matchInventory';
 
-export type SpecRow = { name: string; sku: string; cost: number; qty: number };
+export type SpecRow = {
+  name: string;
+  sku: string;
+  cost: number;
+  qty: number;
+  needsPurchase?: boolean;
+  inventoryId?: string;
+  matchedBy?: 'auto' | 'manual' | 'none';
+};
 export type ParsedPcpp = { specs: Record<string, SpecRow>; link: string };
 
 /**
@@ -15,7 +24,7 @@ export function parsePcppText(text: string, inventory: InventoryItem[]): ParsedP
 
   const initSpecs: Record<string, SpecRow> = {};
   CORE_CATS.forEach((c) => {
-    initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1 };
+    initSpecs[c] = { name: '', sku: '', cost: 0, qty: 1, needsPurchase: false };
   });
 
   const specs: Record<string, SpecRow> = { ...initSpecs };
@@ -32,14 +41,16 @@ export function parsePcppText(text: string, inventory: InventoryItem[]): ParsedP
     'Case Fan': 'FAN',
     Monitor: 'MONITOR',
     'Operating System': 'OTHER',
+    Custom: 'CUSTOM',
   };
 
   const lines = raw.split('\n');
   let link = '';
+  let customIndex = 1;
 
   for (const l of lines) {
     const line = l.trim();
-    if (!line || line.startsWith('Custom:')) continue;
+    if (!line) continue;
 
     if (line.includes('pcpartpicker.com/list/')) {
       link = line.match(/(https?:\/\/\S+)/)?.[0] || link;
@@ -49,12 +60,19 @@ export function parsePcppText(text: string, inventory: InventoryItem[]): ParsedP
       if (!line.startsWith(pcppLabel + ':')) continue;
 
       const content = line.substring(pcppLabel.length + 1).trim();
-      const namePart = content.split('($')[0].trim();
-      const dbMatch = findBestMatch(namePart, inventory);
+      let namePart = content.split('($')[0].trim();
+      if (!namePart && internalCat === 'CUSTOM') {
+        namePart = customIndex === 1 ? 'Custom Item' : `Custom Item ${customIndex}`;
+        customIndex += 1;
+      }
+      const dbMatch = matchInventoryStrict(namePart, inventory, internalCat);
 
       const chosenName = dbMatch ? dbMatch.name : namePart;
       const chosenSku = dbMatch?.sku || '';
       const costToUse = dbMatch ? dbMatch.cost : 0;
+      const needsPurchase = !dbMatch && Boolean(chosenName);
+      const inventoryId = dbMatch?.id || '';
+      const matchedBy = dbMatch ? 'auto' : 'none';
 
       let targetKey = internalCat;
       let counter = 2;
@@ -65,13 +83,22 @@ export function parsePcppText(text: string, inventory: InventoryItem[]): ParsedP
         counter++;
       }
 
-      if (!specs[targetKey]) specs[targetKey] = { name: '', sku: '', cost: 0, qty: 0 };
+      if (!specs[targetKey]) specs[targetKey] = { name: '', sku: '', cost: 0, qty: 0, needsPurchase: false };
 
       if (specs[targetKey].name) {
         specs[targetKey].cost += costToUse;
         specs[targetKey].qty = (specs[targetKey].qty || 1) + 1;
+        if (needsPurchase) specs[targetKey].needsPurchase = true;
       } else {
-        specs[targetKey] = { name: chosenName, sku: chosenSku, cost: costToUse, qty: 1 };
+        specs[targetKey] = {
+          name: chosenName,
+          sku: chosenSku,
+          cost: costToUse,
+          qty: 1,
+          needsPurchase,
+          inventoryId: inventoryId || undefined,
+          matchedBy,
+        };
       }
 
       break;

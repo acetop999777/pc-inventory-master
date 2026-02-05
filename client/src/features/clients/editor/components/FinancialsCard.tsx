@@ -1,25 +1,23 @@
 import React from 'react';
 import { DollarSign, Wallet, HandCoins } from 'lucide-react';
-import { ClientEntity, ClientFinancials } from '../../../../domain/client/client.types';
-import { FinancialCard } from '../../../../presentation/components/ui/FinancialCard';
-import { formatMoney } from '../../../../utils';
+import type { ClientFinancialsCardProps } from '../../types';
+import { FinancialCard, Input } from '../../../../shared/ui';
+import { formatMoney } from '../../../../shared/lib/format';
 
-interface Props {
-  data: ClientEntity;
-  financials: ClientFinancials;
-  update: (field: keyof ClientEntity, val: any) => void;
-}
-
-function parseMoneyOrNull(raw: string): number | null {
+function parseMoney(raw: string, fallback: number): number {
   const s = String(raw ?? '').trim();
-  if (!s) return null;
+  if (!s) return fallback;
   // allow "45." while typing; finalize on blur only
   const n = Number(s);
-  if (!Number.isFinite(n)) return null;
+  if (!Number.isFinite(n)) return fallback;
   return Math.max(0, n);
 }
 
-export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) => {
+export const FinancialsCard: React.FC<ClientFinancialsCardProps> = ({
+  data,
+  financials,
+  update,
+}) => {
   const [totalText, setTotalText] = React.useState<string>(
     data.totalPrice == null ? '' : String(data.totalPrice),
   );
@@ -49,8 +47,10 @@ export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) =>
         </span>
         <div className="flex items-center">
           <span className="text-xl font-black mr-1 text-slate-400">$</span>
-          <input
-            className="text-xl font-black text-slate-800 bg-transparent outline-none w-full"
+          <Input
+            size="sm"
+            variant="ghost"
+            className="text-xl font-black text-slate-800 bg-transparent w-full px-0"
             value={totalText}
             inputMode="decimal"
             placeholder="0.00"
@@ -60,7 +60,7 @@ export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) =>
             }}
             onBlur={() => {
               focusRef.current = null;
-              update('totalPrice', parseMoneyOrNull(totalText));
+              update('totalPrice', parseMoney(totalText, Number(data.totalPrice ?? 0)));
             }}
             onChange={(e) => setTotalText(e.target.value)}
           />
@@ -73,8 +73,10 @@ export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) =>
         </span>
         <div className="flex items-center">
           <span className="text-xl font-black mr-1 text-blue-300">$</span>
-          <input
-            className="text-xl font-black text-blue-700 bg-transparent outline-none w-full"
+          <Input
+            size="sm"
+            variant="ghost"
+            className="text-xl font-black text-blue-700 bg-transparent w-full px-0"
             value={paidText}
             inputMode="decimal"
             placeholder="0.00"
@@ -84,7 +86,7 @@ export const FinancialsCard: React.FC<Props> = ({ data, financials, update }) =>
             }}
             onBlur={() => {
               focusRef.current = null;
-              update('paidAmount', parseMoneyOrNull(paidText));
+              update('paidAmount', parseMoney(paidText, Number(data.paidAmount ?? 0)));
             }}
             onChange={(e) => setPaidText(e.target.value)}
           />

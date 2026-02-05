@@ -9,25 +9,30 @@ import React, {
   useState,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
-import { ClientEntity } from '../../domain/client/client.types';
-import { calculateFinancials, createEmptyClient } from '../../domain/client/client.logic';
-import { generateId } from '../../utils';
+import { ClientEntity, calculateFinancials, createEmptyClient } from '../../domain/client';
+import { generateId } from '../../shared/lib/id';
 
 import { useClientsQuery } from '../../app/queries/clients';
 import { useInventoryQuery } from '../../app/queries/inventory';
 import { useClientWriteBehind } from '../../app/writeBehind/clientWriteBehind';
 import { useSaveQueue } from '../../app/saveQueue/SaveQueueProvider';
 import { useNavigationGuard } from '../../app/navigation/NavigationGuard';
+import { useAlert, useConfirm } from '../../app/confirm/ConfirmProvider';
+import { api } from '../../shared/api/http';
+import { decodeInventoryBatchResult } from '../../shared/api/decoders';
+import { CORE_CATS } from '../../domain/inventory/inventory.utils';
+import { matchInventoryStrict, normalizeCategoryKey } from './editor/matchInventory';
 
 import { ClientsListPage } from './ClientsListPage';
 import { ClientDetailPage } from './ClientDetailPage';
+import type { UpdateClientField } from './types';
 
 const STATUS_STEPS = ['Pending', 'Deposit', 'Building', 'Ready', 'Delivered'] as const;
 
+type DraftSetter = ClientEntity | ((prev: ClientEntity | null) => ClientEntity);
 type DraftCtx = {
   getDraft: (id: string) => ClientEntity | null;
-  setDraft: (id: string, c: ClientEntity) => void;
+  setDraft: (id: string, c: DraftSetter) => void;
   clearDraft: (id: string) => void;
 };
 
@@ -38,8 +43,12 @@ function DraftProvider({ children }: { children: React.ReactNode }) {
 
   const getDraft = useCallback((id: string) => drafts[id] ?? null, [drafts]);
 
-  const setDraft = useCallback((id: string, c: ClientEntity) => {
-    setDrafts((prev) => ({ ...prev, [id]: c }));
+  const setDraft = useCallback((id: string, next: DraftSetter) => {
+    setDrafts((prev) => {
+      const current = prev[id] ?? null;
+      const resolved = typeof next === 'function' ? next(current) : next;
+      return { ...prev, [id]: resolved };
+    });
   }, []);
 
   const clearDraft = useCallback((id: string) => {
@@ -64,7 +73,7 @@ function useDraftStore() {
   return ctx;
 }
 
-function isBlank(v: any) {
+function isBlank(v: unknown) {
   return String(v ?? '').trim().length === 0;
 }
 
@@ -79,6 +88,7 @@ export function ClientsDraftProvider({ children }: { children: React.ReactNode }
 export function ClientsListRoute() {
   const nav = useNavigate();
   const { data } = useClientsQuery();
+  const confirmDialog = useConfirm();
 
   // keep deps stable (avoid memo warnings / churn)
   const clients = useMemo(() => data ?? [], [data]);
@@ -102,10 +112,17 @@ export function ClientsListRoute() {
 
   const onDeleteClient = useCallback(
     async (id: string, name?: string) => {
-      if (!window.confirm(`Delete ${name ?? 'this client'}?`)) return;
+      const ok = await confirmDialog({
+        title: 'Delete Client',
+        message: `Delete ${name ?? 'this client'}?`,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        tone: 'danger',
+      });
+      if (!ok) return;
       remove(id);
     },
-    [remove],
+    [remove, confirmDialog],
   );
 
   return (
@@ -122,11 +139,13 @@ export function ClientDetailRoute() {
   const nav = useNavigate();
   const { id } = useParams();
   const clientId = String(id ?? '');
+  const confirmDialog = useConfirm();
+  const alert = useAlert();
 
   const { data: clientsData } = useClientsQuery();
   const clients = useMemo(() => clientsData ?? [], [clientsData]);
 
-  const { data: invData } = useInventoryQuery();
+  const { data: invData, refetch: refetchInventory } = useInventoryQuery();
   const inventory = useMemo(() => invData ?? [], [invData]);
 
   const { update: updateClient } = useClientWriteBehind();
@@ -135,11 +154,24 @@ export function ClientDetailRoute() {
 
   const { getDraft, setDraft, clearDraft } = useDraftStore();
   const draft = clientId ? getDraft(clientId) : null;
+  const draftRef = useRef<ClientEntity | null>(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   const fromCache = useMemo(() => {
     if (!clientId) return null;
     return clients.find((c) => c.id === clientId) ?? null;
   }, [clients, clientId]);
+
+  // If user lands on a draft-only id with no draft loaded, seed a blank draft.
+  useEffect(() => {
+    if (!clientId) return;
+    if (draft || fromCache) return;
+    const seed = createEmptyClient();
+    seed.id = clientId;
+    setDraft(clientId, seed);
+  }, [clientId, draft, fromCache, setDraft]);
 
   // ✅ draft-only：未落库（clients query 里没有）
   const isDraftOnly = Boolean(draft) && !fromCache;
@@ -169,7 +201,7 @@ export function ClientDetailRoute() {
   // busy->idle Saved flash（只对落库对象）
   const [flashSaved, setFlashSaved] = useState(false);
   const prevBusyRef = useRef(false);
-  const tRef = useRef<any>(null);
+  const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!activeKey) return;
@@ -193,34 +225,177 @@ export function ClientDetailRoute() {
    * - wechatName 从空 -> 非空：把 draft 当前所有字段一次性 POST 落库
    * - 落库后：恢复“随时填随时存”
    */
-  const onUpdateField = useCallback(
-    (field: keyof ClientEntity, val: any) => {
+  const commitUpdate = useCallback(
+    (field: keyof ClientEntity, val: ClientEntity[keyof ClientEntity], shouldAutoPaid: boolean) => {
       if (!clientId) return;
 
-      if (isDraftOnly && draft && draft.id === clientId) {
-        const prevWechat = draft.wechatName ?? '';
-        const next: ClientEntity = { ...draft, [field]: val };
+      const curDraft = draftRef.current;
+      if (curDraft && curDraft.id === clientId) {
+        const prevWechat = curDraft.wechatName ?? '';
+        const next: ClientEntity = {
+          ...curDraft,
+          [field]: val,
+          ...(shouldAutoPaid ? { paidAmount: Number(curDraft.totalPrice) || 0 } : {}),
+        };
+        const prevHasWechat = !isBlank(prevWechat);
+        const nextHasWechat = !isBlank(next.wechatName);
 
+        // keep ref in sync for rapid consecutive updates (e.g. paste -> sets specs then link)
+        draftRef.current = next;
         setDraft(clientId, next);
 
-        // 只有第一次把 wechatName 从空变成非空，才触发“落库”
-        if (field === 'wechatName') {
-          const willCommit = isBlank(prevWechat) && !isBlank(val);
-          if (willCommit) {
-            updateClient(
-              clientId,
-              { wechatName: String(val ?? '') } as Partial<ClientEntity>,
-              next,
-            );
-          }
+        // first time wechatName becomes non-blank -> commit full draft snapshot
+        if (!prevHasWechat && nextHasWechat && field === 'wechatName') {
+          updateClient(
+            clientId,
+            { wechatName: String(val ?? '') } as Partial<ClientEntity>,
+            next,
+          );
+          return;
         }
-        return;
+
+        // after wechatName exists, keep real-time writes (even if cache hasn't refreshed yet)
+        if (nextHasWechat) {
+          updateClient(
+            clientId,
+            {
+              [field]: val,
+              ...(shouldAutoPaid ? { paidAmount: Number(next.totalPrice) || 0 } : {}),
+            } as Partial<ClientEntity>,
+            next,
+          );
+          return;
+        }
+
+        // still draft-only while wechatName empty
+        if (isDraftOnly) return;
       }
 
       // 已落库：正常 write-behind
-      updateClient(clientId, { [field]: val } as Partial<ClientEntity>);
+      updateClient(clientId, {
+        [field]: val,
+        ...(shouldAutoPaid
+          ? { paidAmount: Number(fromCache?.totalPrice ?? 0) || 0 }
+          : {}),
+      } as Partial<ClientEntity>);
     },
-    [clientId, isDraftOnly, draft, setDraft, updateClient],
+    [clientId, fromCache, isDraftOnly, setDraft, updateClient],
+  );
+
+  const maybeConsumeInventory = useCallback(
+    async (client: ClientEntity): Promise<boolean> => {
+      const specs = client.specs || {};
+      const matches = new Map<
+        string,
+        { item: (typeof inventory)[number]; count: number }
+      >();
+
+      for (const [cat, spec] of Object.entries(specs)) {
+        const baseCat = normalizeCategoryKey(cat);
+        if (!CORE_CATS.includes(baseCat)) continue;
+
+        const specName = String(spec.name || '').trim();
+        const specSku = String(spec.sku || '').trim();
+
+        let matched = null as (typeof inventory)[number] | null;
+        if (spec.inventoryId) {
+          matched = inventory.find((it) => it.id === spec.inventoryId) ?? null;
+        }
+        if (!matched) {
+          const query = specName || specSku;
+          if (!query) continue;
+          matched = matchInventoryStrict(query, inventory, baseCat);
+        }
+        if (!matched) continue;
+
+        const entry = matches.get(matched.id) || { item: matched, count: 0 };
+        entry.count += 1;
+        matches.set(matched.id, entry);
+      }
+
+      const entries = Array.from(matches.values());
+      if (entries.length === 0) return true;
+
+      const lines = entries.map((entry) => {
+        const nextQty = Number(entry.item.quantity || 0) - entry.count;
+        const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+        return `• ${entry.item.name}${suffix} — 库存: ${entry.item.quantity} → ${nextQty}`;
+      });
+
+      const ok = await confirmDialog({
+        title: 'Confirm Inventory Deduction',
+        message: `将扣减以下库存（Delivered 自动出库）：\n${lines.join('\n')}\n\n确认后将执行库存扣减。`,
+        confirmText: 'Confirm',
+        cancelText: 'Cancel',
+      });
+
+      if (!ok) return false;
+
+      const operationId = `invconsume:${client.id}:${Date.now()}`;
+      const payload = {
+        operationId,
+        items: entries.map((entry) => ({
+          id: entry.item.id,
+          qtyDelta: -entry.count,
+          reason: 'CONSUME',
+        })),
+      };
+
+      try {
+        const url = '/inventory/batch';
+        const raw = await api.post<unknown>(url, payload);
+        decodeInventoryBatchResult(url, raw, 'POST');
+        if (refetchInventory) await refetchInventory();
+      } catch (err: unknown) {
+        await alert({
+          title: 'Inventory Deduction Failed',
+          message:
+            typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+              ? String((err as { userMessage?: unknown }).userMessage)
+              : 'Failed to deduct inventory. Please try again.',
+        });
+        return false;
+      }
+
+      return true;
+    },
+    [alert, confirmDialog, inventory, refetchInventory],
+  );
+
+  const onUpdateField = useCallback<UpdateClientField>(
+    (field, val) => {
+      if (!clientId) return;
+
+      const shouldAutoPaid =
+        field === 'status' && String(val ?? '').toLowerCase() === 'delivered';
+
+      if (field === 'status' && shouldAutoPaid) {
+        const base =
+          (draftRef.current && draftRef.current.id === clientId
+            ? draftRef.current
+            : fromCache) ?? null;
+        const hasWechat = base ? !isBlank(base.wechatName) : false;
+        if (!base || !hasWechat) {
+          commitUpdate(field, val, shouldAutoPaid);
+          return;
+        }
+
+        void (async () => {
+          const next: ClientEntity = {
+            ...base,
+            status: String(val ?? ''),
+            paidAmount: Number(base.totalPrice) || 0,
+          };
+          const ok = await maybeConsumeInventory(next);
+          if (!ok) return;
+          commitUpdate(field, val, shouldAutoPaid);
+        })();
+        return;
+      }
+
+      commitUpdate(field, val, shouldAutoPaid);
+    },
+    [clientId, commitUpdate, fromCache, maybeConsumeInventory],
   );
 
   const retry = useCallback(async () => {
@@ -237,8 +412,14 @@ export function ClientDetailRoute() {
     const blocked = post ? post.hasError || post.pending || post.inFlight : false;
 
     if (!blocked) return true;
-    return window.confirm('Sync failed / pending. Leave this page anyway?');
-  }, [activeKey, queue]);
+    return await confirmDialog({
+      title: 'Leave Page?',
+      message: 'Sync failed / pending. Leave this page anyway?',
+      confirmText: 'Leave',
+      cancelText: 'Stay',
+      tone: 'danger',
+    });
+  }, [activeKey, queue, confirmDialog]);
 
   useEffect(() => {
     // draft-only：不需要 guard（离开就丢弃 draft）
@@ -282,7 +463,7 @@ export function ClientDetailRoute() {
 }
 
 /**
- * AppLegacy routes controlled elsewhere; keep wrapper only.
+ * AppRouter routes controlled elsewhere; keep wrapper only.
  */
 export function ClientsRoutes() {
   return (

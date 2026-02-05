@@ -1,0 +1,569 @@
+import crypto from 'crypto';
+import type { Pool, PoolClient } from 'pg';
+import AppError = require('../errors/AppError');
+import { withTransaction } from '../db/tx';
+import * as inventoryRepo from '../repositories/inventoryRepo';
+import * as auditLogRepo from '../repositories/auditLogRepo';
+import * as movementRepo from '../repositories/movementRepo';
+import * as idempotencyRepo from '../repositories/idempotencyRepo';
+import * as logRepo from '../repositories/logRepo';
+import { asNonEmptyString, requireInt, requireNumber } from '../validators/requestUtils';
+
+type DbPool = Pool;
+type DbClient = PoolClient;
+type InventoryPatch = Record<string, unknown>;
+type InventoryItemInput = {
+  id?: unknown;
+  category?: unknown;
+  name?: unknown;
+  keyword?: unknown;
+  sku?: unknown;
+  quantity?: unknown;
+  cost?: unknown;
+  price?: unknown;
+  location?: unknown;
+  status?: unknown;
+  notes?: unknown;
+  metadata?: unknown;
+  operator?: unknown;
+};
+type InventoryBatchItem = {
+  id?: unknown;
+  qtyDelta?: unknown;
+  reason?: unknown;
+  unitCost?: unknown;
+  category?: unknown;
+  name?: unknown;
+  keyword?: unknown;
+  sku?: unknown;
+  price?: unknown;
+  location?: unknown;
+  status?: unknown;
+  notes?: unknown;
+  metadata?: unknown;
+  operator?: unknown;
+};
+type UpdateInventoryItemInput = {
+  pool: DbPool;
+  id?: unknown;
+  fields?: InventoryPatch;
+  operationId?: unknown;
+  requestId?: unknown;
+  endpoint?: unknown;
+};
+type ApplyInventoryBatchInput = {
+  pool: DbPool;
+  operationId?: unknown;
+  items?: unknown;
+  endpoint?: unknown;
+  requestId?: unknown;
+};
+type InventoryRow = {
+  id: string;
+  category?: unknown;
+  name?: string | null;
+  keyword?: unknown;
+  sku?: string | null;
+  quantity?: unknown;
+  cost?: unknown;
+  price?: unknown;
+  location?: unknown;
+  status?: unknown;
+  notes?: unknown;
+  metadata?: unknown;
+};
+type ErrorLike = { code?: unknown; message?: unknown };
+
+function errorCode(err: unknown): string {
+  if (!err || typeof err !== 'object') return 'ERROR';
+  const e = err as ErrorLike;
+  if (typeof e.code === 'string' && e.code) return e.code;
+  if (typeof e.message === 'string' && e.message) return e.message;
+  return 'ERROR';
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function coerceInventoryPatch(fields: InventoryPatch): InventoryPatch {
+  const next = { ...fields };
+  if (Object.prototype.hasOwnProperty.call(next, 'quantity')) {
+    next.quantity = Number(next.quantity ?? 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(next, 'cost')) {
+    next.cost = Number(next.cost ?? 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(next, 'price')) {
+    next.price = Number(next.price ?? 0);
+  }
+  return next;
+}
+
+function logInventoryEvent(payload: Record<string, unknown>): void {
+  const record = {
+    ts: new Date().toISOString(),
+    scope: 'inventory',
+    ...payload,
+  };
+  console.log(JSON.stringify(record));
+}
+
+async function logInventoryWriteMetric(tx: DbClient, payload: Record<string, unknown>): Promise<void> {
+  logInventoryEvent(payload);
+  try {
+    await logRepo.insert(tx, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: 'metric',
+      title: typeof payload.event === 'string' ? payload.event : 'inventory.metric',
+      msg: null,
+      meta: payload,
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'inventory',
+        event: 'inventory.metric.persist.error',
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
+}
+
+function normalizeReason(raw: unknown, qtyDelta: number): string {
+  const reason = typeof raw === 'string' ? raw.toUpperCase().trim() : '';
+  if (reason === 'RECEIVE' || reason === 'CONSUME' || reason === 'ADJUST' || reason === 'OPENING') {
+    return reason;
+  }
+  if (qtyDelta > 0) return 'RECEIVE';
+  if (qtyDelta < 0) return 'CONSUME';
+  return 'ADJUST';
+}
+
+function movementOperationId(operationId: string, inventoryId: string): string {
+  return `${operationId}:${inventoryId}`;
+}
+
+/**
+ * @param {UpdateInventoryItemInput} params
+ * @returns {Promise<unknown>}
+ */
+async function updateInventoryItem({ pool, id, fields, operationId, requestId, endpoint }: UpdateInventoryItemInput) {
+  const rowId = asNonEmptyString(id);
+  if (!rowId) {
+    throw new AppError({
+      code: 'INVALID_ARGUMENT',
+      httpStatus: 400,
+      retryable: false,
+      message: 'inventory id is required',
+      details: { field: 'id' },
+    });
+  }
+
+  const opId = asNonEmptyString(operationId);
+  if (!opId) {
+    throw new AppError({
+      code: 'INVALID_ARGUMENT',
+      httpStatus: 400,
+      retryable: false,
+      message: 'operationId is required',
+      details: { field: 'operationId' },
+    });
+  }
+
+  const patch = coerceInventoryPatch(fields || {});
+  const endpointSafe = asNonEmptyString(endpoint);
+  const startMs = Date.now();
+
+  return withTransaction(pool, async (tx) => {
+    const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
+    if (idem.state === 'DONE') {
+      await logInventoryWriteMetric(tx, {
+        event: 'inventory.update.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
+      return idem.response;
+    }
+    if (idem.state === 'IN_PROGRESS') {
+      throw new AppError({
+        code: 'OPERATION_IN_PROGRESS',
+        httpStatus: 409,
+        retryable: true,
+        message: 'Operation is already in progress',
+        details: { operationId: opId },
+      });
+    }
+
+    const existing = (await inventoryRepo.getForUpdateById(tx, rowId)) as InventoryRow | null;
+    if (!existing) {
+      throw new AppError({
+        code: 'NOT_FOUND',
+        httpStatus: 404,
+        retryable: false,
+        message: 'Inventory item not found',
+        details: { id: rowId },
+      });
+    }
+
+    const prevQty = Number(existing.quantity ?? 0);
+    const prevCost = Number(existing.cost ?? 0);
+    const nextQty =
+      Object.prototype.hasOwnProperty.call(patch, 'quantity') ? Number(patch.quantity) : prevQty;
+    const nextCost =
+      Object.prototype.hasOwnProperty.call(patch, 'cost') ? Number(patch.cost) : prevCost;
+
+    const qtyDelta = nextQty - prevQty;
+    const costChanged = nextCost !== prevCost;
+    const shouldMove = qtyDelta !== 0 || costChanged;
+
+    if (shouldMove && nextQty < 0) {
+      throw new AppError({
+        code: 'INVENTORY_INSUFFICIENT',
+        httpStatus: 409,
+        retryable: false,
+        message: 'Not enough stock',
+        details: { id: rowId, available: prevQty, requested: qtyDelta },
+      });
+    }
+
+    logInventoryEvent({
+      event: 'inventory.update.start',
+      requestId,
+      operationId: opId,
+      endpoint: endpointSafe,
+      inventoryId: rowId,
+      sku: existing?.sku,
+      action: 'ADJUST',
+      delta: qtyDelta,
+    });
+
+    try {
+      const updatedRow = (await inventoryRepo.update(tx, rowId, patch)) as InventoryRow | null;
+
+      if (shouldMove) {
+        const movementId = movementOperationId(opId, rowId);
+        await movementRepo.insert(tx, {
+          inventoryId: rowId,
+          qtyDelta,
+          reason: 'ADJUST',
+          unitCost: costChanged ? nextCost : null,
+          unitCostUsed: null,
+          refType: 'ADJUST',
+          refId: opId,
+          onHandAfter: nextQty,
+          avgCostAfter: nextCost,
+          requestId,
+          operationId: movementId,
+        });
+
+        await auditLogRepo.insert(tx, {
+          id: crypto.randomUUID(),
+          sku: updatedRow?.sku,
+          name: updatedRow?.name,
+          type: 'ADJUST',
+          qtyChange: qtyDelta,
+          unitCost: nextCost,
+          totalValue: qtyDelta * nextCost,
+          refId: opId,
+          operator: patch.operator || null,
+        });
+      }
+
+      const response = updatedRow || { success: true };
+      await idempotencyRepo.markDone(tx, { operationId: opId, response });
+
+      logInventoryEvent({
+        event: 'inventory.update.success',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        inventoryId: rowId,
+        sku: updatedRow?.sku,
+        action: 'ADJUST',
+        delta: qtyDelta,
+      });
+
+      await logInventoryWriteMetric(tx, {
+        event: 'inventory.update.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: false,
+        status: 'success',
+      });
+
+      return response;
+    } catch (err) {
+      logInventoryEvent({
+        event: 'inventory.update.error',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        inventoryId: rowId,
+        sku: existing?.sku,
+        action: 'ADJUST',
+        delta: qtyDelta,
+        error: errorCode(err),
+      });
+      throw err;
+    }
+  });
+}
+
+/**
+ * @param {ApplyInventoryBatchInput} params
+ * @returns {Promise<unknown>}
+ */
+async function applyInventoryBatch({ pool, operationId, items, endpoint, requestId }: ApplyInventoryBatchInput) {
+  const opId = asNonEmptyString(operationId);
+  if (!opId) {
+    throw new AppError({
+      code: 'INVALID_ARGUMENT',
+      httpStatus: 400,
+      retryable: false,
+      message: 'operationId is required',
+      details: { field: 'operationId' },
+    });
+  }
+
+  if (!Array.isArray(items)) {
+    throw new AppError({
+      code: 'INVALID_ARGUMENT',
+      httpStatus: 400,
+      retryable: false,
+      message: 'items must be an array',
+      details: { field: 'items' },
+    });
+  }
+
+  const batchItems = items as InventoryBatchItem[];
+  const endpointSafe = asNonEmptyString(endpoint);
+  const startMs = Date.now();
+
+  return withTransaction(pool, async (tx) => {
+    const idem = await idempotencyRepo.beginOperation(tx, { operationId: opId, endpoint: endpointSafe });
+    if (idem.state === 'DONE') {
+      await logInventoryWriteMetric(tx, {
+        event: 'inventory.batch.metrics',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        durationMs: Date.now() - startMs,
+        idempotencyHit: true,
+        status: 'success',
+      });
+      return idem.response;
+    }
+    if (idem.state === 'IN_PROGRESS') {
+      throw new AppError({
+        code: 'OPERATION_IN_PROGRESS',
+        httpStatus: 409,
+        retryable: true,
+        message: 'Operation is already in progress',
+        details: { operationId: opId },
+      });
+    }
+
+    const seen = new Set<string>();
+    const sortedItems = batchItems
+      .slice()
+      .sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || '')));
+
+    const updatedIds: string[] = [];
+
+    for (const item of sortedItems) {
+      const id = asNonEmptyString(item?.id);
+      if (!id) {
+        throw new AppError({
+          code: 'INVALID_ARGUMENT',
+          httpStatus: 400,
+          retryable: false,
+          message: 'inventory item id is required',
+          details: { field: 'id' },
+        });
+      }
+
+      if (seen.has(id)) {
+        throw new AppError({
+          code: 'INVALID_ARGUMENT',
+          httpStatus: 400,
+          retryable: false,
+          message: 'duplicate inventory id in batch',
+          details: { id },
+        });
+      }
+      seen.add(id);
+
+      if (!Object.prototype.hasOwnProperty.call(item, 'qtyDelta')) {
+        throw new AppError({
+          code: 'INVALID_ARGUMENT',
+          httpStatus: 400,
+          retryable: false,
+          message: 'qtyDelta is required',
+          details: { field: 'qtyDelta', id },
+        });
+      }
+
+      const qtyDelta = requireInt(item.qtyDelta, 'qtyDelta');
+      const reason = normalizeReason(item.reason, qtyDelta);
+
+      const hasUnitCost = Object.prototype.hasOwnProperty.call(item, 'unitCost');
+      if (!hasUnitCost && qtyDelta > 0) {
+        throw new AppError({
+          code: 'INVALID_ARGUMENT',
+          httpStatus: 400,
+          retryable: false,
+          message: 'unitCost is required for receive',
+          details: { field: 'unitCost', id },
+        });
+      }
+
+      logInventoryEvent({
+        event: 'inventory.batch.start',
+        requestId,
+        operationId: opId,
+        endpoint: endpointSafe,
+        inventoryId: id,
+        sku: item?.sku,
+        action: reason,
+        delta: qtyDelta,
+      });
+
+      try {
+        const existing = (await inventoryRepo.getForUpdateById(tx, id)) as InventoryRow | null;
+        if (!existing && qtyDelta < 0) {
+          throw new AppError({
+            code: 'INVENTORY_INSUFFICIENT',
+            httpStatus: 409,
+            retryable: false,
+            message: 'Not enough stock',
+            details: { id, available: 0, requested: qtyDelta },
+          });
+        }
+
+        const prevQty = Number(existing?.quantity ?? 0);
+        const prevCost = Number(existing?.cost ?? 0);
+        const unitCost = hasUnitCost ? requireNumber(item.unitCost, 'unitCost') : prevCost;
+
+        const newQty = prevQty + qtyDelta;
+        if (newQty < 0) {
+          throw new AppError({
+            code: 'INVENTORY_INSUFFICIENT',
+            httpStatus: 409,
+            retryable: false,
+            message: 'Not enough stock',
+            details: { id, available: prevQty, requested: qtyDelta },
+          });
+        }
+
+        const currentTotalVal = prevQty * prevCost;
+        const incomingTotalVal = qtyDelta * unitCost;
+        let newAvgCost = prevCost;
+        if (reason === 'RECEIVE' || reason === 'CONSUME') {
+          const wac =
+            newQty > 0 ? (currentTotalVal + incomingTotalVal) / newQty : 0;
+          newAvgCost = Math.max(0, wac);
+        } else if (reason === 'ADJUST') {
+          newAvgCost = hasUnitCost ? unitCost : prevCost;
+        }
+
+        const nextRow = {
+          id,
+          category: item.category ?? existing?.category ?? null,
+          name: item.name ?? existing?.name ?? null,
+          keyword: item.keyword ?? existing?.keyword ?? null,
+          sku: item.sku ?? existing?.sku ?? null,
+          quantity: newQty,
+          cost: roundMoney(newAvgCost),
+          price: item.price ?? existing?.price ?? 0,
+          location: item.location ?? existing?.location ?? null,
+          status: item.status ?? existing?.status ?? 'In Stock',
+          notes: item.notes ?? existing?.notes ?? null,
+          metadata: item.metadata ?? existing?.metadata ?? {},
+        };
+
+        if (existing) {
+          await inventoryRepo.update(tx, id, nextRow);
+        } else {
+          await inventoryRepo.insert(tx, nextRow);
+        }
+
+        const movementId = movementOperationId(opId, id);
+        await movementRepo.insert(tx, {
+          inventoryId: id,
+          qtyDelta,
+          reason,
+          unitCost: reason === 'RECEIVE' || reason === 'ADJUST' ? unitCost : null,
+          unitCostUsed: reason === 'CONSUME' ? unitCost : null,
+          refType: 'BATCH',
+          refId: opId,
+          onHandAfter: newQty,
+          avgCostAfter: roundMoney(newAvgCost),
+          requestId,
+          operationId: movementId,
+        });
+
+        await auditLogRepo.insert(tx, {
+          id: crypto.randomUUID(),
+          sku: nextRow.sku,
+          name: nextRow.name,
+          type: reason,
+          qtyChange: qtyDelta,
+          unitCost: unitCost,
+          totalValue: incomingTotalVal,
+          refId: opId,
+          operator: item.operator || null,
+        });
+
+        updatedIds.push(id);
+
+        logInventoryEvent({
+          event: 'inventory.batch.success',
+          requestId,
+          operationId: opId,
+          endpoint: endpointSafe,
+          inventoryId: id,
+          sku: nextRow.sku,
+          action: reason,
+          delta: qtyDelta,
+        });
+      } catch (err) {
+        logInventoryEvent({
+          event: 'inventory.batch.error',
+          requestId,
+          operationId: opId,
+          endpoint: endpointSafe,
+          inventoryId: id,
+          sku: item?.sku,
+          action: reason,
+          delta: qtyDelta,
+          error: errorCode(err),
+        });
+        throw err;
+      }
+    }
+
+    const response = { success: true, updatedIds };
+    await idempotencyRepo.markDone(tx, { operationId: opId, response });
+    await logInventoryWriteMetric(tx, {
+      event: 'inventory.batch.metrics',
+      requestId,
+      operationId: opId,
+      endpoint: endpointSafe,
+      durationMs: Date.now() - startMs,
+      idempotencyHit: false,
+      status: 'success',
+    });
+    return response;
+  });
+}
+
+export { applyInventoryBatch, updateInventoryItem };

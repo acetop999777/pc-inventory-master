@@ -7,6 +7,7 @@ export type SaveKeyStatus = {
   inFlight: boolean;
   hasError: boolean;
   lastError?: unknown;
+  lastErrorKind?: 'retryable' | 'non-retryable' | null;
   updatedAt: number;
 };
 
@@ -31,7 +32,7 @@ export type EnqueueRequest<P> = {
   label?: string;
   patch: P;
   merge: (prev: P, next: P) => P;
-  write: (patch: P) => Promise<void>;
+  write: (patch: P, ctx: { operationId: string }) => Promise<void>;
   debounceMs?: number;
 };
 
@@ -39,13 +40,18 @@ type KeyState<P> = {
   key: SaveKey;
   label?: string;
   patch?: P;
-  write?: (patch: P) => Promise<void>;
+  pendingOperationId?: string | null;
+  inFlightOperationId?: string | null;
+  write?: (patch: P, ctx: { operationId: string }) => Promise<void>;
   merge?: (prev: P, next: P) => P;
   debounceMs: number;
 
-  timer: any;
+  timer: ReturnType<typeof setTimeout> | null;
+  retryTimer: ReturnType<typeof setTimeout> | null;
+  retryCount: number;
   inFlight: Promise<void> | null;
   lastError: unknown;
+  lastErrorKind: 'retryable' | 'non-retryable' | null;
   updatedAt: number;
 
   waiters: Set<Deferred<void>>;
@@ -59,7 +65,7 @@ export type SaveQueueSnapshot = {
 };
 
 export class SaveQueue {
-  private states = new Map<SaveKey, KeyState<any>>();
+  private states = new Map<SaveKey, KeyState<unknown>>();
   private listeners = new Set<() => void>();
 
   // IMPORTANT for useSyncExternalStore:
@@ -90,6 +96,52 @@ export class SaveQueue {
     this.listeners.forEach((cb) => cb());
   }
 
+  private isRetryableError(err: unknown): boolean {
+    const errObj = err as
+      | { retryable?: unknown; retriable?: unknown; status?: unknown; httpStatus?: unknown }
+      | null
+      | undefined;
+    if (typeof errObj?.retryable === 'boolean') return errObj.retryable;
+    if (typeof errObj?.retriable === 'boolean') return errObj.retriable;
+    const status = errObj?.status ?? errObj?.httpStatus;
+    if (typeof status === 'number') return status >= 500 || status === 429 || status === 408;
+    return true;
+  }
+
+  private classifyError(err: unknown): 'retryable' | 'non-retryable' {
+    return this.isRetryableError(err) ? 'retryable' : 'non-retryable';
+  }
+
+  private logWriteError(key: SaveKey, st: KeyState<unknown>, operationId: string, err: unknown) {
+    const kind = this.classifyError(err);
+    const message =
+      typeof (err as { userMessage?: unknown })?.userMessage === 'string'
+        ? String((err as { userMessage?: unknown }).userMessage)
+        : typeof (err as { message?: unknown })?.message === 'string'
+          ? String((err as { message?: unknown }).message)
+          : 'SaveQueue write failed';
+
+    console.warn(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        scope: 'savequeue',
+        event: 'savequeue.write.error',
+        key,
+        label: st.label ?? null,
+        operationId,
+        retryable: kind === 'retryable',
+        message,
+        retryCount: st.retryCount,
+      }),
+    );
+  }
+
+  private makeOperationId(): string {
+    const cryptoObj = globalThis.crypto;
+    if (cryptoObj && typeof cryptoObj.randomUUID === 'function') return cryptoObj.randomUUID();
+    return `op_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
+
   private computeSnapshot(): SaveQueueSnapshot {
     const keys: SaveKeyStatus[] = [];
     let pendingCount = 0;
@@ -113,6 +165,7 @@ export class SaveQueue {
         inFlight,
         hasError,
         lastError: st.lastError,
+        lastErrorKind: st.lastErrorKind,
         updatedAt: st.updatedAt,
       });
     });
@@ -131,7 +184,9 @@ export class SaveQueue {
 
   getKeyStatus(key: SaveKey): SaveKeyStatus {
     const st = this.states.get(key);
-    if (!st) return { key, pending: false, inFlight: false, hasError: false, updatedAt: 0 };
+    if (!st) {
+      return { key, pending: false, inFlight: false, hasError: false, lastErrorKind: null, updatedAt: 0 };
+    }
     return {
       key,
       label: st.label,
@@ -139,6 +194,7 @@ export class SaveQueue {
       inFlight: !!st.inFlight,
       hasError: st.lastError != null,
       lastError: st.lastError,
+      lastErrorKind: st.lastErrorKind,
       updatedAt: st.updatedAt,
     };
   }
@@ -152,22 +208,28 @@ export class SaveQueue {
         key: req.key,
         label: req.label,
         patch: req.patch,
+        pendingOperationId: null,
+        inFlightOperationId: null,
         write: req.write,
         merge: req.merge,
         debounceMs: req.debounceMs ?? 500,
         timer: null,
+        retryTimer: null,
+        retryCount: 0,
         inFlight: null,
         lastError: null,
+        lastErrorKind: null,
         updatedAt: now,
         waiters: new Set(),
       };
-      this.states.set(req.key, st);
+      this.states.set(req.key, st as KeyState<unknown>);
     } else {
       st.label = req.label ?? st.label;
       st.write = req.write;
       st.merge = req.merge;
       st.debounceMs = req.debounceMs ?? st.debounceMs;
       st.patch = st.patch === undefined ? req.patch : st.merge!(st.patch, req.patch);
+      st.pendingOperationId = null;
       st.updatedAt = now;
     }
 
@@ -182,9 +244,9 @@ export class SaveQueue {
     return waiter.promise;
   }
 
-  private schedule(key: SaveKey, st: KeyState<any>) {
-    // Phase7.3: hold patches while error (no auto-flush; user must Retry).
-    if (st.lastError != null) {
+  private schedule<P>(key: SaveKey, st: KeyState<P>) {
+    // Hold patches while non-retryable error (user must fix inputs / retry).
+    if (st.lastError != null && !this.isRetryableError(st.lastError)) {
       this.emit();
       return;
     }
@@ -207,6 +269,11 @@ export class SaveQueue {
       }
     }
 
+    if (st.retryTimer) {
+      clearTimeout(st.retryTimer);
+      st.retryTimer = null;
+    }
+
     if (st.patch === undefined) {
       this.resolveIfIdle(st);
       this.emit();
@@ -214,27 +281,56 @@ export class SaveQueue {
     }
 
     const patch = st.patch;
+    const operationId = st.pendingOperationId || this.makeOperationId();
     st.patch = undefined;
+    st.pendingOperationId = null;
+    st.inFlightOperationId = operationId;
 
     const write = st.write;
     if (!write) {
       st.lastError = new Error('SaveQueue missing writer');
+      st.lastErrorKind = 'non-retryable';
+      this.logWriteError(key, st as KeyState<unknown>, operationId, st.lastError);
       st.patch = patch;
       this.emit();
       return;
     }
 
     const run = async () => {
-      await write(patch);
+      await write(patch, { operationId });
     };
 
     const p = run()
       .then(() => {
         st.lastError = null;
+        st.lastErrorKind = null;
+        st.retryCount = 0;
+        st.inFlightOperationId = null;
       })
       .catch((e) => {
         st.lastError = e;
-        st.patch = st.patch === undefined ? patch : st.merge ? st.merge(st.patch, patch) : st.patch;
+        st.lastErrorKind = this.classifyError(e);
+        const hadPending = st.patch !== undefined;
+        if (hadPending) {
+          st.patch = st.merge ? st.merge(st.patch, patch) : st.patch;
+          st.pendingOperationId = null;
+        } else {
+          st.patch = patch;
+          st.pendingOperationId = st.inFlightOperationId || null;
+        }
+        st.inFlightOperationId = null;
+
+        this.logWriteError(key, st as KeyState<unknown>, operationId, e);
+
+        if (this.isRetryableError(e)) {
+          const delay = Math.min(1000 * 2 ** st.retryCount, 15000);
+          st.retryCount += 1;
+          if (st.retryTimer) clearTimeout(st.retryTimer);
+          st.retryTimer = setTimeout(() => {
+            st.retryTimer = null;
+            void this.flushKey(key);
+          }, delay);
+        }
       })
       .finally(async () => {
         st.inFlight = null;
@@ -296,10 +392,32 @@ export class SaveQueue {
     if (!st) return;
     if (st.timer) clearTimeout(st.timer);
     st.timer = null;
+    if (st.retryTimer) clearTimeout(st.retryTimer);
+    st.retryTimer = null;
     void this.flushKey(key);
   }
 
-  private resolveIfIdle(st: KeyState<any>) {
+  dismissKey(key: SaveKey) {
+    const st = this.states.get(key);
+    if (!st) return;
+    if (st.timer) clearTimeout(st.timer);
+    st.timer = null;
+    if (st.retryTimer) clearTimeout(st.retryTimer);
+    st.retryTimer = null;
+    st.patch = undefined;
+    st.lastError = null;
+    st.lastErrorKind = null;
+    st.pendingOperationId = null;
+    st.inFlightOperationId = null;
+    if (!st.inFlight) {
+      st.waiters.forEach((w) => w.resolve());
+      st.waiters.clear();
+      this.states.delete(key);
+    }
+    this.emit();
+  }
+
+  private resolveIfIdle<P>(st: KeyState<P>) {
     const idle = st.patch === undefined && !st.inFlight;
     if (!idle) return;
     if (st.waiters.size === 0) return;

@@ -1,0 +1,304 @@
+import React from 'react';
+import { Trash2, Archive } from 'lucide-react';
+import type { ClientRowProps } from '../types';
+import { calculateFinancials } from '../../../domain/client';
+import { formatDateShort, formatDateYMD, formatMoney } from '../../../shared/lib/format';
+import { Button } from '../../../shared/ui';
+
+function norm(v: unknown) {
+  return String(v ?? '').trim().toLowerCase();
+}
+
+const formatMoneyRounded = (n: number | undefined) =>
+  formatMoney(n, { maximumFractionDigits: 0 });
+
+function StatusPill({ status }: { status?: string }) {
+  const s = norm(status);
+  const label = String(status ?? '').trim() || '—';
+
+  const cls =
+    s === 'pending'
+      ? 'bg-amber-50 text-amber-700 ring-amber-200'
+      : s === 'deposit'
+        ? 'bg-sky-50 text-sky-700 ring-sky-200'
+        : s === 'building'
+          ? 'bg-violet-50 text-violet-700 ring-violet-200'
+          : s === 'ready'
+            ? 'bg-teal-50 text-teal-700 ring-teal-200'
+            : s === 'delivered'
+              ? 'bg-slate-100 text-slate-600 ring-slate-200'
+              : 'bg-slate-50 text-slate-700 ring-slate-200';
+
+  return (
+    <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1', cls].join(' ')}>
+      {label}
+    </span>
+  );
+}
+
+function computeTotals(client: ClientRowProps['client']) {
+  const fin = calculateFinancials(client);
+
+  const due = Number(fin.balanceDue ?? 0);
+  const profit = Number(fin.profit ?? 0);
+
+  const paid = Number(client.paidAmount ?? 0) || 0;
+  const totalCandidate = Number(client.totalPrice ?? 0) || 0;
+
+  // Fix: total should never be 0 when due > 0 (your data shows that case)
+  let total = totalCandidate;
+  if (!Number.isFinite(total) || total <= 0) total = due > 0 ? due + paid : 0;
+  if (due > 0 && total > 0 && due > total) total = due + paid > 0 ? due + paid : due;
+  if (!Number.isFinite(total) || total <= 0) total = due;
+
+  return { total, due, profit };
+}
+
+export const ClientRow: React.FC<ClientRowProps> = ({
+  client,
+  archived,
+  active,
+  onSelect,
+  onDelete,
+  onArchive,
+}) => {
+  // ✅ no realName, no wechatId
+  const name = String(client.wechatName ?? '').trim() || String(client.id);
+
+  const orderDate = formatDateYMD(client.orderDate) || '—';
+  const deliveryDate = formatDateYMD(client.deliveryDate) || '—';
+
+  const deliveredShort = archived
+    ? formatDateShort(client.deliveryDate ?? client.orderDate) || null
+    : null;
+
+  const { total, due, profit } = computeTotals(client);
+
+  return (
+    <div
+      className={[
+        'group',
+        'transition-colors',
+        'border border-slate-200 rounded-2xl bg-white shadow-sm',
+        'md:rounded-none md:border-0 md:border-t md:border-slate-100 md:first:border-t-0 md:shadow-none',
+        active
+          ? 'ring-2 ring-sky-200 md:ring-0 md:bg-sky-50/60'
+          : 'md:hover:bg-slate-50',
+      ].join(' ')}
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect?.();
+        }
+      }}
+    >
+      <div className="md:hidden p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Client
+            </div>
+            <div className="mt-1 text-base font-black text-slate-900 truncate">{name}</div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <StatusPill status={client.status} />
+            {deliveredShort ? (
+              <span className="text-[10px] font-semibold text-slate-400">
+                Delivered {deliveredShort}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Order
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-700 tabular-nums">
+              {orderDate}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Delivery
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-700 tabular-nums">
+              {deliveryDate}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2 tabular-nums">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Total
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {formatMoneyRounded(total)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-sky-200/70 bg-sky-50 px-3 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-sky-400">
+              Due
+            </div>
+            <div className="mt-1 text-sm font-semibold text-sky-700">
+              {formatMoneyRounded(due)}
+            </div>
+          </div>
+          <div
+            className={[
+              'rounded-xl border px-3 py-2',
+              profit >= 0
+                ? 'border-emerald-200/60 bg-emerald-50/60 text-emerald-700'
+                : 'border-rose-200/60 bg-rose-50 text-rose-700',
+            ].join(' ')}
+          >
+            <div className="text-[9px] font-black uppercase tracking-widest">Profit</div>
+            <div className="mt-1 text-sm font-semibold">{formatMoneyRounded(profit)}</div>
+          </div>
+        </div>
+
+        {(onArchive || onDelete) && (
+          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Tap to open
+            </span>
+            <div className="flex items-center gap-2">
+              {onArchive ? (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchive(e);
+                  }}
+                  title="Archive"
+                  size="icon"
+                  className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm"
+                >
+                  <Archive size={15} className="mx-auto" />
+                  <span className="sr-only">Archive</span>
+                </Button>
+              ) : null}
+              {onDelete ? (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(e);
+                  }}
+                  title="Delete"
+                  size="icon"
+                  className="h-9 w-9 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm"
+                >
+                  <Trash2 size={15} className="mx-auto" />
+                  <span className="sr-only">Delete</span>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="hidden md:grid grid-cols-12 gap-3 items-center px-5 py-3">
+        {/* Client */}
+        <div className="col-span-3 min-w-0">
+          <div className="text-[13px] font-semibold text-slate-900 truncate leading-5 tracking-tight">
+            {name}
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="col-span-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <StatusPill status={client.status} />
+            {deliveredShort ? (
+              <span className="text-[11px] font-semibold text-slate-400 truncate">
+                Delivered {deliveredShort}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Order + Delivery */}
+        <div className="col-span-4 grid grid-cols-2 gap-1 tabular-nums text-[12px] font-semibold text-slate-700">
+          <div>{orderDate}</div>
+          <div>{deliveryDate}</div>
+        </div>
+
+        {/* Financials + Actions */}
+        <div className="col-span-3 flex items-center justify-end gap-2">
+          <div className="inline-flex items-center gap-2 tabular-nums whitespace-nowrap">
+            <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-slate-50 border border-slate-200/70">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Total
+              </span>
+              <span className="text-[12px] font-semibold text-slate-900">
+                {formatMoneyRounded(total)}
+              </span>
+            </span>
+            <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-sky-50 border border-sky-200/60">
+              <span className="text-[9px] font-black uppercase tracking-widest text-sky-400">
+                Due
+              </span>
+              <span className="text-[12px] font-semibold text-sky-700">
+                {formatMoneyRounded(due)}
+              </span>
+            </span>
+            <span className="inline-flex items-baseline justify-between gap-2 w-[120px] px-2 py-1 rounded-xl bg-emerald-50/60 border border-emerald-200/50">
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">
+                Profit
+              </span>
+              <span
+                className={[
+                  'text-[12px] font-semibold',
+                  profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
+                ].join(' ')}
+              >
+                {formatMoneyRounded(profit)}
+              </span>
+            </span>
+          </div>
+
+          {/* icon-only actions, only-on-hover (desktop) */}
+          <div
+            className={[
+              'flex items-center gap-1',
+              'opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
+              'transition-opacity',
+            ].join(' ')}
+          >
+            {onArchive ? (
+              <Button
+                type="button"
+                onClick={onArchive}
+                title="Archive"
+                size="icon"
+                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600"
+              >
+                <Archive size={15} />
+                <span className="sr-only">Archive</span>
+              </Button>
+            ) : null}
+
+            {onDelete ? (
+              <Button
+                type="button"
+                onClick={onDelete}
+                title="Delete"
+                size="icon"
+                className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-700"
+              >
+                <Trash2 size={15} />
+                <span className="sr-only">Delete</span>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

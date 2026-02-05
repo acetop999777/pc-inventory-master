@@ -3,7 +3,11 @@ set -euo pipefail
 
 echo "[sanity] scanning for shell/paste pollution inside TS/TSX..."
 
-files="$(git ls-files -- 'client/src/**/*.ts' 'client/src/**/*.tsx' 2>/dev/null || true)"
+if command -v rg >/dev/null 2>&1; then
+  files="$(rg --files -g 'client/src/**/*.ts' -g 'client/src/**/*.tsx' 2>/dev/null || true)"
+else
+  files="$(find client/src -type f \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null || true)"
+fi
 if [ -z "${files}" ]; then
   echo "[sanity] no TS/TSX files found; skip"
   echo "✅ [sanity] ok"

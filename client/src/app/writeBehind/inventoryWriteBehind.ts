@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { apiCallOrThrow } from '../../utils';
-import { InventoryItem } from '../../types';
-import { inventoryQueryKey, normalizeInventoryRow } from '../queries/inventory';
+import { api } from '../../shared/api/http';
+import { InventoryItem } from '../../domain/inventory/inventory.types';
+import { inventoryQueryKey } from '../queries/inventory';
+import { decodeInventoryDeleteResponse, decodeInventoryUpdateResponse } from '../../shared/api/decoders';
 import { useSaveQueue } from '../saveQueue/SaveQueueProvider';
 
 type InventoryWrite = { op: 'patch'; fields: Partial<InventoryItem> } | { op: 'delete' };
@@ -12,7 +13,7 @@ function mergeInventoryWrite(a: InventoryWrite, b: InventoryWrite): InventoryWri
 }
 
 function coerceFields(fields: Partial<InventoryItem>): Partial<InventoryItem> {
-  const f: any = { ...fields };
+  const f: Partial<InventoryItem> = { ...fields };
   if (Object.prototype.hasOwnProperty.call(f, 'cost')) f.cost = Number(f.cost ?? 0);
   if (Object.prototype.hasOwnProperty.call(f, 'quantity')) f.quantity = Number(f.quantity ?? 0);
   return f;
@@ -43,17 +44,24 @@ export function useInventoryWriteBehind() {
       label: 'Inventory',
       patch: { op: 'patch', fields: coerceFields(fields) },
       merge: mergeInventoryWrite,
-      write: async (w) => {
+      write: async (w, ctx) => {
         if (w.op === 'delete') {
-          await apiCallOrThrow(`/inventory/${id}`, 'DELETE');
+          const url = `/inventory/${id}`;
+          const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+          decodeInventoryDeleteResponse(url, raw, 'DELETE');
           return;
         }
-        const updatedRow = await apiCallOrThrow<any>(`/inventory/${id}`, 'PUT', w.fields);
-        const normalized = normalizeInventoryRow(updatedRow);
-
-        qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
-          old.map((it) => (it.id === id ? { ...it, ...normalized } : it)),
-        );
+        const url = `/inventory/${id}`;
+        const updatedRaw = await api.put<unknown>(url, {
+          ...w.fields,
+          operationId: ctx.operationId,
+        });
+        const normalized = decodeInventoryUpdateResponse(url, updatedRaw, 'PUT');
+        if (normalized) {
+          qc.setQueryData<InventoryItem[]>(inventoryQueryKey, (old = []) =>
+            old.map((it) => (it.id === id ? { ...it, ...normalized } : it)),
+          );
+        }
       },
       debounceMs: 500,
     });
@@ -66,8 +74,10 @@ export function useInventoryWriteBehind() {
       label: 'Inventory',
       patch: { op: 'delete' },
       merge: mergeInventoryWrite,
-      write: async () => {
-        await apiCallOrThrow(`/inventory/${id}`, 'DELETE');
+      write: async (_w, ctx) => {
+        const url = `/inventory/${id}`;
+        const raw = await api.delete<unknown>(url, { operationId: ctx.operationId });
+        decodeInventoryDeleteResponse(url, raw, 'DELETE');
       },
       debounceMs: 0,
     });
