@@ -792,6 +792,9 @@ export const parseNeweggText = (text: string, inventory: InventoryItem[]): Parse
 
 export const parseMicroCenterText = (text: string, inventory: InventoryItem[]): ParsedInbound => {
   try {
+    if (/newegg/i.test(text)) {
+      return { items: [], msg: 'No items found', type: 'error', orderedAt: null, detected: false };
+    }
     const lines = text
       .split('\n')
       .map((l) => normalizeReceiptLine(l))

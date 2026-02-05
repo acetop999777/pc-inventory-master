@@ -225,6 +225,20 @@ export default function ReceiptCreate() {
     const text = inputText.trim();
     if (!text) return;
 
+    const looksLikeNewegg = /newegg/i.test(text);
+    if (looksLikeNewegg || /order\s+summary|order\s+date|item\s*#\s*:|sold and shipped/i.test(text)) {
+      const parsed = parseNeweggText(text, inventory);
+      if (parsed.orderedAt) setReceivedAt(toLocalInput(parsed.orderedAt));
+      if (parsed.items.length === 0) {
+        await alert({ title: 'Parse Failed', message: parsed.msg });
+        return;
+      }
+      setVendor((prev) => (prev.trim() ? prev : 'Newegg'));
+      setMode('SUMMARY');
+      setLines(itemsFromStaged(parsed.items));
+      return;
+    }
+
     const parsedMicroCenter = parseMicroCenterText(text, inventory);
     if (parsedMicroCenter.items.length > 0) {
       if (parsedMicroCenter.orderedAt) setReceivedAt(toLocalInput(parsedMicroCenter.orderedAt));
@@ -235,19 +249,6 @@ export default function ReceiptCreate() {
     }
     if (parsedMicroCenter.detected) {
       await alert({ title: 'Parse Failed', message: parsedMicroCenter.msg });
-      return;
-    }
-
-    if (/order\s+summary|order\s+date|item\s+#:/i.test(text)) {
-      const parsed = parseNeweggText(text, inventory);
-      if (parsed.orderedAt) setReceivedAt(toLocalInput(parsed.orderedAt));
-      if (parsed.items.length === 0) {
-        await alert({ title: 'Parse Failed', message: parsed.msg });
-        return;
-      }
-      setVendor((prev) => (prev.trim() ? prev : 'Newegg'));
-      setMode('SUMMARY');
-      setLines(itemsFromStaged(parsed.items));
       return;
     }
 
