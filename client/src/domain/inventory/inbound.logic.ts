@@ -122,7 +122,8 @@ export function normalizeNeweggItem(value: unknown): string {
 }
 
 function extractNeweggItemNumber(line: string, nextLine?: string): string {
-  const direct = sanitizeNeweggItem(String(line || '').replace(/^Item\s*#:\s*/i, ''));
+  const cleanedLine = stripLeadingNonAlnum(String(line || ''));
+  const direct = sanitizeNeweggItem(cleanedLine.replace(/^Item\s*#\s*:?\s*/i, ''));
   if (direct) return direct;
   return sanitizeNeweggItem(nextLine);
 }
@@ -183,19 +184,29 @@ function mergeSerialMetadata(
 }
 
 function parseNeweggOrderDate(lines: string[]): string | null {
-  const idx = lines.findIndex((l) => l.toLowerCase() === 'order date:');
-  if (idx === -1 || idx + 1 >= lines.length) return null;
-  const raw = lines[idx + 1];
-  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+at\s+(\d{1,2}):(\d{2})(AM|PM)$/i);
+  const idx = lines.findIndex((l) => /order date/i.test(l));
+  if (idx === -1) return null;
+  let raw = lines[idx];
+  if (!/\d{1,2}\/\d{1,2}\/\d{4}/.test(raw) && idx + 1 < lines.length) {
+    raw = lines[idx + 1];
+  }
+  raw = raw.replace(/order date[:\s]*/i, '').trim();
+  const m = raw.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+at\s+(\d{1,2}):(\d{2})(AM|PM))?$/i,
+  );
   if (!m) return null;
   const month = Number(m[1]);
   const day = Number(m[2]);
   const year = Number(m[3]);
-  let hour = Number(m[4]);
-  const minute = Number(m[5]);
-  const mer = m[6].toUpperCase();
-  if (mer === 'PM' && hour < 12) hour += 12;
-  if (mer === 'AM' && hour === 12) hour = 0;
+  let hour = 0;
+  let minute = 0;
+  if (m[4] && m[5] && m[6]) {
+    hour = Number(m[4]);
+    minute = Number(m[5]);
+    const mer = m[6].toUpperCase();
+    if (mer === 'PM' && hour < 12) hour += 12;
+    if (mer === 'AM' && hour === 12) hour = 0;
+  }
   const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (Number.isNaN(dt.getTime())) return null;
   return dt.toISOString();
@@ -595,65 +606,141 @@ function parseMicroCenterSkuLabel(
 
 export const parseNeweggText = (text: string, inventory: InventoryItem[]): ParsedInbound => {
   try {
-    const lines = text
+    const baseLines = text
       .split('\n')
-      .map((l) => l.trim())
+      .map((l) => normalizeReceiptLine(l))
       .filter((l) => l.length > 0);
+    const hasInlineItem = baseLines.some((l) => /item\s*#\s*:?/i.test(l));
+    const lines = hasInlineItem
+      ? baseLines
+      : normalizeReceiptLine(text)
+          .replace(/(Item\s*#\s*:?\s*)/gi, '\n$1')
+          .replace(
+            /(Order\s+Summary|Order\s+Date|Order\s*#|Grand\s+Subtotal|Grand\s+Total|Total\s+Discount|Total\s+Tax|Total\s+Shipping|Discount\(s\)|Applied to Item)/gi,
+            '\n$1',
+          )
+          .split('\n')
+          .map((l) => normalizeReceiptLine(l))
+          .filter((l) => l.length > 0);
     const grandTotal = parseNeweggGrandTotal(lines);
     const items: StagedItem[] = [];
     const orderedAt = parseNeweggOrderDate(lines);
+    const isNoiseLine = (line: string) =>
+      /^(order\s+summary|order\s+date|order\s*#|order\s+\d+|sold and shipped|shipping|from\b|discount\(s\)|discount for|applied to item|grand subtotal|grand total|total discount|total tax|total shipping)/i.test(
+        line,
+      ) ||
+      /return policy|warranty/i.test(line) ||
+      /^\$?[\d,]+\.\d{2}$/.test(line) ||
+      /^\d+$/.test(line);
+
+    const extractQtyAndSubtotal = (startIndex: number): { qty: number; subtotal: number } => {
+      let qty = 1;
+      let subtotal = 0;
+      for (let j = 1; j <= 12; j++) {
+        const l = lines[startIndex + j];
+        if (!l) continue;
+        if (/^-\$/.test(l) || /discount/i.test(l)) continue;
+
+        let m = l.match(/^(\d+)\s+\$?([\d,]+\.\d{2})/);
+        if (m) {
+          qty = parseInt(m[1], 10);
+          subtotal = parseFloat(m[2].replace(/,/g, ''));
+          break;
+        }
+        m = l.match(/^\$?([\d,]+\.\d{2})\s*(?:x|\*)?\s*(\d+)$/i);
+        if (m) {
+          subtotal = parseFloat(m[1].replace(/,/g, ''));
+          qty = parseInt(m[2], 10);
+          break;
+        }
+        if (l.includes('ea.)')) {
+          const priceMatch = lines[startIndex + j - 1]?.match(/\$?([\d,]+\.\d{2})/);
+          if (priceMatch) subtotal = parseFloat(priceMatch[1].replace(/,/g, ''));
+          const qtyLine = lines[startIndex + j - 2];
+          if (qtyLine && /^\d+$/.test(qtyLine)) qty = parseInt(qtyLine, 10);
+          break;
+        }
+        if (l.startsWith('$') && !l.includes('ea.')) {
+          const possiblePrice = parseFloat(l.replace(/[$,]/g, ''));
+          const prevLine = lines[startIndex + j - 1];
+          if (/^\d+$/.test(prevLine)) {
+            qty = parseInt(prevLine, 10);
+            subtotal = possiblePrice;
+            break;
+          }
+        }
+        if (/^\d+$/.test(l)) {
+          const nextLine = lines[startIndex + j + 1];
+          if (nextLine && nextLine.startsWith('$')) {
+            qty = parseInt(l, 10);
+            subtotal = parseFloat(nextLine.replace(/[$,]/g, ''));
+            break;
+          }
+        }
+      }
+      return { qty, subtotal };
+    };
 
     for (let i = 0; i < lines.length; i++) {
-      if (/^Item\s*#:/i.test(lines[i])) {
+      const line = stripLeadingNonAlnum(lines[i]);
+      if (/applied to item/i.test(line)) continue;
+      if (/item\s*#\s*:?/i.test(line)) {
         // Name extraction
         let name = 'Unknown Item';
+        let nameIndex = -1;
+        let bestName = '';
+        let bestIndex = -1;
+        let scanned = 0;
         let k = i - 1;
-        while (k >= 0) {
-          const line = lines[k];
+        while (k >= 0 && scanned < 12) {
+          const rawLine = lines[k];
+          const cleanLine = stripLeadingNonAlnum(rawLine);
+          scanned += 1;
           if (
-            line.includes('Return Policy') ||
-            line.startsWith('COMBO') ||
-            line.includes('Free Gift') ||
-            line.includes('Warranty')
+            cleanLine.includes('Return Policy') ||
+            cleanLine.startsWith('COMBO') ||
+            cleanLine.includes('Free Gift') ||
+            cleanLine.includes('Warranty') ||
+            cleanLine.includes('Applied to Item') ||
+            cleanLine.includes('Discount')
           ) {
             k--;
             continue;
           }
-          name = line;
-          break;
-        }
-
-        const itemNumber = extractNeweggItemNumber(lines[i], lines[i + 1]);
-
-        // Qty & Price extraction
-        let qty = 1;
-        let subtotal = 0;
-        for (let j = 1; j < 8; j++) {
-          const l = lines[i + j];
-          if (!l) continue;
-          if (l.includes('ea.)')) {
-            const priceMatch = lines[i + j - 1].match(/\$?([\d,]+\.\d{2})/);
-            if (priceMatch) subtotal = parseFloat(priceMatch[1].replace(/,/g, ''));
-            const qtyLine = lines[i + j - 2];
-            if (qtyLine && /^\d+$/.test(qtyLine)) qty = parseInt(qtyLine);
+          if (isNoiseLine(cleanLine)) {
+            k--;
+            continue;
+          }
+          if (!bestName || cleanLine.length > bestName.length) {
+            bestName = cleanLine;
+            bestIndex = k;
+          }
+          if (!cleanLine.includes('...')) {
+            bestName = cleanLine;
+            bestIndex = k;
             break;
           }
-          if (l.startsWith('$') && !l.includes('ea.')) {
-            const possiblePrice = parseFloat(l.replace(/[$,]/g, ''));
-            const prevLine = lines[i + j - 1];
-            if (/^\d+$/.test(prevLine)) {
-              qty = parseInt(prevLine);
-              subtotal = possiblePrice;
-              break;
-            }
-          }
+          k--;
         }
+        if (bestName) {
+          name = bestName;
+          nameIndex = bestIndex;
+        }
+
+        const itemNumber = extractNeweggItemNumber(line, lines[i + 1]);
+
+        // Qty & Price extraction
+        const { qty, subtotal } = extractQtyAndSubtotal(i);
 
         const dbMatch = itemNumber
           ? findInventoryByNeweggItem(itemNumber, inventory)
           : findBestMatch(name, inventory);
         const autoCat = dbMatch?.category || guessCategory(name);
-        const isGift = lines.slice(Math.max(0, i - 6), i).some((l) => l.includes('Free Gift Item'));
+        const giftStart = Math.max(0, (nameIndex >= 0 ? nameIndex - 3 : i - 6));
+        const giftEnd = Math.min(lines.length, i + 3);
+        const isGift = lines
+          .slice(giftStart, giftEnd)
+          .some((l) => l.includes('Free Gift Item'));
 
         items.push({
           id: dbMatch?.id || generateId(),

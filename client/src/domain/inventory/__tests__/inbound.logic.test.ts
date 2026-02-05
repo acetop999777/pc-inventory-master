@@ -1,4 +1,4 @@
-import { parseMicroCenterText } from '../inbound.logic';
+import { parseMicroCenterText, parseNeweggText } from '../inbound.logic';
 import type { InventoryItem } from '../inventory.types';
 
 const microCenterReceipt = `
@@ -42,5 +42,92 @@ describe('parseMicroCenterText', () => {
     expect(second.qtyInput).toBe(1);
     expect(second.costInput).toBe(494.96);
     expect(second.metadata?.sn).toBe('253101023628');
+  });
+});
+
+const neweggOrder = `
+Order Summary
+Order Date:
+2/4/2026 at 07:22PM
+Order #:
+580047651
+Order 1Sold and Shipped by Newegg
+Shipping
+from CA, USA
+MSI MPG X870E CARBON WIFI AM5 AMD X870E ATX Motherboard
+COMBO #4853236
+
+MSI MPG X870E CARBON WIFI AM5 AMD X870E ATX Motherboard
+Item #: N82E16813144666
+
+30-Day Return Policy
+
+1
+$429.99
+Corsair M75 Wireless RGB Lightweight FPS Gaming Mouse – 26,000 DPI, Swappable Side Buttons, iCUE Compatible, PC – Black
+Free Gift Item
+
+Corsair M75 Wireless RGB Lightweight FPS Gaming Mouse – 26,000 DPI, Swappable Side Buttons, iCUE Compatible, PC – Black
+Item #: N82E16826816231
+
+30-Day Return Policy
+
+1
+$69.99
+AMD Ryzen 7 9850X3D - Ryzen 7 9000 Series 8-Core 5.6GHz - Socket AM5 120W - AMD Radeon Graphics Desktop Processor - 100-100001973WOF
+COMBO #4853236
+
+AMD Ryzen 7 9850X3D - Ryzen 7 9000 Series 8-Core 5.6GHz - Socket AM5 120W - AMD Radeon Graphics Desktop Processor - ...
+Item #: N82E16819113934
+
+30-Day Return Policy
+
+1
+$499.00
+Discount(s)
+DISCOUNT FOR AUTOADD: 420489
+Applied to Item(s) #: N82E16826816231, N82E16819113934
+
+1
+-$69.99
+DISCOUNT FOR COMBO: 4853236
+Applied to Item(s) #: N82E16819113934, N82E16813144666
+
+1
+-$279.00
+Grand Subtotal
+
+$649.99
+Total Discount(s)
+
+-$26.00
+Total Tax
+
+$0.00
+Total Shipping
+
+$0.00
+Grand Total
+
+$623.99
+`;
+
+describe('parseNeweggText', () => {
+  test('parses a Newegg order summary with free gift and discounts', () => {
+    const res = parseNeweggText(neweggOrder, [] as InventoryItem[]);
+    expect(res.items).toHaveLength(3);
+    expect(res.orderedAt?.startsWith('2026-02-04')).toBe(true);
+
+    const mb = res.items.find((item) => item.metadata?.neweggItem === 'N82E16813144666');
+    expect(mb?.name).toContain('MSI MPG X870E CARBON WIFI');
+    expect(mb?.qtyInput).toBe(1);
+
+    const mouse = res.items.find((item) => item.metadata?.neweggItem === 'N82E16826816231');
+    expect(mouse?.name).toContain('Corsair M75 Wireless');
+    expect(mouse?.isGift).toBe(true);
+
+    const cpu = res.items.find((item) => item.metadata?.neweggItem === 'N82E16819113934');
+    expect(cpu?.name).toContain('AMD Ryzen 7 9850X3D');
+    expect(cpu?.qtyInput).toBe(1);
   });
 });
