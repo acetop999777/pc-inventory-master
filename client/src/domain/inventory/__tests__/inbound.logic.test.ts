@@ -224,3 +224,84 @@ describe('parseNeweggText (split shipments)', () => {
     expect(cases?.name).toContain('Super Flower Zillion M705 Airflow');
   });
 });
+
+const neweggComboOrder = `
+Order Summary
+Order Date:
+2/5/2026 at 03:59PM
+Order #:
+568319852
+Order 1Sold and Shipped by Newegg
+Shipping
+from IN, USA
+Corsair M75 Wireless RGB Lightweight FPS Gaming Mouse – 26,000 DPI, Swappable Side Buttons, iCUE Compatible, PC – Black
+Free Gift Item
+
+Corsair M75 Wireless RGB Lightweight FPS Gaming Mouse – 26,000 DPI, Swappable Side Buttons, iCUE Compatible, PC – Black
+Item #: N82E16826816231
+
+30-Day Return Policy
+
+1
+$69.99
+GIGABYTE X870 GAMING X WIFI7 AM5 LGA 1718, ATX, DDR5, 4x M.2, PCIe 5.0, USB4, Wi-Fi 7, 2.5GbE LAN, EZ-Latch, 5-Year Warranty
+COMBO #4853232
+
+GIGABYTE X870 GAMING X WIFI7 AM5 LGA 1718, ATX, DDR5, 4x M.2, PCIe 5.0, USB4, Wi-Fi 7, 2.5GbE LAN, EZ-Latch, 5-Year ...
+Item #: N82E16813145520
+
+30-Day Return Policy
+
+1
+$219.99
+AMD Ryzen 7 9850X3D - Ryzen 7 9000 Series 8-Core 5.6GHz - Socket AM5 120W - AMD Radeon Graphics Desktop Processor - 100-100001973WOF
+COMBO #4853232
+
+AMD Ryzen 7 9850X3D - Ryzen 7 9000 Series 8-Core 5.6GHz - Socket AM5 120W - AMD Radeon Graphics Desktop Processor - ...
+Item #: N82E16819113934
+
+30-Day Return Policy
+
+1
+$499.00
+Discount(s)
+DISCOUNT FOR AUTOADD: 420489
+Applied to Item(s) #: N82E16826816231, N82E16819113934
+
+1
+-$69.99
+DISCOUNT FOR COMBO: 4853232
+Applied to Item(s) #: N82E16819113934, N82E16813145520
+
+1
+-$189.00
+Grand Subtotal
+
+$529.99
+Total Discount(s)
+
+-$21.20
+Total Tax
+
+$0.00
+Total Shipping
+
+$0.00
+Grand Total
+
+$508.79
+`;
+
+describe('parseNeweggText (combo items)', () => {
+  test('parses combo items including motherboard', () => {
+    const res = parseNeweggText(neweggComboOrder, [] as InventoryItem[]);
+    expect(res.items).toHaveLength(3);
+    const mb = res.items.find((item) => item.metadata?.neweggItem === 'N82E16813145520');
+    expect(mb?.name).toContain('GIGABYTE X870 GAMING X WIFI7');
+    expect(mb?.qtyInput).toBe(1);
+    const cpu = res.items.find((item) => item.metadata?.neweggItem === 'N82E16819113934');
+    expect(cpu?.name).toContain('AMD Ryzen 7 9850X3D');
+    const gift = res.items.find((item) => item.metadata?.neweggItem === 'N82E16826816231');
+    expect(gift?.isGift).toBe(true);
+  });
+});

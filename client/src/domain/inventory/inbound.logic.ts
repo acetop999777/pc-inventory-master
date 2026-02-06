@@ -700,14 +700,23 @@ export const parseNeweggText = (text: string, inventory: InventoryItem[]): Parse
         let bestName = '';
         let bestIndex = -1;
         let scanned = 0;
+        let prevItemIdx = -1;
+        for (let p = i - 1; p >= 0; p--) {
+          const prior = stripLeadingNonAlnum(lines[p]);
+          if (/item\s*#\s*:?/i.test(prior)) {
+            prevItemIdx = p;
+            break;
+          }
+        }
         let k = i - 1;
-        while (k >= 0 && scanned < 12) {
+        while (k > prevItemIdx && scanned < 12) {
           const rawLine = lines[k];
           const cleanLine = stripLeadingNonAlnum(rawLine);
           scanned += 1;
           if (
             cleanLine.includes('Return Policy') ||
             cleanLine.startsWith('COMBO') ||
+            /^Item\s*#\s*:?/i.test(cleanLine) ||
             cleanLine.includes('Free Gift') ||
             cleanLine.includes('Warranty') ||
             cleanLine.includes('Applied to Item') ||
